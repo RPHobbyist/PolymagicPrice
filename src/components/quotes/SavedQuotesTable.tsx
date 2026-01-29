@@ -27,7 +27,7 @@ import { PrintJobDialog } from "@/components/print-management/PrintJobDialog";
 import { QuoteData } from "@/types/quote";
 import { BambuDevice, PrinterConnection, PrintOptions } from "@/types/printer";
 import { toast } from "sonner";
-import ExcelJS from "exceljs";
+// import ExcelJS from "exceljs"; // Lazy loaded instead
 import { saveAs } from "file-saver";
 import { useCurrency } from "@/hooks/useCurrency";
 
@@ -153,6 +153,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
       return;
     }
 
+    const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Quotes");
 

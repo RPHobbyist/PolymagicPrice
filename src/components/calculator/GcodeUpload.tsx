@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileCode, Loader2 } from "lucide-react";
 import { ThumbnailPreview } from "@/components/shared/ThumbnailPreview";
 import { stripFileExtension } from "@/lib/utils";
-import { parseGcode, parse3mf, GcodeData } from "@/lib/parsers/gcodeParser";
+// import { parseGcode, parse3mf, GcodeData } from "@/lib/parsers/gcodeParser"; // Lazy loaded
+import { GcodeData } from "@/lib/parsers/gcodeParser"; // Type import is fine
 import { toast } from "sonner";
 
 interface GcodeUploadProps {
@@ -56,11 +57,13 @@ const GcodeUpload = ({ onDataExtracted }: GcodeUploadProps) => {
       let data: GcodeData;
 
       if (fileExtension === '.3mf') {
+        const { parse3mf } = await import("@/lib/parsers/gcodeParser");
         // Parse 3MF file (ZIP archive with XML metadata)
         data = await parse3mf(file);
       } else {
         // Parse G-code file
         const content = await file.text();
+        const { parseGcode } = await import("@/lib/parsers/gcodeParser");
         data = parseGcode(content);
       }
 

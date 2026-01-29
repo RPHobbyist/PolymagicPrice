@@ -315,14 +315,22 @@ All colors MUST be HSL.
 
   0%,
   100% {
-    box-shadow: 0 0 0 0 hsl(45 90% 60% / 0.4);
-    border-color: hsl(45 90% 60% / 0.5);
+    opacity: 1;
+    transform: scale(1);
   }
 
   50% {
-    box-shadow: 0 0 10px 2px hsl(45 90% 60% / 0.5);
-    border-color: hsl(45 90% 60% / 0.9);
+    opacity: 0.8;
+    transform: scale(0.98);
   }
+}
+
+/* Add a separate glow effect with pseudo-element if needed, or simplfy */
+.animate-breathe-yellow {
+  animation: breathe-yellow 2.5s ease-in-out infinite;
+  /* Add subtle shadow that doesn't animate to maintain look without cost */
+  box-shadow: 0 0 8px 1px hsl(45 90% 60% / 0.5);
+  border-color: hsl(45 90% 60% / 0.8);
 }
 
 @keyframes rainbow-shimmer {

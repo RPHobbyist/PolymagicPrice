@@ -19,7 +19,7 @@
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, FileBox, Loader2, CheckCircle2 } from "lucide-react";
-import { parse3mf } from "@/lib/parsers/gcodeParser";
+// import { parse3mf } from "@/lib/parsers/gcodeParser"; // Lazy loaded
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,7 @@ export const SurfaceAreaUpload = ({ onSurfaceAreaDetected, className }: SurfaceA
         setIsLoading(true);
 
         try {
+            const { parse3mf } = await import("@/lib/parsers/gcodeParser");
             const data = await parse3mf(file);
 
             if (data.surfaceAreaMm2 && data.surfaceAreaMm2 > 0) {
