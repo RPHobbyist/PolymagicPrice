@@ -217,8 +217,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Client">
+      <FormFieldRow label="Client" htmlFor="resin-client">
         <ClientSelector
+          id="resin-client"
           value={formData.customerId}
           onSelect={(customer) => {
             setFormData(prev => ({
@@ -389,14 +390,16 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
 
       <div className="pt-4 px-2 sm:px-4 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Post Processing</h3>
-          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 text-[10px] font-bold border border-blue-500/20">BETA</span>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Post Processing</h2>
+          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-500/20">BETA</span>
         </div>
 
-        <FormFieldRow label="Include Painting">
+        <FormFieldRow label="Include Painting" htmlFor="resin-include-painting">
           <div className="flex items-center h-10">
             <input
+              id="resin-include-painting"
               type="checkbox"
+              aria-label="Include Painting"
               className="w-5 h-5 rounded border-input bg-background"
               checked={isPaintingEnabled}
               onChange={(e) => {

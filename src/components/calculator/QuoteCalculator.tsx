@@ -51,8 +51,9 @@ export const QuoteCalculator = memo(({ loading, onCalculate, children, uploadSec
 
       <Button
         onClick={onCalculate}
-        className="w-full bg-accent hover:opacity-90 transition-all shadow-elevated hover:shadow-card text-accent-foreground font-semibold"
+        className="w-full font-bold shadow-elevated hover:shadow-card"
         size="lg"
+        variant="default"
       >
         <Calculator className="w-5 h-5 mr-2" />
         Calculate Quote

@@ -45,9 +45,10 @@ interface ClientSelectorProps {
     value?: string; // customerId
     onSelect: (customer: Customer | null) => void;
     className?: string;
+    id?: string;
 }
 
-export function ClientSelector({ value, onSelect, className }: ClientSelectorProps) {
+export function ClientSelector({ value, onSelect, className, id }: ClientSelectorProps) {
     const [open, setOpen] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [showAddDialog, setShowAddDialog] = useState(false);
@@ -87,9 +88,11 @@ export function ClientSelector({ value, onSelect, className }: ClientSelectorPro
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
+                        id={id}
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
+                        aria-label="Select Client"
                         className={cn("w-full justify-between", !value && "text-muted-foreground", className)}
                     >
                         {selectedCustomer ? (

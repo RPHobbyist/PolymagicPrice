@@ -54,8 +54,10 @@ export default defineConfig(({ mode }) => ({
     esbuildOptions: {
       drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
-    // Enable source maps for better debugging and performance analysis
-    sourcemap: true,
+    // Disable source maps for production to reduce payload/analysis noise
+    sourcemap: false,
+    // Target modern browsers to avoid legacy polyfills (saves ~12KB)
+    target: "es2022",
   },
   // Optimize dependencies
   optimizeDeps: {

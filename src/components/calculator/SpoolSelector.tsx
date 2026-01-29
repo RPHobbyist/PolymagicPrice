@@ -81,7 +81,7 @@ export function SpoolSelector({
     if (!materialId) {
         return (
             <Select disabled>
-                <SelectTrigger className="bg-muted/50">
+                <SelectTrigger id={id} className="bg-muted/50">
                     <SelectValue placeholder="Select material first" />
                 </SelectTrigger>
             </Select>
@@ -90,10 +90,14 @@ export function SpoolSelector({
 
     if (spools.length === 0) {
         return (
-            <div className="flex items-center gap-2 p-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md dark:bg-amber-950/30 dark:border-amber-800">
-                <Package className="w-4 h-4 shrink-0" />
-                <span>No {itemType}s in inventory. Add {itemType}s in <strong>Settings → Materials</strong>.</span>
-            </div>
+            <Select disabled>
+                <SelectTrigger id={id} className="bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/30 dark:border-amber-800">
+                    <div className="flex items-center gap-2 text-sm overflow-hidden">
+                        <Package className="w-4 h-4 shrink-0" />
+                        <span className="truncate">No {itemType}s. Add in Settings.</span>
+                    </div>
+                </SelectTrigger>
+            </Select>
         );
     }
 
