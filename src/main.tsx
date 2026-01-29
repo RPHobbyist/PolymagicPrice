@@ -21,6 +21,9 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+// Disable right-click context menu globally
+document.addEventListener('contextmenu', (event) => event.preventDefault());
+
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <App />

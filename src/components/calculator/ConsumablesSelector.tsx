@@ -104,12 +104,12 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
                                     onClick={() => handleToggle(item.id)}
                                 >
                                     <Checkbox
-                                        id={item.id}
+                                        id={`${id}-${item.id}`}
                                         checked={selectedIds.includes(item.id)}
                                         onCheckedChange={() => handleToggle(item.id)}
                                     />
                                     <Label
-                                        htmlFor={item.id}
+                                        htmlFor={`${id}-${item.id}`}
                                         className="flex-1 cursor-pointer flex justify-between items-center"
                                     >
                                         <span className="font-medium">{item.name}</span>

@@ -106,7 +106,7 @@ const Index = memo(() => {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
               <a href={SYSTEM_CONFIG.vendorLink} target="_blank" rel="noopener noreferrer" className="hover-lift flex-shrink-0">
-                <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} className="h-8 sm:h-10 md:h-12 w-auto object-contain" />
+                <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-8 sm:h-10 md:h-12 w-auto object-contain" />
               </a>
               <div className="text-center sm:text-left">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground tracking-tight">{SYSTEM_CONFIG.appName}</h1>

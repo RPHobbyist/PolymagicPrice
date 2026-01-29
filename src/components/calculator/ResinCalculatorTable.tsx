@@ -230,9 +230,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Material" htmlFor="material-id" required>
+      <FormFieldRow label="Material" htmlFor="resin-material-id" required>
         <SelectField
-          id="material-id"
+          id="resin-material-id"
           name="materialId"
           value={formData.materialId}
           onChange={(v) => {
@@ -246,9 +246,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" htmlFor="spool-selector" required>
+      <FormFieldRow label="Color" htmlFor="resin-spool-selector" required>
         <SpoolSelector
-          id="spool-selector"
+          id="resin-spool-selector"
           name="spoolId"
           materialId={formData.materialId}
           value={selectedSpoolId}
@@ -261,9 +261,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Machine" htmlFor="machine-id" required>
+      <FormFieldRow label="Machine" htmlFor="resin-machine-id" required>
         <SelectField
-          id="machine-id"
+          id="resin-machine-id"
           name="machineId"
           value={formData.machineId}
           onChange={(v) => updateField("machineId", v)}
@@ -272,18 +272,18 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Consumables" htmlFor="consumables-selector">
+      <FormFieldRow label="Consumables" htmlFor="resin-consumables-selector">
         <ConsumablesSelector
-          id="consumables-selector"
+          id="resin-consumables-selector"
           items={consumableItems}
           selectedIds={formData.selectedConsumableIds}
           onChange={handleConsumablesChange}
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Print Time (hours)" htmlFor="print-time" required>
+      <FormFieldRow label="Print Time (hours)" htmlFor="resin-print-time" required>
         <TextField
-          id="print-time"
+          id="resin-print-time"
           name="printTime"
           type="number"
           step="0.1"
@@ -339,9 +339,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Labor Hours" htmlFor="labor-hours">
+      <FormFieldRow label="Labor Hours" htmlFor="resin-labor-hours">
         <TextField
-          id="labor-hours"
+          id="resin-labor-hours"
           name="laborHours"
           type="number"
           step="0.1"
@@ -351,9 +351,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Overhead (%)" htmlFor="overhead-percentage">
+      <FormFieldRow label="Overhead (%)" htmlFor="resin-overhead-percentage">
         <TextField
-          id="overhead-percentage"
+          id="resin-overhead-percentage"
           name="overheadPercentage"
           type="number"
           step="0.1"

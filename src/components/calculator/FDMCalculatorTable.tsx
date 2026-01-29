@@ -301,9 +301,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Material" htmlFor="material-id" required>
+      <FormFieldRow label="Material" htmlFor="fdm-material-id" required>
         <SelectField
-          id="material-id"
+          id="fdm-material-id"
           name="materialId"
           value={formData.materialId}
           onChange={(v) => {
@@ -317,9 +317,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" htmlFor="spool-selector" required>
+      <FormFieldRow label="Color" htmlFor="fdm-spool-selector" required>
         <SpoolSelector
-          id="spool-selector"
+          id="fdm-spool-selector"
           name="spoolId"
           materialId={formData.materialId}
           value={selectedSpoolId}
@@ -331,9 +331,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Machine" htmlFor="machine-id" required>
+      <FormFieldRow label="Machine" htmlFor="fdm-machine-id" required>
         <SelectField
-          id="machine-id"
+          id="fdm-machine-id"
           name="machineId"
           value={formData.machineId}
           onChange={(v) => updateField("machineId", v)}
@@ -342,18 +342,18 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Consumables" htmlFor="consumables-selector">
+      <FormFieldRow label="Consumables" htmlFor="fdm-consumables-selector">
         <ConsumablesSelector
-          id="consumables-selector"
+          id="fdm-consumables-selector"
           items={consumableItems}
           selectedIds={formData.selectedConsumableIds}
           onChange={handleConsumablesChange}
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Print Time (hours)" htmlFor="print-time" required>
+      <FormFieldRow label="Print Time (hours)" htmlFor="fdm-print-time" required>
         <TextField
-          id="print-time"
+          id="fdm-print-time"
           name="printTime"
           type="number"
           step="0.1"
@@ -363,9 +363,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Filament Weight (grams)" htmlFor="filament-weight" required>
+      <FormFieldRow label="Filament Weight (grams)" htmlFor="fdm-filament-weight" required>
         <TextField
-          id="filament-weight"
+          id="fdm-filament-weight"
           name="filamentWeight"
           type="number"
           step="0.1"
@@ -375,9 +375,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Labor Hours" htmlFor="labor-hours">
+      <FormFieldRow label="Labor Hours" htmlFor="fdm-labor-hours">
         <TextField
-          id="labor-hours"
+          id="fdm-labor-hours"
           name="laborHours"
           type="number"
           step="0.1"
@@ -387,9 +387,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Overhead (%)" htmlFor="overhead-percentage">
+      <FormFieldRow label="Overhead (%)" htmlFor="fdm-overhead-percentage">
         <TextField
-          id="overhead-percentage"
+          id="fdm-overhead-percentage"
           name="overheadPercentage"
           type="number"
           step="0.1"
