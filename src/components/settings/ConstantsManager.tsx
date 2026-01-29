@@ -147,9 +147,9 @@ const ConstantsManager = () => {
     <div className="space-y-6">
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-        <h3 className="text-lg font-semibold text-foreground">
+        <h2 className="text-lg font-semibold text-foreground">
           {editingId ? "Edit Constant" : "Add New Constant"}
-        </h3>
+        </h2>
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -271,6 +271,7 @@ const ConstantsManager = () => {
                         size="sm"
                         variant="outline"
                         onClick={() => handleEdit(constant)}
+                        aria-label="Edit constant"
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>
@@ -278,6 +279,7 @@ const ConstantsManager = () => {
                         size="sm"
                         variant="outline"
                         onClick={() => handleDelete(constant.id)}
+                        aria-label="Delete constant"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

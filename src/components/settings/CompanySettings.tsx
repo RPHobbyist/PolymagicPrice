@@ -83,7 +83,7 @@ const CompanySettings = () => {
                     <div className="flex items-center gap-2">
                         <Building2 className="w-6 h-6 text-primary" />
                         <div>
-                            <CardTitle>Company Information</CardTitle>
+                            <h2 className="text-2xl font-semibold leading-none tracking-tight">Company Information</h2>
                             <CardDescription>
                                 These details will appear on your generated quote PDFs and invoices.
                             </CardDescription>
@@ -182,6 +182,7 @@ const CompanySettings = () => {
                                         size="icon"
                                         className="absolute -top-2 -right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                         onClick={removeLogo}
+                                        aria-label="Remove logo"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>

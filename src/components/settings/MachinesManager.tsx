@@ -100,9 +100,9 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-      <h3 className="text-lg font-semibold text-foreground">
+      <h2 className="text-lg font-semibold text-foreground">
         {isEditing ? "Edit Machine" : "Add New Machine"}
-      </h3>
+      </h2>
 
       <div className="grid md:grid-cols-2 gap-4 items-end">
         <div className="space-y-2">
@@ -129,7 +129,7 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             value={formData.print_type}
             onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
           >
-            <SelectTrigger id="print_type">
+            <SelectTrigger id="print_type" aria-label="Print Type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -144,7 +144,7 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             <Label htmlFor="hourly_cost">Hourly Cost ({currencySymbol}) *</Label>
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger type="button">
+                <TooltipTrigger type="button" aria-label="Help">
                   <HelpCircle className="w-4 h-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[300px] p-4 text-sm bg-popover border-border" side="right">
@@ -252,6 +252,7 @@ const MachinesList = memo(({ machines, onEdit, onDelete, formatPrice }: Machines
                       size="sm"
                       variant="outline"
                       onClick={() => onEdit(machine)}
+                      aria-label="Edit machine"
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
@@ -259,6 +260,7 @@ const MachinesList = memo(({ machines, onEdit, onDelete, formatPrice }: Machines
                       size="sm"
                       variant="outline"
                       onClick={() => onDelete(machine.id)}
+                      aria-label="Delete machine"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

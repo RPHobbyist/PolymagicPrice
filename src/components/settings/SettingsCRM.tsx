@@ -153,7 +153,7 @@ const SettingsCRM = () => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 className="text-lg font-medium text-foreground">Customer List</h3>
+                    <h2 className="text-lg font-medium text-foreground">Customer List</h2>
                     <p className="text-sm text-muted-foreground">Manage your client database for quotes.</p>
                 </div>
 
@@ -176,9 +176,9 @@ const SettingsCRM = () => {
 
             {/* Inline Form */}
             <form onSubmit={handleSaveCustomer} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-                <h3 className="text-lg font-semibold text-foreground">
+                <h2 className="text-lg font-semibold text-foreground">
                     {editingCustomer ? "Edit Customer" : "Add New Customer"}
-                </h3>
+                </h2>
 
                 <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -357,6 +357,7 @@ const SettingsCRM = () => {
                                                     onClick={() => setViewingCustomer(customer)}
                                                     className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 w-8"
                                                     title="View Details"
+                                                    aria-label="View details"
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
@@ -365,6 +366,7 @@ const SettingsCRM = () => {
                                                     size="icon"
                                                     onClick={() => handleEdit(customer)}
                                                     className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 w-8"
+                                                    aria-label="Edit customer"
                                                 >
                                                     <Pencil className="w-4 h-4" />
                                                 </Button>
@@ -373,6 +375,7 @@ const SettingsCRM = () => {
                                                     size="icon"
                                                     onClick={() => setDeleteId(customer.id)}
                                                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                                                    aria-label="Delete customer"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>

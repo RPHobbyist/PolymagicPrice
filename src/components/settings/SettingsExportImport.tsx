@@ -99,7 +99,7 @@ const SettingsExportImport = ({ onSettingsChanged }: SettingsExportImportProps) 
                         <AlertTriangle className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-foreground">Data Management</h3>
+                        <h2 className="font-semibold text-foreground">Data Management</h2>
                         <p className="text-sm text-muted-foreground">
                             Export your settings to backup or share, or import from a previous backup
                         </p>

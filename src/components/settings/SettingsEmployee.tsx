@@ -114,7 +114,7 @@ const SettingsEmployee = memo(() => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 className="text-lg font-medium text-foreground">Employee List</h3>
+                    <h2 className="text-lg font-medium text-foreground">Employee List</h2>
                     <p className="text-sm text-muted-foreground">Manage your team members.</p>
                 </div>
 
@@ -137,9 +137,9 @@ const SettingsEmployee = memo(() => {
 
             {/* Inline Form */}
             <form onSubmit={handleSaveEmployee} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-                <h3 className="text-lg font-semibold text-foreground">
+                <h2 className="text-lg font-semibold text-foreground">
                     {editingEmployee ? "Edit Employee" : "Add New Employee"}
-                </h3>
+                </h2>
 
                 <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -211,9 +211,9 @@ const SettingsEmployee = memo(() => {
                 {filteredEmployees.length === 0 ? (
                     <div className="p-8 text-center">
                         <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                        <h3 className="text-lg font-medium text-foreground mb-2">
+                        <h2 className="text-lg font-medium text-foreground mb-2">
                             {searchQuery ? "No employees found" : "No employees yet"}
-                        </h3>
+                        </h2>
                         <p className="text-sm text-muted-foreground">
                             {searchQuery ? "Try a different search term" : "Add your first employee using the form above"}
                         </p>
@@ -251,6 +251,7 @@ const SettingsEmployee = memo(() => {
                                                 size="icon"
                                                 className="h-8 w-8"
                                                 onClick={() => handleEdit(employee)}
+                                                aria-label="Edit employee"
                                             >
                                                 <Pencil className="w-4 h-4" />
                                             </Button>
@@ -259,6 +260,7 @@ const SettingsEmployee = memo(() => {
                                                 size="icon"
                                                 className="h-8 w-8 text-destructive hover:text-destructive"
                                                 onClick={() => setDeleteId(employee.id)}
+                                                aria-label="Delete employee"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
