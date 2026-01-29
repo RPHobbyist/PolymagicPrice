@@ -43,18 +43,22 @@ export const QuotesToolbar = ({
             <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
+                    id="search-quotes"
+                    name="search"
+                    autoComplete="off"
                     placeholder="Search projects or clients..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9 bg-background"
+                    aria-label="Search saved quotes"
                 />
             </div>
 
             <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
                 <div className="flex items-center gap-2 min-w-[140px]">
                     <Filter className="w-4 h-4 text-muted-foreground" />
-                    <Select value={filterType} onValueChange={(v: FilterType) => setFilterType(v)}>
-                        <SelectTrigger className="bg-background w-full">
+                    <Select name="filterType" value={filterType} onValueChange={(v: FilterType) => setFilterType(v)}>
+                        <SelectTrigger className="bg-background w-full" aria-label="Filter by Type">
                             <SelectValue placeholder="All Types" />
                         </SelectTrigger>
                         <SelectContent>
@@ -67,8 +71,8 @@ export const QuotesToolbar = ({
 
                 <div className="flex items-center gap-2 min-w-[160px]">
                     <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-                    <Select value={sortOrder} onValueChange={(v: SortOrder) => setSortOrder(v)}>
-                        <SelectTrigger className="bg-background w-full">
+                    <Select name="sortOrder" value={sortOrder} onValueChange={(v: SortOrder) => setSortOrder(v)}>
+                        <SelectTrigger className="bg-background w-full" aria-label="Sort Quotes">
                             <SelectValue placeholder="Sort By" />
                         </SelectTrigger>
                         <SelectContent>

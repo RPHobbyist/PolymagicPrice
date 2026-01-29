@@ -159,12 +159,14 @@ export function PrinterConnectDialog({
                         <form onSubmit={handleLocalSubmit} className="grid gap-4 py-4">
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="ip" className="text-right">IP Address</Label>
-                                <Input id="ip" value={ip} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.100" className="col-span-3" required />
+                                <Input id="ip" name="ip" autoComplete="off" value={ip} onChange={(e) => setIp(e.target.value)} placeholder="192.168.1.100" className="col-span-3" required />
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="accessCode" className="text-right">Access Code</Label>
                                 <Input
                                     id="accessCode"
+                                    name="accessCode"
+                                    autoComplete="off"
                                     type="password"
                                     value={accessCode}
                                     onChange={(e) => setAccessCode(e.target.value)}
@@ -175,7 +177,7 @@ export function PrinterConnectDialog({
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="serial" className="text-right">Serial No.</Label>
-                                <Input id="serial" value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="Printer Serial Number" className="col-span-3" required />
+                                <Input id="serial" name="serial" autoComplete="off" value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="Printer Serial Number" className="col-span-3" required />
                             </div>
                             <DialogFooter>
                                 <Button type="submit" disabled={isLoading}>{isLoading ? "Connecting..." : "Connect"}</Button>
@@ -190,11 +192,11 @@ export function PrinterConnectDialog({
                                     <>
                                         <div className="space-y-2">
                                             <Label htmlFor="email">Email</Label>
-                                            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                                            <Input id="email" name="email" autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                                         </div>
                                         <div className="space-y-2">
                                             <Label htmlFor="password">Password</Label>
-                                            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                                            <Input id="password" name="password" autoComplete="current-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                                         </div>
                                     </>
                                 ) : (
@@ -205,6 +207,8 @@ export function PrinterConnectDialog({
                                         <Label htmlFor="code">Verification Code</Label>
                                         <Input
                                             id="code"
+                                            name="code"
+                                            autoComplete="one-time-code"
                                             type="text"
                                             value={verificationCode}
                                             onChange={(e) => setVerificationCode(e.target.value)}

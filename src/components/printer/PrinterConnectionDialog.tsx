@@ -162,17 +162,17 @@ export function PrinterConnectionDialog({ open, onOpenChange, onConnected }: Pri
                         {!cloudDevices.length ? (
                             <div className="space-y-4">
                                 <div className="grid gap-2">
-                                    <Label>Email</Label>
-                                    <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" />
+                                    <Label htmlFor="cloud-email">Email</Label>
+                                    <Input id="cloud-email" name="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@example.com" />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label>Password</Label>
-                                    <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                                    <Label htmlFor="cloud-password">Password</Label>
+                                    <Input id="cloud-password" name="password" autoComplete="current-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                                 </div>
                                 {needs2FA && (
                                     <div className="grid gap-2">
-                                        <Label>Verification Code</Label>
-                                        <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+                                        <Label htmlFor="cloud-code">Verification Code</Label>
+                                        <Input id="cloud-code" name="code" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
                                     </div>
                                 )}
                                 <Button onClick={handleLogin} disabled={loading} className="w-full">
@@ -213,16 +213,16 @@ export function PrinterConnectionDialog({ open, onOpenChange, onConnected }: Pri
                             </AlertDescription>
                         </Alert>
                         <div className="grid gap-2">
-                            <Label>Printer IP</Label>
-                            <Input value={lanIp} onChange={(e) => setLanIp(e.target.value)} placeholder="192.168.1.x" />
+                            <Label htmlFor="lan-ip">Printer IP</Label>
+                            <Input id="lan-ip" name="ip" autoComplete="off" value={lanIp} onChange={(e) => setLanIp(e.target.value)} placeholder="192.168.1.x" />
                         </div>
                         <div className="grid gap-2">
-                            <Label>Access Code</Label>
-                            <Input type="password" value={lanAccessCode} onChange={(e) => setLanAccessCode(e.target.value)} placeholder="From printer screen" />
+                            <Label htmlFor="lan-access-code">Access Code</Label>
+                            <Input id="lan-access-code" name="accessCode" autoComplete="off" type="password" value={lanAccessCode} onChange={(e) => setLanAccessCode(e.target.value)} placeholder="From printer screen" />
                         </div>
                         <div className="grid gap-2">
-                            <Label>Serial Number (Optional but recommended)</Label>
-                            <Input value={lanSerial} onChange={(e) => setLanSerial(e.target.value)} placeholder="Printer Serial" />
+                            <Label htmlFor="lan-serial">Serial Number (Optional but recommended)</Label>
+                            <Input id="lan-serial" name="serial" autoComplete="off" value={lanSerial} onChange={(e) => setLanSerial(e.target.value)} placeholder="Printer Serial" />
                         </div>
                         <Button onClick={connectLan} disabled={loading} className="w-full">
                             {loading ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Wifi className="mr-2 h-4 w-4" />}

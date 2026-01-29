@@ -162,6 +162,9 @@ const SettingsCRM = () => {
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="search"
+                            id="search-customers"
+                            name="search"
+                            autoComplete="off"
                             placeholder="Search customers..."
                             className="pl-9 bg-background/50"
                             value={searchQuery}
@@ -182,6 +185,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
                         <Input
                             id="name"
+                            name="name"
+                            autoComplete="name"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             placeholder="John Doe"
@@ -192,6 +197,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="company">Company</Label>
                         <Input
                             id="company"
+                            name="company"
+                            autoComplete="organization"
                             value={formData.company}
                             onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                             placeholder="Acme Inc."
@@ -202,6 +209,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="email">Email</Label>
                         <Input
                             id="email"
+                            name="email"
+                            autoComplete="email"
                             type="email"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -213,6 +222,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="phone">Phone</Label>
                         <Input
                             id="phone"
+                            name="phone"
+                            autoComplete="tel"
                             type="tel"
                             value={formData.phone}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -224,6 +235,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="address">Address</Label>
                         <Input
                             id="address"
+                            name="address"
+                            autoComplete="street-address"
                             value={formData.address}
                             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                             placeholder="123 Main St, City, Country"
@@ -234,6 +247,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="tags">Tags (comma separated)</Label>
                         <Input
                             id="tags"
+                            name="tags"
+                            autoComplete="off"
                             value={formData.tags?.join(", ")}
                             onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
                             placeholder="VIP, Local, Retail"
@@ -244,6 +259,8 @@ const SettingsCRM = () => {
                         <Label htmlFor="notes">Notes</Label>
                         <Textarea
                             id="notes"
+                            name="notes"
+                            autoComplete="off"
                             value={formData.notes}
                             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                             placeholder="Preferences, specific requirements, etc."

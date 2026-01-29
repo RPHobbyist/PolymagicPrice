@@ -111,6 +111,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
           </div>
           <Input
             id="name"
+            name="name"
+            autoComplete="off"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g., Prusa i3 MK3S, Elegoo Mars 3"
@@ -123,10 +125,11 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             <Label htmlFor="print_type">Print Type *</Label>
           </div>
           <Select
+            name="print_type"
             value={formData.print_type}
             onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="print_type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -162,6 +165,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
           </div>
           <Input
             id="hourly_cost"
+            name="hourly_cost"
+            autoComplete="off"
             type="number"
             step="0.01"
             value={formData.hourly_cost}
@@ -177,6 +182,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
           </div>
           <Input
             id="power_consumption_watts"
+            name="power_consumption_watts"
+            autoComplete="off"
             type="number"
             value={formData.power_consumption_watts}
             onChange={(e) => setFormData({ ...formData, power_consumption_watts: e.target.value })}

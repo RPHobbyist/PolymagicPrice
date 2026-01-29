@@ -28,13 +28,16 @@ interface FormFieldProps {
   required?: boolean;
   highlight?: boolean;
   hint?: string;
+  htmlFor?: string;
   children: React.ReactNode;
 }
 
-export const FormFieldRow = memo(({ label, required, highlight, hint, children }: FormFieldProps) => (
+export const FormFieldRow = memo(({ label, required, highlight, hint, htmlFor, children }: FormFieldProps) => (
   <div className={`grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-1 sm:gap-4 py-3 px-2 sm:px-4 items-start sm:items-center border-b border-border/50 hover:bg-muted/30 transition-colors ${highlight ? 'bg-accent/5' : ''}`}>
     <div className="font-medium text-sm sm:text-base flex items-center gap-1.5">
-      {label} {required && <span className="text-destructive">*</span>}
+      <label htmlFor={htmlFor} className="cursor-pointer">
+        {label} {required && <span className="text-destructive">*</span>}
+      </label>
       {hint && (
         <TooltipProvider>
           <Tooltip delayDuration={300}>
@@ -62,11 +65,17 @@ interface TextFieldProps {
   step?: string;
   className?: string;
   endAdornment?: React.ReactNode;
+  id?: string;
+  name?: string;
+  autoComplete?: string;
 }
 
-export const TextField = memo(({ value, onChange, placeholder, type = "text", step, className, endAdornment }: TextFieldProps) => (
+export const TextField = memo(({ value, onChange, placeholder, type = "text", step, className, endAdornment, id, name, autoComplete = "off" }: TextFieldProps) => (
   <div className="relative flex items-center w-full">
     <Input
+      id={id}
+      name={name}
+      autoComplete={autoComplete}
       type={type}
       step={step}
       placeholder={placeholder}
@@ -95,11 +104,13 @@ interface SelectFieldProps {
   onChange: (value: string) => void;
   placeholder: string;
   options: SelectOption[];
+  id?: string;
+  name?: string;
 }
 
-export const SelectField = memo(({ value, onChange, placeholder, options }: SelectFieldProps) => (
-  <Select value={value} onValueChange={onChange}>
-    <SelectTrigger className="bg-background">
+export const SelectField = memo(({ value, onChange, placeholder, options, id, name }: SelectFieldProps) => (
+  <Select name={name} value={value} onValueChange={onChange}>
+    <SelectTrigger id={id} className="bg-background">
       <SelectValue placeholder={placeholder} />
     </SelectTrigger>
     <SelectContent className="bg-popover border-border z-50">

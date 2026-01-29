@@ -284,8 +284,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
 
   return (
     <QuoteCalculator loading={loading} onCalculate={calculateQuote} uploadSection={uploadSection}>
-      <FormFieldRow label="Project Name" required>
+      <FormFieldRow label="Project Name" htmlFor="project-name" required>
         <TextField
+          id="project-name"
+          name="projectName"
           value={formData.projectName}
           onChange={(v) => updateField("projectName", v)}
           placeholder="Enter project name"
@@ -299,8 +301,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Material" required>
+      <FormFieldRow label="Material" htmlFor="material-id" required>
         <SelectField
+          id="material-id"
+          name="materialId"
           value={formData.materialId}
           onChange={(v) => {
             updateField("materialId", v);
@@ -313,8 +317,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" required>
+      <FormFieldRow label="Color" htmlFor="spool-selector" required>
         <SpoolSelector
+          id="spool-selector"
+          name="spoolId"
           materialId={formData.materialId}
           value={selectedSpoolId}
           onChange={(spoolId, color) => {
@@ -325,8 +331,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Machine" required>
+      <FormFieldRow label="Machine" htmlFor="machine-id" required>
         <SelectField
+          id="machine-id"
+          name="machineId"
           value={formData.machineId}
           onChange={(v) => updateField("machineId", v)}
           placeholder="Select machine"
@@ -334,16 +342,19 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Consumables">
+      <FormFieldRow label="Consumables" htmlFor="consumables-selector">
         <ConsumablesSelector
+          id="consumables-selector"
           items={consumableItems}
           selectedIds={formData.selectedConsumableIds}
           onChange={handleConsumablesChange}
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Print Time (hours)" required>
+      <FormFieldRow label="Print Time (hours)" htmlFor="print-time" required>
         <TextField
+          id="print-time"
+          name="printTime"
           type="number"
           step="0.1"
           value={formData.printTime}
@@ -352,8 +363,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Filament Weight (grams)" required>
+      <FormFieldRow label="Filament Weight (grams)" htmlFor="filament-weight" required>
         <TextField
+          id="filament-weight"
+          name="filamentWeight"
           type="number"
           step="0.1"
           value={formData.filamentWeight}
@@ -362,8 +375,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Labor Hours">
+      <FormFieldRow label="Labor Hours" htmlFor="labor-hours">
         <TextField
+          id="labor-hours"
+          name="laborHours"
           type="number"
           step="0.1"
           value={formData.laborHours}
@@ -372,8 +387,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Overhead (%)">
+      <FormFieldRow label="Overhead (%)" htmlFor="overhead-percentage">
         <TextField
+          id="overhead-percentage"
+          name="overheadPercentage"
           type="number"
           step="0.1"
           value={formData.overheadPercentage}
@@ -382,8 +399,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)">
+      <FormFieldRow label="Profit Markup (%)" htmlFor="markup-percentage">
         <TextField
+          id="markup-percentage"
+          name="markupPercentage"
           type="number"
           step="0.1"
           value={formData.markupPercentage}
@@ -392,8 +411,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Quantity">
+      <FormFieldRow label="Quantity" htmlFor="quantity">
         <TextField
+          id="quantity"
+          name="quantity"
           type="number"
           step="1"
           value={formData.quantity}
@@ -402,8 +423,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Order Priority">
+      <FormFieldRow label="Order Priority" htmlFor="priority">
         <SelectField
+          id="priority"
+          name="priority"
           value={formData.priority || "Medium"}
           onChange={(v) => updateField("priority", v)}
           placeholder="Select priority"
@@ -415,8 +438,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Due Date">
+      <FormFieldRow label="Due Date" htmlFor="due-date">
         <input
+          id="due-date"
+          name="dueDate"
           type="date"
           value={formData.dueDate || ""}
           onChange={(e) => updateField("dueDate", e.target.value)}
@@ -424,8 +449,10 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Assigned Employee">
+      <FormFieldRow label="Assigned Employee" htmlFor="assigned-employee">
         <SelectField
+          id="assigned-employee"
+          name="assignedEmployeeId"
           value={formData.assignedEmployeeId || "none"}
           onChange={(v) => updateField("assignedEmployeeId", v === "none" ? "" : v)}
           options={[

@@ -112,8 +112,10 @@ export function CapacityPlanner({ open, onOpenChange }: CapacityPlannerProps) {
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Quantity</Label>
+                                <Label htmlFor="planner-quantity">Quantity</Label>
                                 <Input
+                                    id="planner-quantity"
+                                    name="quantity"
                                     type="number"
                                     value={quantity}
                                     onChange={(e) => setQuantity(e.target.value)}
@@ -122,8 +124,10 @@ export function CapacityPlanner({ open, onOpenChange }: CapacityPlannerProps) {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Print Time / Unit (hrs)</Label>
+                                <Label htmlFor="planner-print-time">Print Time / Unit (hrs)</Label>
                                 <Input
+                                    id="planner-print-time"
+                                    name="printTime"
                                     type="number"
                                     value={printTimePerUnit}
                                     onChange={(e) => setPrintTimePerUnit(e.target.value)}
@@ -135,8 +139,10 @@ export function CapacityPlanner({ open, onOpenChange }: CapacityPlannerProps) {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Work Hours / Day</Label>
+                                <Label htmlFor="planner-work-hours">Work Hours / Day</Label>
                                 <Input
+                                    id="planner-work-hours"
+                                    name="workHours"
                                     type="number"
                                     value={workHoursPerDay}
                                     onChange={(e) => setWorkHoursPerDay(e.target.value)}
@@ -146,8 +152,10 @@ export function CapacityPlanner({ open, onOpenChange }: CapacityPlannerProps) {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Deadline</Label>
+                                <Label htmlFor="planner-deadline">Deadline</Label>
                                 <Input
+                                    id="planner-deadline"
+                                    name="deadline"
                                     type="date"
                                     value={deadline}
                                     onChange={(e) => setDeadline(e.target.value)}

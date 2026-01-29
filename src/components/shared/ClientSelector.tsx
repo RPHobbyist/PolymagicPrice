@@ -105,7 +105,7 @@ export function ClientSelector({ value, onSelect, className }: ClientSelectorPro
                 </PopoverTrigger>
                 <PopoverContent className="w-[300px] p-0" align="start">
                     <Command>
-                        <CommandInput placeholder="Search clients..." />
+                        <CommandInput placeholder="Search clients..." aria-label="Search clients" />
                         <CommandList>
                             <CommandEmpty>No client found.</CommandEmpty>
                             <CommandGroup>
@@ -156,10 +156,13 @@ export function ClientSelector({ value, onSelect, className }: ClientSelectorPro
                             <Label htmlFor="new-client-name">Client Name</Label>
                             <Input
                                 id="new-client-name"
+                                name="newClientName"
+                                autoComplete="organization"
                                 value={newClientName}
                                 onChange={(e) => setNewClientName(e.target.value)}
                                 placeholder="Business or Person Name"
                                 onKeyDown={(e) => e.key === "Enter" && handleCreateClient()}
+                                aria-label="New Client Name"
                             />
                         </div>
                     </div>

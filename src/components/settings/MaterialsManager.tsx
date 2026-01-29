@@ -96,15 +96,17 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySym
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-      <h3 className="text-lg font-semibold text-foreground">
+      <h2 className="text-lg font-semibold text-foreground">
         {isEditing ? "Edit Material" : "Add New Material"}
-      </h3>
+      </h2>
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Material Name *</Label>
           <Input
             id="name"
+            name="name"
+            autoComplete="off"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g., PLA, ABS, Standard Resin"
@@ -115,10 +117,11 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySym
         <div className="space-y-2">
           <Label htmlFor="print_type">Print Type *</Label>
           <Select
+            name="print_type"
             value={formData.print_type}
             onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="print_type" aria-label="Print Type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -132,6 +135,8 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySym
           <Label htmlFor="cost_per_unit">Cost per Unit ({currencySymbol}) *</Label>
           <Input
             id="cost_per_unit"
+            name="cost_per_unit"
+            autoComplete="off"
             type="number"
             step="0.01"
             value={formData.cost_per_unit}
@@ -144,10 +149,11 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySym
         <div className="space-y-2">
           <Label htmlFor="unit">Unit *</Label>
           <Select
+            name="unit"
             value={formData.unit}
             onValueChange={(value) => setFormData({ ...formData, unit: value })}
           >
-            <SelectTrigger>
+            <SelectTrigger id="unit" aria-label="Unit">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -229,7 +235,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
                 <>
                   <TableRow key={material.id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(material.id)}>
                     <TableCell>
-                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <Button variant="ghost" size="icon" className="h-6 w-6" aria-label={isExpanded ? "Collapse row" : "Expand row"}>
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </Button>
                     </TableCell>
@@ -255,6 +261,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
                           size="sm"
                           variant="outline"
                           onClick={() => onEdit(material)}
+                          aria-label="Edit material"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -262,6 +269,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
                           size="sm"
                           variant="outline"
                           onClick={() => onDelete(material.id)}
+                          aria-label="Delete material"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

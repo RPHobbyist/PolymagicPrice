@@ -43,14 +43,6 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           // Vendor chunks - separate large libraries
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-radix': [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-popover',
-          ],
           'vendor-charts': ['recharts'],
           'vendor-utils': ['date-fns', 'clsx', 'class-variance-authority', 'tailwind-merge'],
         },
@@ -62,6 +54,8 @@ export default defineConfig(({ mode }) => ({
     esbuildOptions: {
       drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
+    // Enable source maps for better debugging and performance analysis
+    sourcemap: true,
   },
   // Optimize dependencies
   optimizeDeps: {

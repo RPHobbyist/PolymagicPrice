@@ -98,6 +98,8 @@ export const FeatureSuggestion = () => {
                         </Label>
                         <Input
                             id="name"
+                            name="name"
+                            autoComplete="name"
                             placeholder="Your name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
@@ -110,6 +112,8 @@ export const FeatureSuggestion = () => {
                         </Label>
                         <Input
                             id="email"
+                            name="email"
+                            autoComplete="email"
                             type="email"
                             placeholder="your@email.com"
                             value={email}
@@ -123,6 +127,7 @@ export const FeatureSuggestion = () => {
                         </Label>
                         <Textarea
                             id="suggestion"
+                            name="suggestion"
                             placeholder="Describe your feature idea..."
                             value={suggestion}
                             onChange={(e) => setSuggestion(e.target.value)}

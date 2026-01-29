@@ -270,16 +270,21 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                     <div className="space-y-4 py-4">
                         <div className="grid grid-cols-[1fr_60px] gap-4">
                             <div className="space-y-2">
-                                <Label>Name</Label>
+                                <Label htmlFor={`spool-name-${material.id}`}>Name</Label>
                                 <Input
+                                    id={`spool-name-${material.id}`}
+                                    name="name"
+                                    autoComplete="off"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder={`${material.name} ${itemName}`}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Color</Label>
+                                <Label htmlFor={`spool-color-${material.id}`}>Color</Label>
                                 <input
+                                    id={`spool-color-${material.id}`}
+                                    name="color"
                                     type="color"
                                     value={formData.color}
                                     onChange={(e) => setFormData({ ...formData, color: e.target.value })}
@@ -290,8 +295,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Number of {itemName}s</Label>
+                                <Label htmlFor={`spool-count-${material.id}`}>Number of {itemName}s</Label>
                                 <Input
+                                    id={`spool-count-${material.id}`}
+                                    name="spoolCount"
+                                    autoComplete="off"
                                     type="number"
                                     value={formData.spoolCount}
                                     onChange={(e) => handleSpoolCountOrWeightChange('spoolCount', e.target.value)}
@@ -300,8 +308,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Volume per {itemName} ({unit})</Label>
+                                <Label htmlFor={`weight-per-spool-${material.id}`}>Volume per {itemName} ({unit})</Label>
                                 <Input
+                                    id={`weight-per-spool-${material.id}`}
+                                    name="weightPerSpool"
+                                    autoComplete="off"
                                     type="number"
                                     value={formData.weightPerSpool}
                                     onChange={(e) => handleSpoolCountOrWeightChange('weightPerSpool', e.target.value)}
@@ -319,8 +330,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
 
                         {/* Current Weight */}
                         <div className="space-y-2">
-                            <Label>Current Total Weight ({unit})</Label>
+                            <Label htmlFor={`current-weight-${material.id}`}>Current Total Weight ({unit})</Label>
                             <Input
+                                id={`current-weight-${material.id}`}
+                                name="currentWeight"
+                                autoComplete="off"
                                 type="number"
                                 value={formData.currentWeight}
                                 onChange={(e) => setFormData({ ...formData, currentWeight: e.target.value })}
@@ -333,16 +347,22 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Location (optional)</Label>
+                                <Label htmlFor={`spool-location-${material.id}`}>Location (optional)</Label>
                                 <Input
+                                    id={`spool-location-${material.id}`}
+                                    name="location"
+                                    autoComplete="off"
                                     value={formData.location}
                                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                                     placeholder="Shelf A1"
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Cost per {itemName} (optional)</Label>
+                                <Label htmlFor={`cost-per-spool-${material.id}`}>Cost per {itemName} (optional)</Label>
                                 <Input
+                                    id={`cost-per-spool-${material.id}`}
+                                    name="purchaseCost"
+                                    autoComplete="off"
                                     type="number"
                                     value={formData.purchaseCost}
                                     onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}

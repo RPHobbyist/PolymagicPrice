@@ -126,6 +126,9 @@ const SettingsExportImport = ({ onSettingsChanged }: SettingsExportImportProps) 
                     </Button>
 
                     <input
+                        id="import-settings-file"
+                        name="importFile"
+                        aria-label="Import Settings File"
                         ref={fileInputRef}
                         type="file"
                         accept=".json"

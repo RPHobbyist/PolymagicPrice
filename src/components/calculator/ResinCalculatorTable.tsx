@@ -207,8 +207,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
 
   return (
     <QuoteCalculator loading={loading} onCalculate={calculateQuote} uploadSection={uploadSection}>
-      <FormFieldRow label="Project Name" required>
+      <FormFieldRow label="Project Name" htmlFor="project-name" required>
         <TextField
+          id="project-name"
+          name="projectName"
           value={formData.projectName}
           onChange={(v) => updateField("projectName", v)}
           placeholder="Enter project name"
@@ -228,8 +230,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Material" required>
+      <FormFieldRow label="Material" htmlFor="material-id" required>
         <SelectField
+          id="material-id"
+          name="materialId"
           value={formData.materialId}
           onChange={(v) => {
             updateField("materialId", v);
@@ -242,8 +246,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" required>
+      <FormFieldRow label="Color" htmlFor="spool-selector" required>
         <SpoolSelector
+          id="spool-selector"
+          name="spoolId"
           materialId={formData.materialId}
           value={selectedSpoolId}
           onChange={(spoolId, color) => {
@@ -255,8 +261,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Machine" required>
+      <FormFieldRow label="Machine" htmlFor="machine-id" required>
         <SelectField
+          id="machine-id"
+          name="machineId"
           value={formData.machineId}
           onChange={(v) => updateField("machineId", v)}
           placeholder="Select machine"
@@ -264,16 +272,19 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Consumables">
+      <FormFieldRow label="Consumables" htmlFor="consumables-selector">
         <ConsumablesSelector
+          id="consumables-selector"
           items={consumableItems}
           selectedIds={formData.selectedConsumableIds}
           onChange={handleConsumablesChange}
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Print Time (hours)" required>
+      <FormFieldRow label="Print Time (hours)" htmlFor="print-time" required>
         <TextField
+          id="print-time"
+          name="printTime"
           type="number"
           step="0.1"
           value={formData.printTime}
@@ -282,8 +293,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Resin Volume (ml)" required>
+      <FormFieldRow label="Resin Volume (ml)" htmlFor="resin-volume" required>
         <TextField
+          id="resin-volume"
+          name="resinVolume"
           type="number"
           step="0.1"
           value={formData.resinVolume}
@@ -292,8 +305,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Washing Time (minutes)">
+      <FormFieldRow label="Washing Time (minutes)" htmlFor="washing-time">
         <TextField
+          id="washing-time"
+          name="washingTime"
           type="number"
           value={formData.washingTime}
           onChange={(v) => updateField("washingTime", v)}
@@ -301,8 +316,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Curing Time (minutes)">
+      <FormFieldRow label="Curing Time (minutes)" htmlFor="curing-time">
         <TextField
+          id="curing-time"
+          name="curingTime"
           type="number"
           value={formData.curingTime}
           onChange={(v) => updateField("curingTime", v)}
@@ -310,8 +327,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label={`IPA/Cleaning Cost (${currency.symbol})`}>
+      <FormFieldRow label={`IPA/Cleaning Cost (${currency.symbol})`} htmlFor="isopropyl-cost">
         <TextField
+          id="isopropyl-cost"
+          name="isopropylCost"
           type="number"
           step="0.01"
           value={formData.isopropylCost}
@@ -320,8 +339,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Labor Hours">
+      <FormFieldRow label="Labor Hours" htmlFor="labor-hours">
         <TextField
+          id="labor-hours"
+          name="laborHours"
           type="number"
           step="0.1"
           value={formData.laborHours}
@@ -330,8 +351,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Overhead (%)">
+      <FormFieldRow label="Overhead (%)" htmlFor="overhead-percentage">
         <TextField
+          id="overhead-percentage"
+          name="overheadPercentage"
           type="number"
           step="0.1"
           value={formData.overheadPercentage}
@@ -340,8 +363,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)">
+      <FormFieldRow label="Profit Markup (%)" htmlFor="markup-percentage">
         <TextField
+          id="markup-percentage"
+          name="markupPercentage"
           type="number"
           step="0.1"
           value={formData.markupPercentage}
@@ -350,8 +375,10 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Quantity">
+      <FormFieldRow label="Quantity" htmlFor="quantity">
         <TextField
+          id="quantity"
+          name="quantity"
           type="number"
           step="1"
           value={formData.quantity}

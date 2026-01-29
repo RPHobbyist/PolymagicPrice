@@ -67,7 +67,7 @@ const Settings = () => {
 
             <div className="flex items-center gap-4">
               <a href={SYSTEM_CONFIG.vendorLink} target="_blank" rel="noopener noreferrer" className="hover-lift flex-shrink-0">
-                <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} className="h-16 max-w-80 w-auto object-contain" />
+                <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-16 max-w-80 w-auto object-contain" />
               </a>
               <div>
                 <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings & Database</h1>

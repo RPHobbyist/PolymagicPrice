@@ -39,9 +39,10 @@ interface ConsumablesSelectorProps {
     items: ConsumableItem[];
     selectedIds: string[];
     onChange: (selectedIds: string[]) => void;
+    id?: string;
 }
 
-export const ConsumablesSelector = memo(({ items, selectedIds, onChange }: ConsumablesSelectorProps) => {
+export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: ConsumablesSelectorProps) => {
     const [open, setOpen] = useState(false);
     const { formatPrice } = useCurrency();
 
@@ -69,6 +70,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange }: Consu
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
+                    id={id}
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}

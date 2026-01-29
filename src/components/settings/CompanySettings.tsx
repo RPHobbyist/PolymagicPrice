@@ -97,6 +97,7 @@ const CompanySettings = () => {
                             <Input
                                 id="name"
                                 name="name"
+                                autoComplete="organization"
                                 value={formData.name}
                                 onChange={handleChange}
                                 placeholder="My 3D Printing Service"
@@ -108,6 +109,7 @@ const CompanySettings = () => {
                             <Input
                                 id="email"
                                 name="email"
+                                autoComplete="email"
                                 type="email"
                                 value={formData.email}
                                 onChange={handleChange}
@@ -120,6 +122,7 @@ const CompanySettings = () => {
                             <Input
                                 id="phone"
                                 name="phone"
+                                autoComplete="tel"
                                 value={formData.phone}
                                 onChange={handleChange}
                                 placeholder="+1 (555) 123-4567"
@@ -131,6 +134,7 @@ const CompanySettings = () => {
                             <Input
                                 id="website"
                                 name="website"
+                                autoComplete="url"
                                 value={formData.website}
                                 onChange={handleChange}
                                 placeholder="www.example.com"
@@ -142,6 +146,7 @@ const CompanySettings = () => {
                             <Input
                                 id="taxId"
                                 name="taxId"
+                                autoComplete="off"
                                 value={formData.taxId}
                                 onChange={handleChange}
                                 placeholder="Optional"
@@ -154,6 +159,7 @@ const CompanySettings = () => {
                         <Textarea
                             id="address"
                             name="address"
+                            autoComplete="street-address"
                             value={formData.address}
                             onChange={handleChange}
                             placeholder="123 Print St, Maker City, MC 12345"
@@ -162,7 +168,7 @@ const CompanySettings = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Company Logo</Label>
+                        <Label htmlFor="logo-upload">Company Logo</Label>
                         <div className="flex items-start gap-4">
                             {formData.logoUrl ? (
                                 <div className="relative group">
@@ -189,6 +195,8 @@ const CompanySettings = () => {
 
                             <div className="space-y-2">
                                 <Input
+                                    id="logo-upload"
+                                    name="logo"
                                     type="file"
                                     accept="image/*"
                                     onChange={handleLogoUpload}
@@ -206,6 +214,7 @@ const CompanySettings = () => {
                         <Input
                             id="footerText"
                             name="footerText"
+                            autoComplete="off"
                             value={formData.footerText}
                             onChange={handleChange}
                             placeholder="Thank you for your business!"

@@ -29,6 +29,8 @@ interface SpoolSelectorProps {
     placeholder?: string;
     requiredWeight?: number; // g needed for the job (totalWeight)
     itemType?: "spool" | "bottle"; // Defaults to "spool"
+    id?: string;
+    name?: string;
 }
 
 export function SpoolSelector({
@@ -37,7 +39,9 @@ export function SpoolSelector({
     onChange,
     placeholder,
     requiredWeight = 0,
-    itemType = "spool"
+    itemType = "spool",
+    id,
+    name
 }: SpoolSelectorProps) {
     const [showError, setShowError] = useState(false);
 
@@ -95,11 +99,11 @@ export function SpoolSelector({
 
     return (
         <div className="space-y-2">
-            <Select value={value} onValueChange={(id) => {
+            <Select name={name} value={value} onValueChange={(id) => {
                 const spool = spools.find(s => s.id === id);
                 onChange(id, spool?.color || spool?.name || '');
             }}>
-                <SelectTrigger className={isInsufficientStock ? "border-destructive ring-1 ring-destructive" : ""}>
+                <SelectTrigger id={id} className={isInsufficientStock ? "border-destructive ring-1 ring-destructive" : ""}>
                     <SelectValue placeholder={placeholder || defaultPlaceholder}>
                         {selectedSpool && (
                             <div className="flex items-center gap-2">

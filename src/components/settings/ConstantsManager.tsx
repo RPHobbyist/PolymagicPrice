@@ -156,6 +156,8 @@ const ConstantsManager = () => {
             <Label htmlFor="name">Constant Name *</Label>
             <Input
               id="name"
+              name="name"
+              autoComplete="off"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., Electricity Rate, Labor Rate"
@@ -167,6 +169,8 @@ const ConstantsManager = () => {
             <Label htmlFor="value">Value *</Label>
             <Input
               id="value"
+              name="value"
+              autoComplete="off"
               type="number"
               step="0.01"
               value={formData.value}
@@ -180,6 +184,8 @@ const ConstantsManager = () => {
             <Label htmlFor="unit">Unit *</Label>
             <Input
               id="unit"
+              name="unit"
+              autoComplete="off"
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               placeholder="e.g., $/kWh, $/hr, %"
@@ -191,6 +197,8 @@ const ConstantsManager = () => {
             <Label htmlFor="description">Description</Label>
             <Input
               id="description"
+              name="description"
+              autoComplete="off"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Optional description"
@@ -200,6 +208,7 @@ const ConstantsManager = () => {
           <div className="flex items-center space-x-2 md:col-span-2">
             <Switch
               id="is_visible"
+              name="is_visible"
               checked={formData.is_visible}
               onCheckedChange={(checked) => setFormData({ ...formData, is_visible: checked })}
             />

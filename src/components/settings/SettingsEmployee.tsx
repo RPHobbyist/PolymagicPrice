@@ -122,6 +122,9 @@ const SettingsEmployee = memo(() => {
                     <div className="relative flex-1 sm:w-64">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
+                            id="search-employees"
+                            name="search"
+                            autoComplete="off"
                             type="search"
                             placeholder="Search employees..."
                             className="pl-9 bg-background/50"
@@ -143,6 +146,8 @@ const SettingsEmployee = memo(() => {
                         <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
                         <Input
                             id="name"
+                            name="name"
+                            autoComplete="name"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             placeholder="John Doe"
@@ -153,6 +158,8 @@ const SettingsEmployee = memo(() => {
                         <Label htmlFor="jobPosition">Job Position <span className="text-destructive">*</span></Label>
                         <Input
                             id="jobPosition"
+                            name="jobPosition"
+                            autoComplete="organization-title"
                             value={formData.jobPosition}
                             onChange={(e) => setFormData({ ...formData, jobPosition: e.target.value })}
                             placeholder="3D Print Operator"
@@ -163,6 +170,8 @@ const SettingsEmployee = memo(() => {
                         <Label htmlFor="email">Email</Label>
                         <Input
                             id="email"
+                            name="email"
+                            autoComplete="email"
                             type="email"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -174,6 +183,8 @@ const SettingsEmployee = memo(() => {
                         <Label htmlFor="phone">Contact Number</Label>
                         <Input
                             id="phone"
+                            name="phone"
+                            autoComplete="tel"
                             type="tel"
                             value={formData.phone}
                             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
