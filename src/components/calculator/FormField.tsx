@@ -63,6 +63,9 @@ interface TextFieldProps {
   placeholder?: string;
   type?: "text" | "number";
   step?: string;
+  min?: string | number;
+  max?: string | number;
+  maxLength?: number;
   className?: string;
   endAdornment?: React.ReactNode;
   id?: string;
@@ -70,7 +73,7 @@ interface TextFieldProps {
   autoComplete?: string;
 }
 
-export const TextField = memo(({ value, onChange, placeholder, type = "text", step, className, endAdornment, id, name, autoComplete = "off" }: TextFieldProps) => (
+export const TextField = memo(({ value, onChange, placeholder, type = "text", step, min, max, maxLength, className, endAdornment, id, name, autoComplete = "off" }: TextFieldProps) => (
   <div className="relative flex items-center w-full">
     <Input
       id={id}
@@ -78,6 +81,9 @@ export const TextField = memo(({ value, onChange, placeholder, type = "text", st
       autoComplete={autoComplete}
       type={type}
       step={step}
+      min={min}
+      max={max}
+      maxLength={maxLength}
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}

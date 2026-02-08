@@ -27,7 +27,7 @@ import SettingsExportImport from "@/components/settings/SettingsExportImport";
 import SettingsCRM from "@/components/settings/SettingsCRM";
 import SettingsEmployee from "@/components/settings/SettingsEmployee";
 import CompanySettings from "@/components/settings/CompanySettings";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { SYSTEM_CONFIG } from "@/lib/core/core-system";
 import { NavLink } from "@/components/layout/NavLink";
 import { CurrencySelector } from "@/components/shared/CurrencySelector";
@@ -66,9 +66,9 @@ const Settings = () => {
           <div className="flex items-center justify-between">
 
             <div className="flex items-center gap-4">
-              <a href={SYSTEM_CONFIG.vendorLink} target="_blank" rel="noopener noreferrer" className="hover-lift flex-shrink-0">
+              <Link to="/" className="hover-lift flex-shrink-0">
                 <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-16 max-w-80 w-auto object-contain" />
-              </a>
+              </Link>
               <div>
                 <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings & Database</h1>
                 <p className="text-sm text-muted-foreground">

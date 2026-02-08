@@ -26,6 +26,7 @@ import { Building2, Save, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getCompanySettings, saveCompanySettings } from "@/lib/core/sessionStorage";
 import { CompanySettings as CompanySettingsType } from "@/types/quote";
+import { MAX_LOGO_SIZE_BYTES, MAX_LOGO_SIZE_MB } from "@/lib/utils";
 
 const CompanySettings = () => {
     const [formData, setFormData] = useState<CompanySettingsType>({
@@ -54,8 +55,8 @@ const CompanySettings = () => {
     const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 500 * 1024) { // 500KB limit
-                toast.error("Logo file is too large (max 500KB)");
+            if (file.size > MAX_LOGO_SIZE_BYTES) {
+                toast.error(`Logo file is too large (max ${MAX_LOGO_SIZE_MB}MB)`);
                 return;
             }
 
@@ -72,6 +73,51 @@ const CompanySettings = () => {
     };
 
     const handleSave = () => {
+        if (!formData.name.trim()) {
+            toast.error("Company name is required");
+            return;
+        }
+
+        if (formData.name.length > 100) {
+            toast.error("Company name is too long (max 100 chars)");
+            return;
+        }
+
+        if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            toast.error("Please enter a valid email address");
+            return;
+        }
+
+        if (formData.email && formData.email.length > 255) {
+            toast.error("Email address is too long (max 255 chars)");
+            return;
+        }
+
+        if (formData.phone && formData.phone.length > 20) {
+            toast.error("Phone number is too long (max 20 chars)");
+            return;
+        }
+
+        if (formData.website && formData.website.length > 100) {
+            toast.error("Website URL is too long (max 100 chars)");
+            return;
+        }
+
+        if (formData.taxId && formData.taxId.length > 50) {
+            toast.error("Tax ID is too long (max 50 chars)");
+            return;
+        }
+
+        if (formData.address && formData.address.length > 500) {
+            toast.error("Address is too long (max 500 chars)");
+            return;
+        }
+
+        if (formData.footerText && formData.footerText.length > 200) {
+            toast.error("Footer text is too long (max 200 chars)");
+            return;
+        }
+
         saveCompanySettings(formData);
         toast.success("Company settings saved successfully");
     };
@@ -101,6 +147,8 @@ const CompanySettings = () => {
                                 value={formData.name}
                                 onChange={handleChange}
                                 placeholder="My 3D Printing Service"
+                                maxLength={100}
+                                required
                             />
                         </div>
 
@@ -114,6 +162,7 @@ const CompanySettings = () => {
                                 value={formData.email}
                                 onChange={handleChange}
                                 placeholder="contact@example.com"
+                                maxLength={255}
                             />
                         </div>
 
@@ -126,6 +175,7 @@ const CompanySettings = () => {
                                 value={formData.phone}
                                 onChange={handleChange}
                                 placeholder="+1 (555) 123-4567"
+                                maxLength={20}
                             />
                         </div>
 
@@ -138,6 +188,7 @@ const CompanySettings = () => {
                                 value={formData.website}
                                 onChange={handleChange}
                                 placeholder="www.example.com"
+                                maxLength={100}
                             />
                         </div>
 
@@ -150,6 +201,7 @@ const CompanySettings = () => {
                                 value={formData.taxId}
                                 onChange={handleChange}
                                 placeholder="Optional"
+                                maxLength={50}
                             />
                         </div>
                     </div>
@@ -164,6 +216,7 @@ const CompanySettings = () => {
                             onChange={handleChange}
                             placeholder="123 Print St, Maker City, MC 12345"
                             rows={3}
+                            maxLength={500}
                         />
                     </div>
 
@@ -204,7 +257,7 @@ const CompanySettings = () => {
                                     className="max-w-[250px]"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Recommended: Square PNG or JPG, max 500KB.
+                                    Recommended: Square PNG or JPG, max {MAX_LOGO_SIZE_MB}MB.
                                 </p>
                             </div>
                         </div>
@@ -219,6 +272,7 @@ const CompanySettings = () => {
                             value={formData.footerText}
                             onChange={handleChange}
                             placeholder="Thank you for your business!"
+                            maxLength={200}
                         />
                     </div>
 

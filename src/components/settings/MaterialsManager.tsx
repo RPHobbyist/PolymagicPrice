@@ -22,7 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Package } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Package, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Material } from "@/types/quote";
@@ -300,6 +310,7 @@ const MaterialsManager = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency, formatPrice } = useCurrency();
 
   useEffect(() => {
@@ -358,12 +369,11 @@ const MaterialsManager = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this material?")) return;
-
     try {
       sessionStore.deleteMaterial(id);
       toast.success("Material deleted successfully");
       fetchMaterials();
+      setDeleteId(null);
     } catch (error) {
       const err = error as Error;
       toast.error(err.message || "Failed to delete material");
@@ -386,9 +396,32 @@ const MaterialsManager = () => {
       <MaterialsList
         materials={materials}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={(id) => setDeleteId(id)}
         formatPrice={formatPrice}
       />
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Confirm Delete
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this material? This action cannot be undone and will remove it from your database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && handleDelete(deleteId)}
+            >
+              Delete Material
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

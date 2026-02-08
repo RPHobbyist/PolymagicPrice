@@ -22,7 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { CostConstant } from "@/types/quote";
 import { processVisibilityFromDescription, addVisibilityTag } from "@/lib/utils";
@@ -33,6 +43,7 @@ const ConstantsManager = () => {
   const [constants, setConstants] = useState<CostConstant[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency } = useCurrency();
   const [formData, setFormData] = useState({
     name: "",
@@ -115,12 +126,11 @@ const ConstantsManager = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this constant?")) return;
-
     try {
       sessionStore.deleteConstant(id);
       toast.success("Constant deleted successfully");
       fetchConstants();
+      setDeleteId(null);
     } catch (error) {
       const err = error as Error;
       console.error(err);
@@ -278,7 +288,7 @@ const ConstantsManager = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDelete(constant.id)}
+                        onClick={() => setDeleteId(constant.id)}
                         aria-label="Delete constant"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -291,6 +301,29 @@ const ConstantsManager = () => {
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Confirm Delete
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this constant? This action cannot be undone and will remove it from your database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && handleDelete(deleteId)}
+            >
+              Delete Constant
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -31,6 +31,16 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Package, Plus, Trash2, MapPin, AlertTriangle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { MaterialSpool, Material } from "@/types/quote";
@@ -45,6 +55,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
     const [spools, setSpools] = useState<MaterialSpool[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingSpool, setEditingSpool] = useState<MaterialSpool | null>(null);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -140,18 +151,33 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
         const initial = count * weightPerSpool;
         const current = parseFloat(formData.currentWeight);
 
-        if (isNaN(weightPerSpool) || weightPerSpool <= 0) {
-            toast.error("Please enter a valid weight per spool");
+        if (formData.name && formData.name.length > 100) {
+            toast.error("Name must be 100 characters or less");
             return;
         }
 
-        if (isNaN(current) || current < 0) {
+        if (isNaN(count) || count < 1 || count > 1000) {
+            toast.error("Please enter a valid spool count (1-1000)");
+            return;
+        }
+
+        if (isNaN(weightPerSpool) || weightPerSpool <= 0 || weightPerSpool > 25000) {
+            toast.error(`Please enter a valid weight per ${itemName} (0-25000)`);
+            return;
+        }
+
+        if (isNaN(current) || current < 0 || current > 25000000) { // Support extremely large batches
             toast.error("Please enter a valid current weight");
             return;
         }
 
         if (current > initial) {
-            toast.error("Current weight cannot exceed initial weight");
+            toast.error("Current weight cannot exceed total initial weight");
+            return;
+        }
+
+        if (formData.purchaseCost && (parseFloat(formData.purchaseCost) < 0 || parseFloat(formData.purchaseCost) > 10000)) {
+            toast.error("Purchase cost must be between 0 and 10000");
             return;
         }
 
@@ -183,6 +209,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
         toast.success("Spool removed");
         loadSpools();
         onStockChanged?.();
+        setDeleteId(null);
     };
 
     return (
@@ -249,7 +276,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                             size="icon"
                                             variant="ghost"
                                             className="h-7 w-7 text-destructive hover:text-destructive"
-                                            onClick={() => handleDelete(spool.id)}
+                                            onClick={() => setDeleteId(spool.id)}
                                         >
                                             <Trash2 className="w-3 h-3" />
                                         </Button>
@@ -278,6 +305,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder={`${material.name} ${itemName}`}
+                                    maxLength={100}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -305,6 +333,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     onChange={(e) => handleSpoolCountOrWeightChange('spoolCount', e.target.value)}
                                     placeholder="1"
                                     min="1"
+                                    max="1000"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -317,6 +346,8 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     value={formData.weightPerSpool}
                                     onChange={(e) => handleSpoolCountOrWeightChange('weightPerSpool', e.target.value)}
                                     placeholder="1000"
+                                    min="1"
+                                    max="25000"
                                 />
                             </div>
                         </div>
@@ -339,6 +370,8 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                 value={formData.currentWeight}
                                 onChange={(e) => setFormData({ ...formData, currentWeight: e.target.value })}
                                 placeholder={calculatedInitialWeight.toString()}
+                                min="0"
+                                max="25000000"
                             />
                             <p className="text-xs text-muted-foreground">
                                 Adjust if some material has already been used
@@ -355,6 +388,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     value={formData.location}
                                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                                     placeholder="Shelf A1"
+                                    maxLength={50}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -367,6 +401,8 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     value={formData.purchaseCost}
                                     onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}
                                     placeholder="25"
+                                    min="0"
+                                    max="10000"
                                 />
                             </div>
                         </div>
@@ -377,6 +413,29 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                            Confirm Remove
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to remove this {itemName}? This will adjust your total inventory.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => deleteId && handleDelete(deleteId)}
+                        >
+                            Remove {itemName}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

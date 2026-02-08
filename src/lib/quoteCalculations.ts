@@ -277,18 +277,50 @@ export const calculateResinQuote = ({
 
 export const validateFDMForm = (formData: FDMFormData): string | null => {
   if (!formData.projectName.trim()) return "Project name is required";
+  if (formData.projectName.length > 100) return "Project name is too long (max 100 chars)";
   if (!formData.materialId) return "Please select a material";
   if (!formData.machineId) return "Please select a machine";
-  if (!formData.printTime || parseFloat(formData.printTime) <= 0) return "Print time must be greater than 0";
-  if (!formData.filamentWeight || parseFloat(formData.filamentWeight) <= 0) return "Filament weight must be greater than 0";
+
+  const printTime = parseFloat(formData.printTime);
+  if (isNaN(printTime) || printTime <= 0) return "Print time must be greater than 0";
+  if (printTime > 10000) return "Print time exceeds maximum (10000h)";
+
+  const weight = parseFloat(formData.filamentWeight);
+  if (isNaN(weight) || weight <= 0) return "Filament weight must be greater than 0";
+  if (weight > 50000) return "Filament weight exceeds maximum (50000g)";
+
+  if (formData.laborHours && parseFloat(formData.laborHours) > 1000) return "Labor hours exceed maximum (1000h)";
+  if (formData.overheadPercentage && parseFloat(formData.overheadPercentage) > 1000) return "Overhead exceeds maximum (1000%)";
+  if (formData.markupPercentage && parseFloat(formData.markupPercentage) > 10000) return "Markup exceeds maximum (10000%)";
+
+  const quantity = parseInt(formData.quantity);
+  if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
+  if (quantity > 1000000) return "Quantity exceeds maximum (1,000,000)";
+
   return null;
 };
 
 export const validateResinForm = (formData: ResinFormData): string | null => {
   if (!formData.projectName.trim()) return "Project name is required";
+  if (formData.projectName.length > 100) return "Project name is too long (max 100 chars)";
   if (!formData.materialId) return "Please select a material";
   if (!formData.machineId) return "Please select a machine";
-  if (!formData.printTime || parseFloat(formData.printTime) <= 0) return "Print time must be greater than 0";
-  if (!formData.resinVolume || parseFloat(formData.resinVolume) <= 0) return "Resin volume must be greater than 0";
+
+  const printTime = parseFloat(formData.printTime);
+  if (isNaN(printTime) || printTime <= 0) return "Print time must be greater than 0";
+  if (printTime > 10000) return "Print time exceeds maximum (10000h)";
+
+  const volume = parseFloat(formData.resinVolume);
+  if (isNaN(volume) || volume <= 0) return "Resin volume must be greater than 0";
+  if (volume > 50000) return "Resin volume exceeds maximum (50000ml)";
+
+  if (formData.laborHours && parseFloat(formData.laborHours) > 1000) return "Labor hours exceed maximum (1000h)";
+  if (formData.overheadPercentage && parseFloat(formData.overheadPercentage) > 1000) return "Overhead exceeds maximum (1000%)";
+  if (formData.markupPercentage && parseFloat(formData.markupPercentage) > 10000) return "Markup exceeds maximum (10000%)";
+
+  const quantity = parseInt(formData.quantity);
+  if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
+  if (quantity > 1000000) return "Quantity exceeds maximum (1,000,000)";
+
   return null;
 };

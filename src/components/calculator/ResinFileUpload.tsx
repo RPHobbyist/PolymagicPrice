@@ -20,7 +20,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import { LargeThumbnailPreview } from "@/components/shared/ThumbnailPreview";
-import { stripFileExtension } from "@/lib/utils";
+import { stripFileExtension, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils";
 import { toast } from "sonner";
 import { parseResinFile, ResinFileData } from "@/lib/parsers/resinFileParser";
 
@@ -37,6 +37,16 @@ const ResinFileUpload = ({ onDataExtracted }: ResinFileUploadProps) => {
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Check file size limit (100MB)
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error(`File size too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.`);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
 
     // Supported resin printer file formats
     const supportedExtensions = [
@@ -110,7 +120,7 @@ const ResinFileUpload = ({ onDataExtracted }: ResinFileUploadProps) => {
         variant="outline"
         onClick={() => fileInputRef.current?.click()}
         disabled={isLoading}
-        className="w-full border-dashed border-2 hover:border-primary/50 transition-colors"
+        className="w-full border-dashed border-2 transition-all duration-200"
       >
         {isLoading ? (
           <>

@@ -105,9 +105,9 @@ const Index = memo(() => {
         <div className="container mx-auto px-4 py-2 md:py-3">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-start">
-              <a href={SYSTEM_CONFIG.vendorLink} target="_blank" rel="noopener noreferrer" className="hover-lift flex-shrink-0">
+              <Link to="/" className="hover-lift flex-shrink-0">
                 <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-8 sm:h-10 md:h-12 w-auto object-contain" />
-              </a>
+              </Link>
               <div className="text-center sm:text-left">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-foreground tracking-tight">{SYSTEM_CONFIG.appName}</h1>
                 <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
@@ -256,11 +256,21 @@ const Index = memo(() => {
               </Card>
             }>
               <SavedQuotesTable
-                quotes={quotes}
+                quotes={quotes.slice(0, 5)}
                 onDeleteQuote={handleDeleteQuote}
                 onUpdateNotes={handleUpdateNotes}
                 onDuplicateQuote={handleDuplicateQuote}
               />
+              {quotes.length > 5 && (
+                <div className="mt-6 flex justify-center">
+                  <Button variant="ghost" asChild className="text-primary hover:text-primary/80 hover:bg-primary/5 gap-2 group transition-all duration-200">
+                    <Link to="/saved-quotes">
+                      <RotateCcw className="w-4 h-4 group-hover:rotate-[-45deg] transition-transform duration-300" />
+                      View Full Quote History ({quotes.length} total)
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </Suspense>
           )}
         </div>

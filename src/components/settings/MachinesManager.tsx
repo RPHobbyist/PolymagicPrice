@@ -22,7 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, HelpCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, HelpCircle, AlertTriangle } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Machine } from "@/types/quote";
@@ -80,10 +90,27 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
       return;
     }
 
+    if (formData.name.length > 100) {
+      toast.error("Machine name is too long (max 100 chars)");
+      return;
+    }
+
+    const hourlyCost = parseFloat(formData.hourly_cost);
+    if (isNaN(hourlyCost) || hourlyCost < 0 || hourlyCost > 10000) {
+      toast.error("Hourly cost must be between 0 and 10000");
+      return;
+    }
+
+    const power = formData.power_consumption_watts ? parseInt(formData.power_consumption_watts) : null;
+    if (power !== null && (isNaN(power) || power < 0 || power > 10000)) {
+      toast.error("Power consumption must be between 0 and 10000W");
+      return;
+    }
+
     onSubmit({
       name: formData.name,
-      hourly_cost: parseFloat(formData.hourly_cost),
-      power_consumption_watts: formData.power_consumption_watts ? parseInt(formData.power_consumption_watts) : null,
+      hourly_cost: hourlyCost,
+      power_consumption_watts: power,
       print_type: formData.print_type,
     });
 
@@ -117,6 +144,7 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="e.g., Prusa i3 MK3S, Elegoo Mars 3"
             required
+            maxLength={100}
           />
         </div>
 
@@ -173,6 +201,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             onChange={(e) => setFormData({ ...formData, hourly_cost: e.target.value })}
             placeholder="5.00"
             required
+            min="0"
+            max="10000"
           />
         </div>
 
@@ -188,6 +218,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
             value={formData.power_consumption_watts}
             onChange={(e) => setFormData({ ...formData, power_consumption_watts: e.target.value })}
             placeholder="250"
+            min="0"
+            max="10000"
           />
         </div>
       </div>
@@ -282,6 +314,7 @@ const MachinesManager = () => {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency, formatPrice } = useCurrency();
 
   useEffect(() => {
@@ -340,12 +373,11 @@ const MachinesManager = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this machine?")) return;
-
     try {
       sessionStore.deleteMachine(id);
       toast.success("Machine deleted successfully");
       fetchMachines();
+      setDeleteId(null);
     } catch (error) {
       const err = error as Error;
       console.error(err);
@@ -369,9 +401,32 @@ const MachinesManager = () => {
       <MachinesList
         machines={machines}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={(id) => setDeleteId(id)}
         formatPrice={formatPrice}
       />
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Confirm Delete
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this machine? This action cannot be undone and will remove it from your database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteId && handleDelete(deleteId)}
+            >
+              Delete Machine
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

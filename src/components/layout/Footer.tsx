@@ -74,20 +74,20 @@ export const Footer = () => {
                     href={SYSTEM_CONFIG.youtubeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 hover:text-red-500 transition-colors whitespace-nowrap group"
+                    className="flex items-center gap-1.5 hover:text-primary transition-colors whitespace-nowrap group"
                 >
                     <Youtube className="w-4 h-4" />
-                    <span className="group-hover:underline decoration-red-500/20">Tutorial</span>
+                    <span className="group-hover:underline decoration-primary/20">Tutorial</span>
                 </a>
 
                 <a
                     href={SYSTEM_CONFIG.downloadUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 hover:text-green-500 transition-colors whitespace-nowrap group"
+                    className="flex items-center gap-1.5 hover:text-primary transition-colors whitespace-nowrap group"
                 >
                     <Download className="w-4 h-4" />
-                    <span className="group-hover:underline decoration-green-500/20">Download</span>
+                    <span className="group-hover:underline decoration-primary/20">Download</span>
                 </a>
 
                 <FeatureSuggestion />

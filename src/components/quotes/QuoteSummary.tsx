@@ -282,7 +282,7 @@ Generated: ${new Date().toLocaleString()}
         <div className="space-y-2.5 pt-2">
           <Button
             onClick={handleSave}
-            className="w-full bg-primary hover:bg-primary/90 transition-all shadow-card hover:shadow-elevated"
+            className="w-full bg-primary hover:bg-primary/90 transition-all shadow-card hover:shadow-md hover:scale-[1.02] duration-200"
           >
             <Save className="w-4 h-4 mr-2" />
             Save Quote
@@ -291,7 +291,7 @@ Generated: ${new Date().toLocaleString()}
           <Button
             onClick={handleAddToBatch}
             variant="outline"
-            className="w-full border-purple-500/50 text-purple-600 hover:bg-purple-50 hover:border-purple-500 transition-colors"
+            className="w-full hover:scale-[1.02] transition-all duration-200"
           >
             <Package className="w-4 h-4 mr-2" />
             Add to Batch {batchItems.length > 0 && `(${batchItems.length})`}
@@ -300,7 +300,7 @@ Generated: ${new Date().toLocaleString()}
           <Button
             onClick={handleSendToProduction}
             variant="outline"
-            className="w-full border-blue-500/50 text-blue-600 hover:bg-blue-50 hover:border-blue-500 transition-colors"
+            className="w-full hover:scale-[1.02] transition-all duration-200"
           >
             <Factory className="w-4 h-4 mr-2" />
             Send to Production
@@ -309,7 +309,7 @@ Generated: ${new Date().toLocaleString()}
           <Button
             onClick={handlePDF}
             variant="outline"
-            className="w-full hover:bg-secondary transition-colors"
+            className="w-full hover:bg-secondary hover:scale-[1.02] transition-all duration-200"
           >
             <FileDown className="w-4 h-4 mr-2" />
             Export as PDF

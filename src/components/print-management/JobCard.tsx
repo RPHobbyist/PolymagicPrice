@@ -35,7 +35,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { calculateTotalTime } from "@/lib/utils";
+import { calculateTotalTime, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface JobCardProps {
     job: ProductionJob;
@@ -138,8 +139,17 @@ export const JobCard = memo(({ job, index, isConnected, onSendFile, printStatus 
                                 accept=".gcode,.3mf"
                                 onChange={(e) => {
                                     const file = e.target.files?.[0];
-                                    if (file && onSendFile) {
-                                        onSendFile(file, job);
+                                    if (file) {
+                                        // Check file size limit (100MB)
+                                        if (file.size > MAX_FILE_SIZE_BYTES) {
+                                            toast.error(`File size too large. Maximum size is ${MAX_FILE_SIZE_MB}MB.`);
+                                            e.target.value = '';
+                                            return;
+                                        }
+
+                                        if (onSendFile) {
+                                            onSendFile(file, job);
+                                        }
                                     }
                                     // Reset input
                                     e.target.value = '';

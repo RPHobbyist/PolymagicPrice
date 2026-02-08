@@ -291,6 +291,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.projectName}
           onChange={(v) => updateField("projectName", v)}
           placeholder="Enter project name"
+          maxLength={100}
         />
       </FormFieldRow>
 
@@ -361,6 +362,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.printTime}
           onChange={(v) => updateField("printTime", v)}
           placeholder="8.5"
+          min={0.1}
+          max={10000}
         />
       </FormFieldRow>
 
@@ -373,6 +376,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.filamentWeight}
           onChange={(v) => updateField("filamentWeight", v)}
           placeholder="250"
+          min={0.1}
+          max={50000}
         />
       </FormFieldRow>
 
@@ -385,6 +390,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.laborHours}
           onChange={(v) => updateField("laborHours", v)}
           placeholder="0.5"
+          min={0}
+          max={1000}
         />
       </FormFieldRow>
 
@@ -397,6 +404,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.overheadPercentage}
           onChange={(v) => updateField("overheadPercentage", v)}
           placeholder="15"
+          min={0}
+          max={1000}
         />
       </FormFieldRow>
 
@@ -409,6 +418,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.markupPercentage}
           onChange={(v) => updateField("markupPercentage", v)}
           placeholder="20"
+          min={0}
+          max={10000}
         />
       </FormFieldRow>
 
@@ -421,6 +432,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.quantity}
           onChange={(v) => updateField("quantity", v)}
           placeholder="1"
+          min={1}
+          max={1000000}
         />
       </FormFieldRow>
 
@@ -509,6 +522,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                       onSurfaceAreaDetected={(area) => updateField("surfaceAreaCm2", (area / 100).toString())}
                     />
                   }
+                  min={0}
+                  max={1000000}
                 />
                 {formData.surfaceAreaCm2 && (
                   <div className="text-xs text-muted-foreground self-center whitespace-nowrap">
@@ -554,6 +569,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                 value={formData.paintingLayers}
                 onChange={(v) => updateField("paintingLayers", v)}
                 placeholder="1"
+                min={0}
+                max={100}
               />
             </FormFieldRow>
 
@@ -592,6 +609,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                 value={formData.paintingLayers2}
                 onChange={(v) => updateField("paintingLayers2", v)}
                 placeholder="1"
+                min={0}
+                max={100}
               />
             </FormFieldRow>
 
@@ -602,6 +621,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                 value={formData.paintingTime}
                 onChange={(v) => updateField("paintingTime", v)}
                 placeholder="0.5"
+                min={0}
+                max={1000}
               />
             </FormFieldRow>
           </div>

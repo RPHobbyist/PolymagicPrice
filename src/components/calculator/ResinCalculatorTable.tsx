@@ -214,6 +214,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.projectName}
           onChange={(v) => updateField("projectName", v)}
           placeholder="Enter project name"
+          maxLength={100}
         />
       </FormFieldRow>
 
@@ -291,6 +292,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.printTime}
           onChange={(v) => updateField("printTime", v)}
           placeholder="4.5"
+          min={0.1}
+          max={10000}
         />
       </FormFieldRow>
 
@@ -303,6 +306,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.resinVolume}
           onChange={(v) => updateField("resinVolume", v)}
           placeholder="150"
+          min={0.1}
+          max={50000}
         />
       </FormFieldRow>
 
@@ -314,6 +319,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.washingTime}
           onChange={(v) => updateField("washingTime", v)}
           placeholder="10"
+          min={0}
+          max={1440}
         />
       </FormFieldRow>
 
@@ -325,6 +332,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.curingTime}
           onChange={(v) => updateField("curingTime", v)}
           placeholder="15"
+          min={0}
+          max={1440}
         />
       </FormFieldRow>
 
@@ -337,6 +346,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.isopropylCost}
           onChange={(v) => updateField("isopropylCost", v)}
           placeholder="50"
+          min={0}
+          max={10000}
         />
       </FormFieldRow>
 
@@ -349,6 +360,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.laborHours}
           onChange={(v) => updateField("laborHours", v)}
           placeholder="1.0"
+          min={0}
+          max={1000}
         />
       </FormFieldRow>
 
@@ -361,6 +374,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.overheadPercentage}
           onChange={(v) => updateField("overheadPercentage", v)}
           placeholder="15"
+          min={0}
+          max={1000}
         />
       </FormFieldRow>
 
@@ -373,6 +388,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.markupPercentage}
           onChange={(v) => updateField("markupPercentage", v)}
           placeholder="20"
+          min={0}
+          max={10000}
         />
       </FormFieldRow>
 
@@ -385,6 +402,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           value={formData.quantity}
           onChange={(v) => updateField("quantity", v)}
           placeholder="1"
+          min={1}
+          max={1000000}
         />
       </FormFieldRow>
 
@@ -428,6 +447,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
                   onChange={(v) => updateField("surfaceAreaCm2", v)}
                   placeholder="Enter area manually"
                   className="flex-1"
+                  min={0}
+                  max={1000000}
                   endAdornment={
                     <SurfaceAreaUpload
                       className="border-none hover:bg-transparent px-2"
@@ -470,6 +491,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
                 value={formData.paintingLayers}
                 onChange={(v) => updateField("paintingLayers", v)}
                 placeholder="1"
+                min={0}
+                max={100}
               />
             </FormFieldRow>
 
@@ -508,6 +531,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
                 value={formData.paintingLayers2}
                 onChange={(v) => updateField("paintingLayers2", v)}
                 placeholder="1"
+                min={0}
+                max={100}
               />
             </FormFieldRow>
 
@@ -518,6 +543,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
                 value={formData.paintingTime}
                 onChange={(v) => updateField("paintingTime", v)}
                 placeholder="0.5"
+                min={0}
+                max={1000}
               />
             </FormFieldRow>
           </div>

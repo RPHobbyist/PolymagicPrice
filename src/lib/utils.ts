@@ -24,6 +24,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Global constant for maximum file upload size (100MB)
+ */
+export const MAX_FILE_SIZE_MB = 100;
+export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+/**
+ * Global constant for maximum logo image upload size (5MB)
+ */
+export const MAX_LOGO_SIZE_MB = 5;
+export const MAX_LOGO_SIZE_BYTES = MAX_LOGO_SIZE_MB * 1024 * 1024;
+
+/**
  * Removes the file extension from a filename.
  * Example: "my-model.gcode" -> "my-model"
  */
@@ -85,22 +97,22 @@ export function calculateTotalTime(timeStr: string | undefined, quantity: number
 
   // Handle "1h 30m" format
   if (timeStr.includes('h') && timeStr.includes('m')) {
-      const hMatch = timeStr.match(/(\d+(\.\d+)?)h/);
-      const mMatch = timeStr.match(/(\d+(\.\d+)?)m/);
-      if (hMatch) totalMinutes += parseFloat(hMatch[1]) * 60;
-      if (mMatch) totalMinutes += parseFloat(mMatch[1]);
+    const hMatch = timeStr.match(/(\d+(\.\d+)?)h/);
+    const mMatch = timeStr.match(/(\d+(\.\d+)?)m/);
+    if (hMatch) totalMinutes += parseFloat(hMatch[1]) * 60;
+    if (mMatch) totalMinutes += parseFloat(mMatch[1]);
   }
   // Handle "1.5h" or "45m" formats
   else if (timeStr.includes('h')) {
-      const h = parseFloat(timeStr.replace('h', ''));
-      if (!isNaN(h)) totalMinutes = h * 60;
+    const h = parseFloat(timeStr.replace('h', ''));
+    if (!isNaN(h)) totalMinutes = h * 60;
   } else if (timeStr.includes('m')) {
-      const m = parseFloat(timeStr.replace('m', ''));
-      if (!isNaN(m)) totalMinutes = m;
+    const m = parseFloat(timeStr.replace('m', ''));
+    if (!isNaN(m)) totalMinutes = m;
   } else {
-      // Fallback if just a number (assume hours?) or unknown
-      const val = parseFloat(timeStr);
-      if (!isNaN(val)) totalMinutes = val * 60;
+    // Fallback if just a number (assume hours?) or unknown
+    const val = parseFloat(timeStr);
+    if (!isNaN(val)) totalMinutes = val * 60;
   }
 
   // Multiply by quantity
