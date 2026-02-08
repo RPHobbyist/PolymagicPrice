@@ -38,7 +38,7 @@ export const CurrencySelector = () => {
 
     return (
         <Select value={currency.code} onValueChange={handleChange}>
-            <SelectTrigger className="w-[100px] h-8 px-2" aria-label="Select Currency">
+            <SelectTrigger className="w-[100px] h-8 px-2 bg-background hover:bg-muted text-xs sm:text-sm border-input" aria-label="Select Currency">
                 <SelectValue>
                     <span className="flex items-center gap-2">
                         <span className="font-medium">{currency.symbol}</span>
