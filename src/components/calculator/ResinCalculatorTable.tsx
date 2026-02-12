@@ -180,6 +180,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         resinVolume: currentGcodeData.resinVolumeMl,
         machineName: machine?.name || currentGcodeData.printerModel,
         materialName: material?.name,
+        printType: "Resin",
         createdAt: new Date().toISOString(),
       };
 

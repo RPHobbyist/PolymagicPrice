@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff, AlertTriangle, Search } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,12 +46,14 @@ import { processVisibilityFromDescription, addVisibilityTag } from "@/lib/utils"
 import * as sessionStore from "@/lib/core/sessionStorage";
 import { useCurrency } from "@/hooks/useCurrency";
 
+// --- Constants Management ---
 const ConstantsManager = () => {
   const [constants, setConstants] = useState<CostConstant[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { currency } = useCurrency();
   const [formData, setFormData] = useState({
     name: "",
@@ -171,18 +173,40 @@ const ConstantsManager = () => {
     }
   };
 
+  const filteredConstants = constants.filter(constant =>
+    constant.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return <div className="text-center py-8">Loading constants...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-foreground">Constants</h2>
-        <Button onClick={handleAddNew} className="bg-gradient-accent">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Constant
-        </Button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Consumables</h2>
+          <p className="text-sm text-muted-foreground">Manage your printing constants.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="search-constants"
+              name="search"
+              autoComplete="off"
+              type="search"
+              placeholder="Search consumables..."
+              className="pl-9 bg-background/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleAddNew} className="bg-gradient-accent">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Constant
+          </Button>
+        </div>
       </div>
 
       {/* Table */}
@@ -199,14 +223,14 @@ const ConstantsManager = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {constants.length === 0 ? (
+            {filteredConstants.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  No constants added yet. Add your first constant above.
+                  {searchQuery ? "No results found." : "No constants added yet. Add your first constant above."}
                 </TableCell>
               </TableRow>
             ) : (
-              constants.map((constant) => (
+              filteredConstants.map((constant) => (
                 <TableRow key={constant.id}>
                   <TableCell className="font-medium">{constant.name}</TableCell>
                   <TableCell>{constant.value}</TableCell>

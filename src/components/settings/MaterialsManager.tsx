@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Package, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Package, AlertTriangle, Search } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -297,6 +297,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
 
 MaterialsList.displayName = "MaterialsList";
 
+
 // --- Main Container ---
 const MaterialsManager = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -304,6 +305,7 @@ const MaterialsManager = () => {
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { currency, formatPrice } = useCurrency();
 
   useEffect(() => {
@@ -381,22 +383,45 @@ const MaterialsManager = () => {
     }
   };
 
+  const filteredMaterials = materials.filter(material =>
+    material.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    material.print_type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) {
     return <div className="text-center py-8">Loading materials...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-foreground">Materials</h2>
-        <Button onClick={handleAddNew} className="bg-gradient-accent">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Material
-        </Button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Materials</h2>
+          <p className="text-sm text-muted-foreground">Manage your printing materials.</p>
+        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="search-materials"
+              name="search"
+              autoComplete="off"
+              type="search"
+              placeholder="Search materials..."
+              className="pl-9 bg-background/50"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleAddNew} className="bg-gradient-accent">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Material
+          </Button>
+        </div>
       </div>
 
       <MaterialsList
-        materials={materials}
+        materials={filteredMaterials}
         onEdit={handleEdit}
         onDelete={(id) => setDeleteId(id)}
         formatPrice={formatPrice}

@@ -136,18 +136,18 @@ const Settings = () => {
                   Customers
                 </TabsTrigger>
                 <TabsTrigger
-                  value="company"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
-                >
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Company
-                </TabsTrigger>
-                <TabsTrigger
                   value="employees"
                   className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
                 >
                   <UserCircle className="w-4 h-4 mr-2" />
                   Employees
+                </TabsTrigger>
+                <TabsTrigger
+                  value="company"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                >
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Company
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -175,12 +175,12 @@ const Settings = () => {
               <SettingsCRM />
             </TabsContent>
 
-            <TabsContent value="company" className="p-6 mt-0 animate-fade-in">
-              <CompanySettings />
-            </TabsContent>
-
             <TabsContent value="employees" className="p-6 mt-0 animate-fade-in">
               <SettingsEmployee />
+            </TabsContent>
+
+            <TabsContent value="company" className="p-6 mt-0 animate-fade-in">
+              <CompanySettings />
             </TabsContent>
           </Tabs>
         </Card>

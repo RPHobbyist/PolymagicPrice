@@ -223,6 +223,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
       filamentWeight: parseFloat(formData.filamentWeight) || currentGcodeData.filamentWeightGrams,
       machineName: machine?.name || currentGcodeData.printerModel,
       materialName: material?.name || currentGcodeData.filamentSettingsId,
+      printType: "FDM",
       thumbnail: currentGcodeData.thumbnail,
       createdAt: new Date().toISOString()
     };

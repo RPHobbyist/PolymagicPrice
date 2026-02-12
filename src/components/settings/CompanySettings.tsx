@@ -126,14 +126,11 @@ const CompanySettings = () => {
         <div className="space-y-6 animate-fade-in">
             <Card>
                 <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Building2 className="w-6 h-6 text-primary" />
-                        <div>
-                            <h2 className="text-2xl font-semibold leading-none tracking-tight">Company Information</h2>
-                            <CardDescription>
-                                These details will appear on your generated quote PDFs and invoices.
-                            </CardDescription>
-                        </div>
+                    <div>
+                        <h2 className="text-2xl font-semibold leading-none tracking-tight">Company Information</h2>
+                        <CardDescription>
+                            These details will appear on your generated quote PDFs and invoices.
+                        </CardDescription>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">

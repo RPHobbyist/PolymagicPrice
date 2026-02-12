@@ -140,7 +140,7 @@ const SettingsEmployee = memo(() => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
-                    <Button onClick={handleAddNew} className="bg-gradient-primary text-primary-foreground">
+                    <Button onClick={handleAddNew} className="bg-gradient-accent">
                         <Plus className="w-4 h-4 mr-2" />
                         Add Employee
                     </Button>
@@ -277,7 +277,7 @@ const SettingsEmployee = memo(() => {
                             <Button type="button" variant="outline" onClick={resetForm}>
                                 Cancel
                             </Button>
-                            <Button type="submit" className="bg-gradient-primary text-primary-foreground">
+                            <Button type="submit" className="bg-gradient-accent">
                                 <Plus className="w-4 h-4 mr-2" />
                                 {editingEmployee ? 'Update Employee' : 'Add Employee'}
                             </Button>

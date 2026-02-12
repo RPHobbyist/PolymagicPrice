@@ -252,6 +252,7 @@ export interface StoredGcode {
   resinVolume?: number; // ml (for Resin printers)
   machineName?: string;
   materialName?: string;
+  printType?: "FDM" | "Resin";
   thumbnail?: string;
   createdAt: string;
 }
