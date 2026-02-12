@@ -18,7 +18,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Printer, Package, Users, Building2, UserCircle, Brush } from "lucide-react";
+import { Database, Printer, Package, Users, Building2, UserCircle, Brush, FileCode } from "lucide-react";
 import MaterialsManager from "@/components/settings/MaterialsManager";
 
 import MachinesManager from "@/components/settings/MachinesManager";
@@ -27,6 +27,7 @@ import SettingsExportImport from "@/components/settings/SettingsExportImport";
 import SettingsCRM from "@/components/settings/SettingsCRM";
 import SettingsEmployee from "@/components/settings/SettingsEmployee";
 import CompanySettings from "@/components/settings/CompanySettings";
+import GcodeManager from "@/components/settings/GcodeManager";
 import { useSearchParams, Link } from "react-router-dom";
 import { SYSTEM_CONFIG } from "@/lib/core/core-system";
 import { NavLink } from "@/components/layout/NavLink";
@@ -93,10 +94,10 @@ const Settings = () => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 relative space-y-6">
+      <main className="container mx-auto px-4 py-8 pb-24 relative space-y-6">
         <Card className="shadow-elevated border-border bg-card overflow-hidden animate-fade-in hover-glow">
           <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-            <div className="border-b border-border px-6 pt-6">
+            <div className="border-b border-border px-6 pt-6 pb-4">
               <TabsList className="bg-secondary/50 p-1.5 rounded-xl">
                 <TabsTrigger
                   value="materials"
@@ -119,6 +120,13 @@ const Settings = () => {
                 >
                   <Database className="w-4 h-4 mr-2" />
                   Consumables
+                </TabsTrigger>
+                <TabsTrigger
+                  value="gcodes"
+                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                >
+                  <FileCode className="w-4 h-4 mr-2" />
+                  Saved Projects
                 </TabsTrigger>
                 <TabsTrigger
                   value="customers"
@@ -157,6 +165,10 @@ const Settings = () => {
 
             <TabsContent value="constants" className="p-6 mt-0 animate-fade-in">
               <ConstantsManager />
+            </TabsContent>
+
+            <TabsContent value="gcodes" className="p-6 mt-0 animate-fade-in">
+              <GcodeManager />
             </TabsContent>
 
             <TabsContent value="customers" className="p-6 mt-0 animate-fade-in">

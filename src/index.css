@@ -46,9 +46,9 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(220 80% 50%), hsl(220 70% 60%));
-    --gradient-accent: linear-gradient(135deg, hsl(160 85% 40%), hsl(175 80% 45%));
-    --gradient-subtle: linear-gradient(180deg, hsl(220 20% 98%), hsl(220 15% 96%));
+    --gradient-primary: linear-gradient(0deg, hsl(220 80% 50%), hsl(220 80% 50%));
+    --gradient-accent: linear-gradient(0deg, hsl(160 85% 40%), hsl(160 85% 40%));
+    --gradient-subtle: linear-gradient(0deg, hsl(220 20% 98%), hsl(220 20% 98%));
     --gradient-glow: transparent;
 
     --shadow-card: 0 1px 3px hsl(220 25% 12% / 0.05), 0 4px 12px hsl(220 25% 12% / 0.05);
@@ -378,6 +378,7 @@ All colors MUST be HSL.
       hsl(220 80% 50%));
   background-size: 400% 400%;
   animation: rainbow-shimmer 8s ease infinite;
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

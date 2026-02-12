@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback, useMemo, memo, useEffect } from "react";
-import { Calculator } from "lucide-react";
+import { useState, useCallback, useMemo, memo, useEffect, useRef } from "react";
+import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
-import { QuoteData, ResinFormData } from "@/types/quote";
+import { QuoteData, ResinFormData, StoredGcode } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
 import { calculateResinQuote, validateResinForm } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
@@ -31,6 +31,9 @@ import { ResinFileData } from "@/lib/parsers/resinFileParser";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ClientSelector } from "@/components/shared/ClientSelector";
 import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useStoredGcodes } from "@/hooks/useStoredGcodes";
 
 interface ResinCalculatorProps {
   onCalculate: (data: QuoteData) => void;
@@ -62,6 +65,20 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
   const [formData, setFormData] = useState<ResinFormData>(initialFormData);
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
   const { currency } = useCurrency();
+  const { gcodes, saveGcode } = useStoredGcodes();
+
+  // Filter for Resin files only
+  const filteredGcodes = useMemo(() => {
+    return gcodes.filter(g => (g.resinVolume || 0) > 0);
+  }, [gcodes]);
+
+  const [currentGcodeData, setCurrentGcodeData] = useState<{
+    fileName: string;
+    filePath: string;
+    printTimeHours: number;
+    resinVolumeMl: number;
+    printerModel?: string;
+  } | null>(null);
 
   const [isPaintingEnabled, setIsPaintingEnabled] = useState(false);
 
@@ -98,6 +115,14 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
       resinVolume: data.resinVolumeMl > 0 ? data.resinVolumeMl.toString() : prev.resinVolume,
       machineId: matchedMachineId || prev.machineId,
     }));
+
+    setCurrentGcodeData({
+      fileName: data.fileName || "Unknown File",
+      filePath: data.filePath || "",
+      printTimeHours: data.printTimeHours,
+      resinVolumeMl: data.resinVolumeMl,
+      printerModel: data.printerModel
+    });
   }, [machines]);
 
   const handleConsumablesChange = useCallback((selectedIds: string[]) => {
@@ -109,6 +134,62 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
       toast.info(`Selected ${selectedIds.length} consumables (Total: ${currency.symbol}${totalValue.toFixed(2)})`);
     }
   }, [constants, updateField, currency]);
+
+  const handleSavedGcodeSelect = useCallback((fileId: string) => {
+    const file = gcodes.find(f => f.id === fileId);
+    if (!file) return;
+
+    // Find matching machine if possible
+    let matchedMachineId = '';
+    if (file.machineName) {
+      const machineNameLower = file.machineName.toLowerCase();
+      const matchedMachine = machines.find(m =>
+        m.name.toLowerCase().includes(machineNameLower) ||
+        machineNameLower.includes(m.name.toLowerCase())
+      );
+      if (matchedMachine) {
+        matchedMachineId = matchedMachine.id;
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      projectName: file.name,
+      printTime: file.printTime.toString(),
+      resinVolume: (file.resinVolume || 0).toString(),
+      machineId: matchedMachineId || prev.machineId,
+    }));
+
+    toast.success(`Loaded "${file.name}"`);
+  }, [gcodes, machines]);
+
+  const handleSaveToLibrary = async () => {
+    if (!currentGcodeData) return;
+
+    try {
+      // Find material and machine names for metadata
+      const machine = machines.find(m => m.id === formData.machineId);
+      const material = materials.find(m => m.id === formData.materialId);
+
+      const newGcode: StoredGcode = {
+        id: crypto.randomUUID(),
+        name: currentGcodeData.fileName,
+        filePath: currentGcodeData.filePath,
+        printTime: currentGcodeData.printTimeHours,
+        filamentWeight: 0, // Not used for resin
+        resinVolume: currentGcodeData.resinVolumeMl,
+        machineName: machine?.name || currentGcodeData.printerModel,
+        materialName: material?.name,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveGcode(newGcode);
+      toast.success("File saved to library");
+    } catch (error) {
+      console.error("Failed to save file", error);
+      toast.error("Failed to save file to library");
+    }
+  };
 
   const calculateQuote = useCallback(() => {
     const validationError = validateResinForm(formData);
@@ -191,17 +272,54 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
     })), [constants]);
 
   const uploadSection = (
-    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Calculator className="w-5 h-5 text-primary" />
+    <div className="flex flex-col gap-4 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Calculator className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-foreground">Auto-fill from Resin File</p>
+            <p className="text-sm text-muted-foreground">Upload .cxdlpv4 to extract parameters</p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium text-foreground">Auto-fill from Resin File</p>
-          <p className="text-sm text-muted-foreground">Upload .cxdlpv4 to extract parameters</p>
+        <div className="flex items-center gap-2">
+          {currentGcodeData && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSaveToLibrary}
+              className="text-primary hover:text-primary hover:bg-primary/10 gap-2"
+              title="Save current file details to library"
+            >
+              <Save className="w-4 h-4" />
+              <span className="hidden sm:inline">Save to Library</span>
+            </Button>
+          )}
+          <ResinFileUpload onDataExtracted={handleResinFileData} />
         </div>
       </div>
-      <ResinFileUpload onDataExtracted={handleResinFileData} />
+
+      <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">Saved Files:</span>
+        <Select onValueChange={handleSavedGcodeSelect} disabled={filteredGcodes.length === 0}>
+          <SelectTrigger className="h-8 w-full max-w-[300px] bg-background/50">
+            <SelectValue placeholder={filteredGcodes.length === 0 ? "No saved files" : "Select a saved file..."} />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredGcodes.map((file) => (
+              <SelectItem key={file.id} value={file.id}>
+                <div className="flex items-center gap-2">
+                  <span>{file.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({file.printTime}h, {file.resinVolume}ml)
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 
@@ -496,7 +614,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <div className="my-2 border-t border-dashed border-border/50"></div>
+
 
             <FormFieldRow label="Secondary Paint">
               <SelectField

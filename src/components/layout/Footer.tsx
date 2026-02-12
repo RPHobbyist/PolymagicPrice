@@ -17,7 +17,6 @@
  */
 
 import { Youtube, Download, ShieldCheck, Info } from "lucide-react";
-import { FeatureSuggestion } from "@/components/feedback/FeatureSuggestion";
 import { Link } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { SYSTEM_CONFIG } from "@/lib/core/core-system";
@@ -90,7 +89,7 @@ export const Footer = () => {
                     <span className="group-hover:underline decoration-primary/20">Download</span>
                 </a>
 
-                <FeatureSuggestion />
+
 
                 <Link to="/print-management" className="hover:text-primary transition-colors hover:underline decoration-primary/20">
                     Print Management

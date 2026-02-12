@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, memo } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -242,8 +242,8 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
               };
 
               return (
-                <>
-                  <TableRow key={material.id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(material.id)}>
+                <React.Fragment key={material.id}>
+                  <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(material.id)}>
                     <TableCell>
                       <Button variant="ghost" size="icon" className="h-6 w-6" aria-label={isExpanded ? "Collapse row" : "Expand row"}>
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -293,7 +293,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               );
             })
           )}

@@ -17,9 +17,9 @@
  */
 
 import { useState, useCallback, useMemo, memo, useEffect } from "react";
-import { Calculator } from "lucide-react";
+import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
-import { QuoteData, FDMFormData } from "@/types/quote";
+import { QuoteData, FDMFormData, StoredGcode } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
 import { calculateFDMQuote, validateFDMForm } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
@@ -33,6 +33,9 @@ import { ClientSelector } from "@/components/shared/ClientSelector";
 import { Customer, Employee } from "@/types/quote";
 import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
 import { getEmployees } from "@/lib/core/sessionStorage";
+import { useStoredGcodes } from "@/hooks/useStoredGcodes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 interface FDMCalculatorProps {
   onCalculate: (data: QuoteData) => void;
@@ -69,6 +72,14 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
   const { currency } = useCurrency();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const { gcodes, saveGcode } = useStoredGcodes();
+
+  // Filter for FDM files only (has filament weight and no resin volume)
+  const filteredGcodes = useMemo(() => {
+    return gcodes.filter(g => (g.filamentWeight || 0) > 0 && !g.resinVolume);
+  }, [gcodes]);
+
+  const [currentGcodeData, setCurrentGcodeData] = useState<GcodeData | null>(null);
 
   // Load employees on mount
   useEffect(() => {
@@ -173,8 +184,61 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         filePath: data.filePath || prev.filePath, // Store the file path
         surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : undefined,
       }));
+
+      // Keep track of current Gcode data for saving
+      setCurrentGcodeData(data);
     }
   }, [machines, materials]);
+
+  const handleSavedGcodeSelect = useCallback((gcodeId: string) => {
+    const gcode = gcodes.find(g => g.id === gcodeId);
+    if (!gcode) return;
+
+    const gcodeData: GcodeData = {
+      fileName: gcode.name,
+      filePath: gcode.filePath,
+      printTimeHours: gcode.printTime,
+      filamentWeightGrams: gcode.filamentWeight,
+      printerModel: gcode.machineName,
+      filamentSettingsId: gcode.materialName,
+      thumbnail: gcode.thumbnail,
+    };
+
+    handleGcodeData(gcodeData);
+    toast.success(`Loaded saved file: ${gcode.name}`);
+  }, [gcodes, handleGcodeData]);
+
+  const handleSaveToLibrary = async () => {
+    if (!currentGcodeData) return;
+
+    // Find material and machine names for better storage metadata
+    const material = materials.find(m => m.id === formData.materialId);
+    const machine = machines.find(m => m.id === formData.machineId);
+
+    const gcodeToSave: StoredGcode = {
+      id: '', // Will be generated
+      name: formData.projectName || currentGcodeData.fileName,
+      filePath: currentGcodeData.filePath || formData.filePath || "Uploaded File",
+      printTime: parseFloat(formData.printTime) || currentGcodeData.printTimeHours,
+      filamentWeight: parseFloat(formData.filamentWeight) || currentGcodeData.filamentWeightGrams,
+      machineName: machine?.name || currentGcodeData.printerModel,
+      materialName: material?.name || currentGcodeData.filamentSettingsId,
+      thumbnail: currentGcodeData.thumbnail,
+      createdAt: new Date().toISOString()
+    };
+
+    if (gcodeToSave.printTime <= 0) {
+      toast.error("Cannot save file with 0 print time");
+      return;
+    }
+
+    try {
+      await saveGcode(gcodeToSave);
+      // Toast is handled in hook
+    } catch (error) {
+      // Error handling in hook
+    }
+  };
 
   const handleConsumablesChange = useCallback((selectedIds: string[]) => {
     updateField("selectedConsumableIds", selectedIds);
@@ -268,17 +332,55 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
     })), [constants]);
 
   const uploadSection = (
-    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Calculator className="w-5 h-5 text-primary" />
+    <div className="flex flex-col gap-4 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Calculator className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-foreground">Auto-fill from G-code</p>
+            <p className="text-sm text-muted-foreground">Upload or select a saved file</p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium text-foreground">Auto-fill from G-code</p>
-          <p className="text-sm text-muted-foreground">Upload to extract print time & material</p>
+        <div className="flex items-center gap-2">
+          {/* Save Button */}
+          {(formData.printTime && parseFloat(formData.printTime) > 0 && currentGcodeData) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSaveToLibrary}
+              className="text-primary hover:text-primary hover:bg-primary/10 gap-2"
+              title="Save current file details to library"
+            >
+              <Save className="w-4 h-4" />
+              <span className="hidden sm:inline">Save to Library</span>
+            </Button>
+          )}
+          <GcodeUpload onDataExtracted={handleGcodeData} />
         </div>
       </div>
-      <GcodeUpload onDataExtracted={handleGcodeData} />
+
+      <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">Saved Files:</span>
+        <Select onValueChange={handleSavedGcodeSelect} disabled={filteredGcodes.length === 0}>
+          <SelectTrigger className="h-8 w-full max-w-[300px] bg-background/50">
+            <SelectValue placeholder={filteredGcodes.length === 0 ? "No saved files" : "Select a saved file..."} />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredGcodes.map((g) => (
+              <SelectItem key={g.id} value={g.id}>
+                <div className="flex items-center gap-2">
+                  <span>{g.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({g.printTime}h, {g.filamentWeight}g)
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 
@@ -574,7 +676,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <div className="my-2 border-t border-dashed border-border/50"></div>
+
 
             <FormFieldRow label="Secondary Paint">
               <SelectField

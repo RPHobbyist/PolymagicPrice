@@ -25,6 +25,7 @@ export interface ResinFileData {
   printerModel?: string;
   thumbnail?: string;
   fileName?: string;
+  filePath?: string;
 }
 
 /**

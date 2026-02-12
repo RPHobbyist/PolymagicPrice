@@ -19,7 +19,7 @@
 // Local Storage - Data persists until explicitly cleared
 // Data remains even after app closes/restarts
 
-import { QuoteData, Material, Machine, CostConstant, Customer, CustomerReview, MaterialSpool, CompanySettings, QuoteStatus, Employee } from "@/types/quote";
+import { QuoteData, Material, Machine, CostConstant, Customer, CustomerReview, MaterialSpool, CompanySettings, QuoteStatus, Employee, StoredGcode } from "@/types/quote";
 
 // Generate unique IDs
 const generateId = (): string => {
@@ -105,6 +105,7 @@ const STORAGE_KEYS = {
     SPOOLS: "session_spools",
     COMPANY: "session_company",
     EMPLOYEES: "session_employees",
+    GCODES: "session_gcodes",
     INITIALIZED: "session_initialized",
 };
 
@@ -118,6 +119,7 @@ const initializeDefaults = () => {
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
         localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify([]));
         localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify([]));
         localStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(null));
         localStorage.setItem(STORAGE_KEYS.INITIALIZED, "true");
     }
@@ -339,6 +341,7 @@ export const resetSessionData = (): void => {
     localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
     localStorage.removeItem(STORAGE_KEYS.REVIEWS);
     localStorage.removeItem(STORAGE_KEYS.SPOOLS);
+    localStorage.removeItem(STORAGE_KEYS.GCODES);
     initializeDefaults();
 };
 
@@ -578,7 +581,40 @@ const updateMaterialStock = (materialId: string): void => {
     }
 };
 
+// ==================== STORED G-CODES ====================
+
+export const getGcodes = (): StoredGcode[] => {
+    initializeDefaults();
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.GCODES) || "[]");
+};
+
+export const saveGcode = (gcode: Omit<StoredGcode, "id"> & { id?: string }): StoredGcode => {
+    const gcodes = getGcodes();
+    if (gcode.id) {
+        // Update existing
+        const index = gcodes.findIndex(g => g.id === gcode.id);
+        if (index !== -1) {
+            gcodes[index] = gcode as StoredGcode;
+        }
+    } else {
+        // Add new
+        const newGcode: StoredGcode = {
+            ...gcode,
+            id: generateId(),
+        } as StoredGcode;
+        gcodes.unshift(newGcode);
+    }
+    localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(gcodes));
+    return gcode.id ? gcodes.find(g => g.id === gcode.id)! : gcodes[0];
+};
+
+export const deleteGcode = (id: string): void => {
+    const gcodes = getGcodes().filter(g => g.id !== id);
+    localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(gcodes));
+};
+
 // ==================== COMPANY SETTINGS ====================
+
 
 export const getCompanySettings = (): CompanySettings | null => {
     initializeDefaults();
@@ -602,6 +638,7 @@ export interface SettingsExport {
     customers: Customer[];
     reviews?: CustomerReview[];
     spools?: MaterialSpool[];
+    gcodes?: StoredGcode[];
     company?: CompanySettings | null;
 }
 
@@ -616,6 +653,7 @@ export const exportAllSettings = (): SettingsExport => {
         customers: getCustomers(),
         reviews: getReviews(),
         spools: getSpools(),
+        gcodes: getGcodes(),
         company: getCompanySettings(),
     };
 };
@@ -662,6 +700,11 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
             localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(data.spools));
         }
 
+        // Import G-codes (if present)
+        if (data.gcodes) {
+            localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(data.gcodes));
+        }
+
         // Import company settings (if present)
         if (data.company) {
             localStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(data.company));
@@ -669,7 +712,7 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
         return {
             success: true,
-            message: `Imported ${data.materials.length} materials, ${data.machines.length} machines, ${data.constants.length} consumables${data.customers ? `, ${data.customers.length} customers` : ''}${data.reviews ? `, ${data.reviews.length} reviews` : ''}${data.spools ? `, ${data.spools.length} spools` : ''}`
+            message: `Imported ${data.materials.length} materials, ${data.machines.length} machines, ${data.constants.length} consumables${data.customers ? `, ${data.customers.length} customers` : ''}${data.reviews ? `, ${data.reviews.length} reviews` : ''}${data.spools ? `, ${data.spools.length} spools` : ''}${data.gcodes ? `, ${data.gcodes.length} G-codes` : ''}`
         };
     } catch (error) {
         console.error("Import error:", error);

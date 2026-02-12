@@ -242,7 +242,16 @@ export interface CompanySettings {
   footerText?: string;
 }
 
-export interface KanbanColumn {
-  id: QuoteStatus;
-  title: string;
+// Stored G-code Files
+export interface StoredGcode {
+  id: string;
+  name: string;
+  filePath: string;
+  printTime: number; // hours
+  filamentWeight: number; // grams
+  resinVolume?: number; // ml (for Resin printers)
+  machineName?: string;
+  materialName?: string;
+  thumbnail?: string;
+  createdAt: string;
 }
