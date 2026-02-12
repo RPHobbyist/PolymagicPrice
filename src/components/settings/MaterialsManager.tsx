@@ -33,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Material } from "@/types/quote";
@@ -44,11 +51,10 @@ interface MaterialsFormProps {
   initialData?: Material | null;
   onSubmit: (data: Omit<Material, "id">) => void;
   onCancel: () => void;
-  isEditing: boolean;
   currencySymbol: string;
 }
 
-const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymbol }: MaterialsFormProps) => {
+const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: MaterialsFormProps) => {
   const [formData, setFormData] = useState({
     name: "",
     cost_per_unit: "",
@@ -91,102 +97,88 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, isEditing, currencySym
       unit: formData.unit,
       print_type: formData.print_type,
     }); // ID will be handled by parent or store
-
-    if (!isEditing) {
-      // Reset form after add only
-      setFormData({
-        name: "",
-        cost_per_unit: "",
-        unit: "kg",
-        print_type: "FDM",
-        description: "",
-      });
-    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-      <h2 className="text-lg font-semibold text-foreground">
-        {isEditing ? "Edit Material" : "Add New Material"}
-      </h2>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Material Name *</Label>
+            <Input
+              id="name"
+              name="name"
+              autoComplete="off"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., PLA, ABS, Standard Resin"
+              required
+            />
+          </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Material Name *</Label>
-          <Input
-            id="name"
-            name="name"
-            autoComplete="off"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g., PLA, ABS, Standard Resin"
-            required
-          />
+          <div className="space-y-2">
+            <Label htmlFor="print_type">Print Type *</Label>
+            <Select
+              name="print_type"
+              value={formData.print_type}
+              onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
+            >
+              <SelectTrigger id="print_type" aria-label="Print Type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FDM">FDM</SelectItem>
+                <SelectItem value="Resin">Resin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="print_type">Print Type *</Label>
-          <Select
-            name="print_type"
-            value={formData.print_type}
-            onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
-          >
-            <SelectTrigger id="print_type" aria-label="Print Type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="FDM">FDM</SelectItem>
-              <SelectItem value="Resin">Resin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="cost_per_unit">Cost per Unit ({currencySymbol}) *</Label>
+            <Input
+              id="cost_per_unit"
+              name="cost_per_unit"
+              autoComplete="off"
+              type="number"
+              step="0.01"
+              value={formData.cost_per_unit}
+              onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
+              placeholder="25.00"
+              required
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="cost_per_unit">Cost per Unit ({currencySymbol}) *</Label>
-          <Input
-            id="cost_per_unit"
-            name="cost_per_unit"
-            autoComplete="off"
-            type="number"
-            step="0.01"
-            value={formData.cost_per_unit}
-            onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
-            placeholder="25.00"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="unit">Unit *</Label>
-          <Select
-            name="unit"
-            value={formData.unit}
-            onValueChange={(value) => setFormData({ ...formData, unit: value })}
-          >
-            <SelectTrigger id="unit" aria-label="Unit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="kg">Kilogram (kg)</SelectItem>
-              <SelectItem value="liter">Liter (L)</SelectItem>
-              <SelectItem value="g">Gram (g)</SelectItem>
-              <SelectItem value="ml">Milliliter (ml)</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label htmlFor="unit">Unit *</Label>
+            <Select
+              name="unit"
+              value={formData.unit}
+              onValueChange={(value) => setFormData({ ...formData, unit: value })}
+            >
+              <SelectTrigger id="unit" aria-label="Unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kg">Kilogram (kg)</SelectItem>
+                <SelectItem value="liter">Liter (L)</SelectItem>
+                <SelectItem value="g">Gram (g)</SelectItem>
+                <SelectItem value="ml">Milliliter (ml)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <Button type="submit" className="bg-gradient-accent">
-          <Plus className="w-4 h-4 mr-2" />
-          {isEditing ? "Update" : "Add"} Material
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
         </Button>
-        {isEditing && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-      </div>
+        <Button type="submit" className="bg-gradient-accent">
+          {initialData ? "Update" : "Add"} Material
+        </Button>
+      </DialogFooter>
     </form>
   );
 };
@@ -310,6 +302,7 @@ const MaterialsManager = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency, formatPrice } = useCurrency();
 
@@ -347,12 +340,13 @@ const MaterialsManager = () => {
         materialData.id = editingMaterial.id;
         sessionStore.saveMaterial(materialData);
         toast.success("Material updated successfully");
-        setEditingMaterial(null);
       } else {
         sessionStore.saveMaterial(materialData);
         toast.success("Material added successfully");
       }
 
+      setEditingMaterial(null);
+      setIsDialogOpen(false);
       fetchMaterials();
     } catch (error) {
       const err = error as Error;
@@ -362,10 +356,17 @@ const MaterialsManager = () => {
 
   const handleEdit = (material: Material) => {
     setEditingMaterial(material);
+    setIsDialogOpen(true);
   };
 
-  const handleCancelEdit = () => {
+  const handleAddNew = () => {
     setEditingMaterial(null);
+    setIsDialogOpen(true);
+  }
+
+  const handleCancelEdit = () => {
+    setIsDialogOpen(false);
+    setTimeout(() => setEditingMaterial(null), 300);
   };
 
   const handleDelete = async (id: string) => {
@@ -386,19 +387,36 @@ const MaterialsManager = () => {
 
   return (
     <div className="space-y-6">
-      <MaterialsForm
-        initialData={editingMaterial}
-        onSubmit={handleFormSubmit}
-        onCancel={handleCancelEdit}
-        isEditing={!!editingMaterial}
-        currencySymbol={currency.symbol}
-      />
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold text-foreground">Materials</h2>
+        <Button onClick={handleAddNew} className="bg-gradient-accent">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Material
+        </Button>
+      </div>
+
       <MaterialsList
         materials={materials}
         onEdit={handleEdit}
         onDelete={(id) => setDeleteId(id)}
         formatPrice={formatPrice}
       />
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) handleCancelEdit();
+      }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingMaterial ? "Edit Material" : "Add New Material"}</DialogTitle>
+          </DialogHeader>
+          <MaterialsForm
+            initialData={editingMaterial}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancelEdit}
+            currencySymbol={currency.symbol}
+          />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

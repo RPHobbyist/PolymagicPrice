@@ -58,6 +58,7 @@ const SettingsCRM = () => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const { formatPrice } = useCurrency();
@@ -85,6 +86,7 @@ const SettingsCRM = () => {
     const resetForm = () => {
         setEditingCustomer(null);
         setFormData({ name: "", company: "", email: "", phone: "", address: "", notes: "", tags: [] });
+        setIsDialogOpen(false);
     };
 
     const handleEdit = (customer: Customer) => {
@@ -98,8 +100,13 @@ const SettingsCRM = () => {
             tags: customer.tags || [],
         });
         setEditingCustomer(customer);
-        // Scroll to top to see form
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsDialogOpen(true);
+    };
+
+    const handleAddNew = () => {
+        setEditingCustomer(null);
+        setFormData({ name: "", company: "", email: "", phone: "", address: "", notes: "", tags: [] });
+        setIsDialogOpen(true);
     };
 
     const handleSaveCustomer = (e?: React.FormEvent) => {
@@ -171,116 +178,12 @@ const SettingsCRM = () => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
+                    <Button onClick={handleAddNew} className="bg-gradient-primary text-primary-foreground">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Customer
+                    </Button>
                 </div>
             </div>
-
-            {/* Inline Form */}
-            <form onSubmit={handleSaveCustomer} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-                <h2 className="text-lg font-semibold text-foreground">
-                    {editingCustomer ? "Edit Customer" : "Add New Customer"}
-                </h2>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
-                        <Input
-                            id="name"
-                            name="name"
-                            autoComplete="name"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="John Doe"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="company">Company</Label>
-                        <Input
-                            id="company"
-                            name="company"
-                            autoComplete="organization"
-                            value={formData.company}
-                            onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                            placeholder="Acme Inc."
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                            id="email"
-                            name="email"
-                            autoComplete="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="john@example.com"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                            id="phone"
-                            name="phone"
-                            autoComplete="tel"
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            placeholder="+1 234 567 890"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="address">Address</Label>
-                        <Input
-                            id="address"
-                            name="address"
-                            autoComplete="street-address"
-                            value={formData.address}
-                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                            placeholder="123 Main St, City, Country"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="tags">Tags (comma separated)</Label>
-                        <Input
-                            id="tags"
-                            name="tags"
-                            autoComplete="off"
-                            value={formData.tags?.join(", ")}
-                            onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
-                            placeholder="VIP, Local, Retail"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="notes">Notes</Label>
-                        <Textarea
-                            id="notes"
-                            name="notes"
-                            autoComplete="off"
-                            value={formData.notes}
-                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                            placeholder="Preferences, specific requirements, etc."
-                            className="bg-background min-h-[60px]"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex gap-2">
-                    <Button type="submit" className="bg-gradient-primary text-primary-foreground">
-                        <Plus className="w-4 h-4 mr-2" />
-                        {editingCustomer ? 'Update Customer' : 'Add Customer'}
-                    </Button>
-                    {editingCustomer && (
-                        <Button type="button" variant="outline" onClick={resetForm}>
-                            Cancel
-                        </Button>
-                    )}
-                </div>
-            </form>
 
             <Card className="shadow-sm border-border bg-card overflow-hidden">
                 {filteredCustomers.length === 0 ? (
@@ -291,7 +194,7 @@ const SettingsCRM = () => {
                         <div>
                             <h3 className="text-xl font-semibold text-foreground">No Customers Found</h3>
                             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-                                {searchQuery ? "No customers match your search." : "Start by adding your first customer above."}
+                                {searchQuery ? "No customers match your search." : "Start by adding your first customer using the button above."}
                             </p>
                         </div>
                     </div>
@@ -388,6 +291,116 @@ const SettingsCRM = () => {
                     </div>
                 )}
             </Card>
+
+            {/* Add/Edit Customer Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
+                    </DialogHeader>
+
+                    <form onSubmit={handleSaveCustomer} className="space-y-4 py-4">
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    autoComplete="name"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="John Doe"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="company">Company</Label>
+                                <Input
+                                    id="company"
+                                    name="company"
+                                    autoComplete="organization"
+                                    value={formData.company}
+                                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                                    placeholder="Acme Inc."
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    autoComplete="email"
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="john@example.com"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="phone">Phone</Label>
+                                <Input
+                                    id="phone"
+                                    name="phone"
+                                    autoComplete="tel"
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    placeholder="+1 234 567 890"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="address">Address</Label>
+                                <Input
+                                    id="address"
+                                    name="address"
+                                    autoComplete="street-address"
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    placeholder="123 Main St, City, Country"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="tags">Tags (comma separated)</Label>
+                                <Input
+                                    id="tags"
+                                    name="tags"
+                                    autoComplete="off"
+                                    value={formData.tags?.join(", ")}
+                                    onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
+                                    placeholder="VIP, Local, Retail"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="notes">Notes</Label>
+                                <Textarea
+                                    id="notes"
+                                    name="notes"
+                                    autoComplete="off"
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                    placeholder="Preferences, specific requirements, etc."
+                                    className="bg-background min-h-[60px]"
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={resetForm}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" className="bg-gradient-primary text-primary-foreground">
+                                <Plus className="w-4 h-4 mr-2" />
+                                {editingCustomer ? 'Update Customer' : 'Add Customer'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete Dialog */}
             <Dialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

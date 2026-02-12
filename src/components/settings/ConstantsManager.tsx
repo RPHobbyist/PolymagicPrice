@@ -33,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { CostConstant } from "@/types/quote";
 import { processVisibilityFromDescription, addVisibilityTag } from "@/lib/utils";
@@ -43,6 +50,7 @@ const ConstantsManager = () => {
   const [constants, setConstants] = useState<CostConstant[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency } = useCurrency();
   const [formData, setFormData] = useState({
@@ -76,6 +84,18 @@ const ConstantsManager = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFormData({
+      name: "",
+      value: "",
+      unit: "",
+      is_visible: true,
+      description: "",
+    });
+    setIsDialogOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,6 +143,19 @@ const ConstantsManager = () => {
       is_visible: constant.is_visible !== false,
       description: constant.description || "",
     });
+    setIsDialogOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingId(null);
+    setFormData({
+      name: "",
+      value: "",
+      unit: "",
+      is_visible: true,
+      description: "",
+    });
+    setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -138,106 +171,19 @@ const ConstantsManager = () => {
     }
   };
 
-  const resetForm = () => {
-    setEditingId(null);
-    setFormData({
-      name: "",
-      value: "",
-      unit: "",
-      is_visible: true,
-      description: "",
-    });
-  };
-
   if (loading) {
     return <div className="text-center py-8">Loading constants...</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-        <h2 className="text-lg font-semibold text-foreground">
-          {editingId ? "Edit Constant" : "Add New Constant"}
-        </h2>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Constant Name *</Label>
-            <Input
-              id="name"
-              name="name"
-              autoComplete="off"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g., Electricity Rate, Labor Rate"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="value">Value *</Label>
-            <Input
-              id="value"
-              name="value"
-              autoComplete="off"
-              type="number"
-              step="0.01"
-              value={formData.value}
-              onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-              placeholder="0.15"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="unit">Unit *</Label>
-            <Input
-              id="unit"
-              name="unit"
-              autoComplete="off"
-              value={formData.unit}
-              onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              placeholder="e.g., $/kWh, $/hr, %"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              name="description"
-              autoComplete="off"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Optional description"
-            />
-          </div>
-
-          <div className="flex items-center space-x-2 md:col-span-2">
-            <Switch
-              id="is_visible"
-              name="is_visible"
-              checked={formData.is_visible}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_visible: checked })}
-            />
-            <Label htmlFor="is_visible">Visible in Calculator selection</Label>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
-          <Button type="submit" className="bg-gradient-accent">
-            <Plus className="w-4 h-4 mr-2" />
-            {editingId ? "Update" : "Add"} Constant
-          </Button>
-          {editingId && (
-            <Button type="button" variant="outline" onClick={resetForm}>
-              Cancel
-            </Button>
-          )}
-        </div>
-      </form>
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold text-foreground">Constants</h2>
+        <Button onClick={handleAddNew} className="bg-gradient-accent">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Constant
+        </Button>
+      </div>
 
       {/* Table */}
       <div className="border border-border rounded-lg overflow-hidden">
@@ -301,6 +247,89 @@ const ConstantsManager = () => {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit Constant" : "Add New Constant"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Constant Name *</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  autoComplete="off"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Electricity Rate, Labor Rate"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="value">Value *</Label>
+                <Input
+                  id="value"
+                  name="value"
+                  autoComplete="off"
+                  type="number"
+                  step="0.01"
+                  value={formData.value}
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                  placeholder="0.15"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="unit">Unit *</Label>
+                <Input
+                  id="unit"
+                  name="unit"
+                  autoComplete="off"
+                  value={formData.unit}
+                  onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                  placeholder="e.g., $/kWh, $/hr, %"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Input
+                  id="description"
+                  name="description"
+                  autoComplete="off"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Optional description"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 md:col-span-2">
+                <Switch
+                  id="is_visible"
+                  name="is_visible"
+                  checked={formData.is_visible}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_visible: checked })}
+                />
+                <Label htmlFor="is_visible">Visible in Calculator selection</Label>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={resetForm}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-gradient-accent">
+                {editingId ? "Update" : "Add"} Constant
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

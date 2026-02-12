@@ -33,6 +33,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Machine } from "@/types/quote";
@@ -49,11 +56,10 @@ interface MachinesFormProps {
   initialData?: Machine | null;
   onSubmit: (data: Omit<Machine, "id">) => void;
   onCancel: () => void;
-  isEditing: boolean;
   currencySymbol: string;
 }
 
-const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymbol }: MachinesFormProps) => {
+const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: MachinesFormProps) => {
   const [formData, setFormData] = useState({
     name: "",
     hourly_cost: "",
@@ -113,128 +119,109 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, isEditing, currencySymb
       power_consumption_watts: power,
       print_type: formData.print_type,
     });
-
-    if (!isEditing) {
-      setFormData({
-        name: "",
-        hourly_cost: "",
-        power_consumption_watts: "",
-        print_type: "FDM",
-        description: "",
-      });
-    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-      <h2 className="text-lg font-semibold text-foreground">
-        {isEditing ? "Edit Machine" : "Add New Machine"}
-      </h2>
-
-      <div className="grid md:grid-cols-2 gap-4 items-end">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 min-h-[24px]">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 py-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
             <Label htmlFor="name">Machine Name *</Label>
+            <Input
+              id="name"
+              name="name"
+              autoComplete="off"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Prusa i3 MK3S"
+              required
+              maxLength={100}
+            />
           </div>
-          <Input
-            id="name"
-            name="name"
-            autoComplete="off"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g., Prusa i3 MK3S, Elegoo Mars 3"
-            required
-            maxLength={100}
-          />
-        </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 min-h-[24px]">
+          <div className="space-y-2">
             <Label htmlFor="print_type">Print Type *</Label>
+            <Select
+              name="print_type"
+              value={formData.print_type}
+              onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
+            >
+              <SelectTrigger id="print_type" aria-label="Print Type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FDM">FDM</SelectItem>
+                <SelectItem value="Resin">Resin</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select
-            name="print_type"
-            value={formData.print_type}
-            onValueChange={(value: "FDM" | "Resin") => setFormData({ ...formData, print_type: value })}
-          >
-            <SelectTrigger id="print_type" aria-label="Print Type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="FDM">FDM</SelectItem>
-              <SelectItem value="Resin">Resin</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 min-h-[24px]">
-            <Label htmlFor="hourly_cost">Hourly Cost ({currencySymbol}) *</Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger type="button" aria-label="Help">
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px] p-4 text-sm bg-popover border-border" side="right">
-                  <div className="space-y-2">
-                    <p className="font-semibold">How to calculate?</p>
-                    <p>Formula: Total Machine Cost / Total Lifespan Hours</p>
-                    <div className="bg-muted p-2 rounded text-xs">
-                      <p className="font-semibold mb-1">Example:</p>
-                      <p>• Printer Cost: {currencySymbol}45,000</p>
-                      <p>• Life: 2 Years @ 6hr/day (4,380 hrs)</p>
-                      <p className="mt-1 font-mono">Rate = 45000 / 4380 = {currencySymbol}10.27/hr</p>
-                      <p className="mt-1 text-muted-foreground text-[10px]">(Add +20% for maintenance)</p>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="hourly_cost">Hourly Cost ({currencySymbol}) *</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger type="button" aria-label="Help">
+                    <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[300px] p-4 text-sm bg-popover border-border" side="right">
+                    <div className="space-y-2">
+                      <p className="font-semibold">How to calculate?</p>
+                      <p>Formula: Total Machine Cost / Total Lifespan Hours</p>
+                      <div className="bg-muted p-2 rounded text-xs">
+                        <p className="font-semibold mb-1">Example:</p>
+                        <p>• Printer Cost: {currencySymbol}45,000</p>
+                        <p>• Life: 2 Years @ 6hr/day (4,380 hrs)</p>
+                        <p className="mt-1 font-mono">Rate = 45000 / 4380 = {currencySymbol}10.27/hr</p>
+                        <p className="mt-1 text-muted-foreground text-[10px]">(Add +20% for maintenance)</p>
+                      </div>
                     </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Input
+              id="hourly_cost"
+              name="hourly_cost"
+              autoComplete="off"
+              type="number"
+              step="0.01"
+              value={formData.hourly_cost}
+              onChange={(e) => setFormData({ ...formData, hourly_cost: e.target.value })}
+              placeholder="5.00"
+              required
+              min="0"
+              max="10000"
+            />
           </div>
-          <Input
-            id="hourly_cost"
-            name="hourly_cost"
-            autoComplete="off"
-            type="number"
-            step="0.01"
-            value={formData.hourly_cost}
-            onChange={(e) => setFormData({ ...formData, hourly_cost: e.target.value })}
-            placeholder="5.00"
-            required
-            min="0"
-            max="10000"
-          />
-        </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 min-h-[24px]">
+          <div className="space-y-2">
             <Label htmlFor="power_consumption_watts">Power Consumption (Watts)</Label>
+            <Input
+              id="power_consumption_watts"
+              name="power_consumption_watts"
+              autoComplete="off"
+              type="number"
+              value={formData.power_consumption_watts}
+              onChange={(e) => setFormData({ ...formData, power_consumption_watts: e.target.value })}
+              placeholder="250"
+              min="0"
+              max="10000"
+            />
           </div>
-          <Input
-            id="power_consumption_watts"
-            name="power_consumption_watts"
-            autoComplete="off"
-            type="number"
-            value={formData.power_consumption_watts}
-            onChange={(e) => setFormData({ ...formData, power_consumption_watts: e.target.value })}
-            placeholder="250"
-            min="0"
-            max="10000"
-          />
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <Button type="submit" className="bg-gradient-accent">
-          <Plus className="w-4 h-4 mr-2" />
-          {isEditing ? "Update" : "Add"} Machine
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
         </Button>
-        {isEditing && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-      </div>
+        <Button type="submit" className="bg-gradient-accent">
+          {initialData ? "Update" : "Add"} Machine
+        </Button>
+      </DialogFooter>
     </form>
   );
 };
@@ -264,7 +251,7 @@ const MachinesList = memo(({ machines, onEdit, onDelete, formatPrice }: Machines
           {machines.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                No machines added yet. Add your first machine above.
+                No machines added yet. Add your first machine.
               </TableCell>
             </TableRow>
           ) : (
@@ -314,6 +301,7 @@ const MachinesManager = () => {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { currency, formatPrice } = useCurrency();
 
@@ -351,12 +339,13 @@ const MachinesManager = () => {
         machineData.id = editingMachine.id;
         sessionStore.saveMachine(machineData);
         toast.success("Machine updated successfully");
-        setEditingMachine(null);
       } else {
         sessionStore.saveMachine(machineData);
         toast.success("Machine added successfully");
       }
 
+      setIsDialogOpen(false);
+      setEditingMachine(null);
       fetchMachines();
     } catch (error) {
       const err = error as Error;
@@ -366,10 +355,17 @@ const MachinesManager = () => {
 
   const handleEdit = (machine: Machine) => {
     setEditingMachine(machine);
+    setIsDialogOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditingMachine(null);
+    setIsDialogOpen(true);
   };
 
   const handleCancelEdit = () => {
-    setEditingMachine(null);
+    setIsDialogOpen(false);
+    setTimeout(() => setEditingMachine(null), 300); // Clear after animation
   };
 
   const handleDelete = async (id: string) => {
@@ -391,19 +387,36 @@ const MachinesManager = () => {
 
   return (
     <div className="space-y-6">
-      <MachinesForm
-        initialData={editingMachine}
-        onSubmit={handleFormSubmit}
-        onCancel={handleCancelEdit}
-        isEditing={!!editingMachine}
-        currencySymbol={currency.symbol}
-      />
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold text-foreground">Machines</h2>
+        <Button onClick={handleAddNew} className="bg-gradient-accent">
+          <Plus className="w-4 h-4 mr-2" />
+          Add Machine
+        </Button>
+      </div>
+
       <MachinesList
         machines={machines}
         onEdit={handleEdit}
         onDelete={(id) => setDeleteId(id)}
         formatPrice={formatPrice}
       />
+
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) handleCancelEdit();
+      }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{editingMachine ? "Edit Machine" : "Add New Machine"}</DialogTitle>
+          </DialogHeader>
+          <MachinesForm
+            initialData={editingMachine}
+            onSubmit={handleFormSubmit}
+            onCancel={handleCancelEdit}
+            currencySymbol={currency.symbol}
+          />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

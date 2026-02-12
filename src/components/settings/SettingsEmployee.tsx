@@ -31,6 +31,7 @@ import { toast } from "sonner";
 const SettingsEmployee = memo(() => {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [formData, setFormData] = useState({
@@ -51,6 +52,7 @@ const SettingsEmployee = memo(() => {
     const resetForm = () => {
         setEditingEmployee(null);
         setFormData({ name: "", jobPosition: "", email: "", phone: "" });
+        setIsDialogOpen(false);
     };
 
     const handleEdit = (employee: Employee) => {
@@ -61,7 +63,13 @@ const SettingsEmployee = memo(() => {
             phone: employee.phone || "",
         });
         setEditingEmployee(employee);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setIsDialogOpen(true);
+    };
+
+    const handleAddNew = () => {
+        setEditingEmployee(null);
+        setFormData({ name: "", jobPosition: "", email: "", phone: "" });
+        setIsDialogOpen(true);
     };
 
     const handleSaveEmployee = (e?: React.FormEvent) => {
@@ -132,80 +140,12 @@ const SettingsEmployee = memo(() => {
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
+                    <Button onClick={handleAddNew} className="bg-gradient-primary text-primary-foreground">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Employee
+                    </Button>
                 </div>
             </div>
-
-            {/* Inline Form */}
-            <form onSubmit={handleSaveEmployee} className="space-y-4 p-4 border border-border rounded-lg bg-secondary/10">
-                <h2 className="text-lg font-semibold text-foreground">
-                    {editingEmployee ? "Edit Employee" : "Add New Employee"}
-                </h2>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
-                        <Input
-                            id="name"
-                            name="name"
-                            autoComplete="name"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            placeholder="John Doe"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="jobPosition">Job Position <span className="text-destructive">*</span></Label>
-                        <Input
-                            id="jobPosition"
-                            name="jobPosition"
-                            autoComplete="organization-title"
-                            value={formData.jobPosition}
-                            onChange={(e) => setFormData({ ...formData, jobPosition: e.target.value })}
-                            placeholder="3D Print Operator"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                            id="email"
-                            name="email"
-                            autoComplete="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            placeholder="john@example.com"
-                            className="bg-background"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="phone">Contact Number</Label>
-                        <Input
-                            id="phone"
-                            name="phone"
-                            autoComplete="tel"
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            placeholder="+1 234 567 890"
-                            className="bg-background"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex gap-2">
-                    <Button type="submit" className="bg-gradient-primary text-primary-foreground">
-                        <Plus className="w-4 h-4 mr-2" />
-                        {editingEmployee ? 'Update Employee' : 'Add Employee'}
-                    </Button>
-                    {editingEmployee && (
-                        <Button type="button" variant="outline" onClick={resetForm}>
-                            Cancel
-                        </Button>
-                    )}
-                </div>
-            </form>
 
             <Card className="shadow-sm border-border bg-card overflow-hidden">
                 {filteredEmployees.length === 0 ? (
@@ -215,7 +155,7 @@ const SettingsEmployee = memo(() => {
                             {searchQuery ? "No employees found" : "No employees yet"}
                         </h2>
                         <p className="text-sm text-muted-foreground">
-                            {searchQuery ? "Try a different search term" : "Add your first employee using the form above"}
+                            {searchQuery ? "Try a different search term" : "Add your first employee using the button above"}
                         </p>
                     </div>
                 ) : (
@@ -272,6 +212,79 @@ const SettingsEmployee = memo(() => {
                     </Table>
                 )}
             </Card>
+
+            {/* Add/Edit Employee Dialog */}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingEmployee ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveEmployee} className="space-y-4">
+                        <div className="grid md:grid-cols-2 gap-4 py-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Name <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    autoComplete="name"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="John Doe"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="jobPosition">Job Position <span className="text-destructive">*</span></Label>
+                                <Input
+                                    id="jobPosition"
+                                    name="jobPosition"
+                                    autoComplete="organization-title"
+                                    value={formData.jobPosition}
+                                    onChange={(e) => setFormData({ ...formData, jobPosition: e.target.value })}
+                                    placeholder="3D Print Operator"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    autoComplete="email"
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    placeholder="john@example.com"
+                                    className="bg-background"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="phone">Contact Number</Label>
+                                <Input
+                                    id="phone"
+                                    name="phone"
+                                    autoComplete="tel"
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    placeholder="+1 234 567 890"
+                                    className="bg-background"
+                                />
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={resetForm}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" className="bg-gradient-primary text-primary-foreground">
+                                <Plus className="w-4 h-4 mr-2" />
+                                {editingEmployee ? 'Update Employee' : 'Add Employee'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Delete Confirmation Dialog */}
             <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
