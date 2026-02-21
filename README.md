@@ -1,6 +1,8 @@
 # PolymagicPrice
 
-A professional, open-source 3D printing price calculator and quote management tool by **Rp Hobbyist**. **PolymagicPrice** allows users to calculate costs for both FDM and Resin printing, manage materials and machines, and track quotes.
+A professional, open-source 3D printing price calculator and quote management tool by **RP Hobbyist**. **PolymagicPrice** allows users to calculate costs for both FDM and Resin printing, manage materials and machines, and track quotes.
+
+Offical Link : https://polymagicprice.rphobbyist.com/
 
 🔗 **[Visit Rp Hobbyist](https://linktr.ee/RPHobbyist)**
 
