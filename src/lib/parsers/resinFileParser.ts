@@ -297,13 +297,7 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
     }
 
     // Skip version (4 bytes)
-    // const version = dataView.getUint32(4, true);
-
     // Skip dimensions (bed size x, y, z) - 12 bytes
-    // const bedSizeX = dataView.getFloat32(8, true);
-    // const bedSizeY = dataView.getFloat32(12, true);
-    // const bedSizeZ = dataView.getFloat32(16, true);
-
     // Skip unknown fields (8 bytes)
     // Skip TotalHeightMm (float)
     // Skip LayerHeightMm (float)
@@ -323,8 +317,6 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
 
     // Read necessary header values
     const bedSizeX = dataView.getFloat32(12, true);
-    // const bedSizeY = dataView.getFloat32(16, true); // Unused for now but kept for reference
-    // const bedSizeZ = dataView.getFloat32(20, true); // Unused
     const layerHeight = dataView.getFloat32(24, true);
 
     // Skip...
