@@ -223,6 +223,8 @@ export const updateQuoteStatus = (id: string, status: QuoteStatus): void => {
     localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes));
 };
 
+import { sanitize } from "../sanitization";
+
 // Materials
 export const getMaterials = (printType?: "FDM" | "Resin"): Material[] => {
     initializeDefaults();
@@ -232,22 +234,26 @@ export const getMaterials = (printType?: "FDM" | "Resin"): Material[] => {
 
 export const saveMaterial = (material: Omit<Material, "id"> & { id?: string }): Material => {
     const materials = getMaterials();
-    if (material.id) {
+    const sanitizedMaterial = {
+        ...material,
+        name: sanitize(material.name)
+    };
+    if (sanitizedMaterial.id) {
         // Update existing
-        const index = materials.findIndex(m => m.id === material.id);
+        const index = materials.findIndex(m => m.id === sanitizedMaterial.id);
         if (index !== -1) {
-            materials[index] = material as Material;
+            materials[index] = sanitizedMaterial as Material;
         }
     } else {
         // Add new
         const newMaterial: Material = {
-            ...material,
+            ...sanitizedMaterial,
             id: generateId(),
         } as Material;
         materials.push(newMaterial);
     }
     localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
-    return material as Material;
+    return sanitizedMaterial as Material;
 };
 
 export const deleteMaterial = (id: string): void => {
@@ -264,22 +270,27 @@ export const getMachines = (printType?: "FDM" | "Resin"): Machine[] => {
 
 export const saveMachine = (machine: Omit<Machine, "id"> & { id?: string }): Machine => {
     const machines = getMachines();
-    if (machine.id) {
+    const sanitizedMachine = {
+        ...machine,
+        name: sanitize(machine.name)
+    };
+    if (sanitizedMachine.id) {
         // Update existing
-        const index = machines.findIndex(m => m.id === machine.id);
+        const index = machines.findIndex(m => m.id === sanitizedMachine.id);
         if (index !== -1) {
-            machines[index] = machine as Machine;
+            machines[index] = sanitizedMachine as Machine;
         }
     } else {
         // Add new
         const newMachine: Machine = {
-            ...machine,
+            ...sanitizedMachine,
             id: generateId(),
+            print_type: machine.print_type,
         } as Machine;
         machines.push(newMachine);
     }
     localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(machines));
-    return machine as Machine;
+    return sanitizedMachine as Machine;
 };
 
 export const deleteMachine = (id: string): void => {
@@ -353,24 +364,28 @@ export const getCustomers = (): Customer[] => {
 
 export const saveCustomer = (customer: Omit<Customer, "id" | "createdAt"> & { id?: string, createdAt?: string }): Customer => {
     const customers = getCustomers();
-    if (customer.id) {
+    const sanitizedCustomer = {
+        ...customer,
+        name: sanitize(customer.name)
+    };
+    if (sanitizedCustomer.id) {
         // Update existing
-        const index = customers.findIndex(c => c.id === customer.id);
+        const index = customers.findIndex(c => c.id === sanitizedCustomer.id);
         if (index !== -1) {
-            customers[index] = { ...customers[index], ...customer };
+            customers[index] = { ...customers[index], ...sanitizedCustomer };
         }
     } else {
         // Add new
         const newCustomer: Customer = {
-            ...customer,
+            ...sanitizedCustomer,
             id: generateId(),
             createdAt: new Date().toISOString(),
         };
         customers.unshift(newCustomer);
     }
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-    return customer.id
-        ? customers.find(c => c.id === customer.id)!
+    return sanitizedCustomer.id
+        ? customers.find(c => c.id === sanitizedCustomer.id)!
         : customers[0];
 };
 
