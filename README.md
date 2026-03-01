@@ -4,7 +4,7 @@ A professional, open-source 3D printing price calculator and quote management to
 
 Offical Link : https://polymagicprice.rphobbyist.com/
 
-🔗 **[Visit Rp Hobbyist](https://linktr.ee/RPHobbyist)**
+🔗 **[Visit Rp Hobbyist](https://www.rphobbyist.com)**
 
 ## Features
 
