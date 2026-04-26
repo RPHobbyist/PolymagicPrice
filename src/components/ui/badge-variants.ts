@@ -19,7 +19,7 @@
 import { cva } from "class-variance-authority";
 
 export const badgeVariants = cva(
-    "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+    "inline-flex items-center rounded-full border px-2 py-0 h-5 text-[10px] font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 shadow-sm",
     {
         variants: {
             variant: {
@@ -27,6 +27,10 @@ export const badgeVariants = cva(
                 secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
                 outline: "text-foreground",
+                success: "border-transparent bg-emerald-100 text-emerald-700 hover:bg-emerald-200 shadow-none",
+                warning: "border-transparent bg-amber-100 text-amber-700 hover:bg-amber-200 shadow-none",
+                error: "border-transparent bg-red-100 text-red-700 hover:bg-red-200 shadow-none",
+                info: "border-transparent bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-none",
             },
         },
         defaultVariants: {

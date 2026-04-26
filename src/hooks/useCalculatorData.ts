@@ -81,6 +81,20 @@ export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): Calc
 
   useEffect(() => {
     fetchData();
+
+    // Cross-tab Synchronization
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        e.key === "session_materials" || 
+        e.key === "session_machines" || 
+        e.key === "session_constants"
+      ) {
+        fetchData();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [fetchData]);
 
   const getConstantValue = useCallback((name: string): number => {

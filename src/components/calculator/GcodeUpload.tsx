@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileCode, Loader2 } from "lucide-react";
 import { ThumbnailPreview } from "@/components/shared/ThumbnailPreview";
 import { stripFileExtension, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils";
-// import { parseGcode, parse3mf, GcodeData } from "@/lib/parsers/gcodeParser"; // Lazy loaded
 import { GcodeData } from "@/lib/parsers/gcodeParser"; // Type import is fine
 import { toast } from "sonner";
 

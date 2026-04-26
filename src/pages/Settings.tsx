@@ -18,29 +18,32 @@
 
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Printer, Package, Users, Building2, UserCircle, Brush, FileCode } from "lucide-react";
+import { Database, Printer, Package, Users, Building2, UserCircle, FileCode, Bot, Network, Coins } from "lucide-react";
 import MaterialsManager from "@/components/settings/MaterialsManager";
 
 import MachinesManager from "@/components/settings/MachinesManager";
 import ConstantsManager from "@/components/settings/ConstantsManager";
-import SettingsExportImport from "@/components/settings/SettingsExportImport";
 import SettingsCRM from "@/components/settings/SettingsCRM";
 import SettingsEmployee from "@/components/settings/SettingsEmployee";
 import CompanySettings from "@/components/settings/CompanySettings";
-import GcodeManager from "@/components/settings/GcodeManager";
-import { useSearchParams, Link } from "react-router-dom";
-import { SYSTEM_CONFIG } from "@/lib/core/core-system";
-import { NavLink } from "@/components/layout/NavLink";
-import { CurrencySelector } from "@/components/shared/CurrencySelector";
-import { PrinterConnectionDialog } from "@/components/printer/PrinterConnectionDialog";
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Wifi } from "lucide-react";
+import SettingsAI from "@/components/settings/SettingsAI";
+import SettingsBridge from "@/components/settings/SettingsBridge";
+import SavedProjectsManager from "@/components/settings/SavedProjectsManager";
+import CurrencySettings from "@/components/settings/CurrencySettings";
+import { useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import { useDocumentSEO } from "@/hooks/useDocumentSEO";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 const Settings = () => {
-  const [showPrinterDialog, setShowPrinterDialog] = useState(false);
+  useDocumentSEO({
+    title: "Settings — Workshop Configuration",
+    description: "Configure your 3D printing materials, machines, consumables, customers, and company settings in PolymagicPrice.",
+    canonical: "/settings",
+    ogTitle: "Workshop Settings | PolymagicPrice",
+  });
 
-  const [connectedPrinter, setConnectedPrinter] = useState<{ name?: string; dev_name?: string } | null>(null);
+
   const [searchParams, setSearchParams] = useSearchParams();
 
   const currentTab = searchParams.get("tab") || "materials";
@@ -58,96 +61,91 @@ const Settings = () => {
   }, []);
   return (
     <div className="min-h-screen bg-gradient-subtle flex flex-col">
+      <PageHeader 
+        title="Settings" 
+        subtitle="Workshop Configuration, Personnel, and System Governance"
+        actions={null}
+      />
       {/* Glow effect */}
       <div className="fixed inset-0 bg-gradient-glow pointer-events-none" />
 
-      {/* Header */}
-      <header className="border-b border-border glass sticky top-0 z-50 shadow-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
 
-            <div className="flex items-center gap-4">
-              <Link to="/" className="hover-lift flex-shrink-0">
-                <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-16 max-w-80 w-auto object-contain" />
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings & Database</h1>
-                <p className="text-sm text-muted-foreground">
-                  by <a href={SYSTEM_CONFIG.vendorLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">{SYSTEM_CONFIG.vendor}</a> • Manage materials, machines, and constants
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 hidden md:flex"
-                onClick={() => setShowPrinterDialog(true)}
-              >
-                <Wifi className="w-4 h-4" />
-                {connectedPrinter ? `Connected: ${connectedPrinter.name || connectedPrinter.dev_name}` : "Connect Printer"}
-              </Button>
-              <CurrencySelector />
-              <NavLink to="/">Back to Calculator</NavLink>
-            </div>
-          </div>
-        </div>
-      </header>
+      <main className="container mx-auto px-4 py-8 pb-24 relative space-y-6 max-w-[1600px] flex-1">
 
-      <main className="container mx-auto px-4 py-8 pb-24 relative space-y-6">
         <Card className="shadow-elevated border-border bg-card overflow-hidden animate-fade-in hover-glow">
           <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-            <div className="border-b border-border px-6 pt-6 pb-4">
-              <TabsList className="bg-secondary/50 p-1.5 rounded-xl">
+            <div className="border-b border-border pt-6 pb-4 overflow-x-auto scrollbar-none flex justify-start sm:justify-center">
+              <TabsList className="bg-secondary p-1.5 rounded-xl flex w-full max-w-[calc(100%-48px)] mx-6 justify-between shadow-sm">
                 <TabsTrigger
                   value="materials"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Package className="w-4 h-4 mr-2" />
+                  <Package className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Materials
                 </TabsTrigger>
 
                 <TabsTrigger
                   value="machines"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Printer className="w-4 h-4 mr-2" />
+                  <Printer className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Machines
                 </TabsTrigger>
                 <TabsTrigger
                   value="constants"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Database className="w-4 h-4 mr-2" />
+                  <Database className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Consumables
                 </TabsTrigger>
                 <TabsTrigger
                   value="gcodes"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <FileCode className="w-4 h-4 mr-2" />
+                  <FileCode className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Saved Projects
                 </TabsTrigger>
                 <TabsTrigger
                   value="customers"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Users className="w-4 h-4 mr-2" />
+                  <Users className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Customers
                 </TabsTrigger>
                 <TabsTrigger
-                  value="employees"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                    value="currency"
+                    className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <UserCircle className="w-4 h-4 mr-2" />
+                    <Coins className="w-4 h-4 mr-1.5 sm:mr-2" />
+                    Currency
+                </TabsTrigger>
+                <TabsTrigger
+                  value="employees"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <UserCircle className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Employees
                 </TabsTrigger>
                 <TabsTrigger
                   value="company"
-                  className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-5 py-2.5 transition-all duration-200"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
                 >
-                  <Building2 className="w-4 h-4 mr-2" />
+                  <Building2 className="w-4 h-4 mr-1.5 sm:mr-2" />
                   Company
+                </TabsTrigger>
+                <TabsTrigger
+                  value="ai"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <Bot className="w-4 h-4 mr-1.5 sm:mr-2" />
+                  Local AI
+                </TabsTrigger>
+                <TabsTrigger
+                  value="bridge"
+                  className="flex-1 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-4 py-2.5 transition-all duration-200 text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <Network className="w-4 h-4 mr-1.5 sm:mr-2" />
+                  Polymagic Bridge
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -168,11 +166,15 @@ const Settings = () => {
             </TabsContent>
 
             <TabsContent value="gcodes" className="p-6 mt-0 animate-fade-in">
-              <GcodeManager />
+              <SavedProjectsManager />
             </TabsContent>
 
             <TabsContent value="customers" className="p-6 mt-0 animate-fade-in">
               <SettingsCRM />
+            </TabsContent>
+
+            <TabsContent value="currency" className="p-6 mt-0 animate-fade-in">
+              <CurrencySettings />
             </TabsContent>
 
             <TabsContent value="employees" className="p-6 mt-0 animate-fade-in">
@@ -182,18 +184,18 @@ const Settings = () => {
             <TabsContent value="company" className="p-6 mt-0 animate-fade-in">
               <CompanySettings />
             </TabsContent>
+
+            <TabsContent value="ai" className="p-6 mt-0 animate-fade-in">
+              <SettingsAI />
+            </TabsContent>
+
+            <TabsContent value="bridge" className="p-6 mt-0 animate-fade-in">
+              <SettingsBridge />
+            </TabsContent>
           </Tabs>
         </Card>
 
-        {/* Export/Import Section */}
-        <SettingsExportImport />
       </main>
-
-      <PrinterConnectionDialog
-        open={showPrinterDialog}
-        onOpenChange={setShowPrinterDialog}
-        onConnected={setConnectedPrinter}
-      />
 
     </div >
   );

@@ -18,33 +18,45 @@
 
 import { QuoteData } from "@/types/quote";
 import { getCompanySettings, getCustomer } from "@/lib/core/sessionStorage";
+import { escapeHTML } from "./sanitization";
+import { getOrderId } from "./utils/order-utils";
 
 /**
  * Generate a professional invoice HTML template for the quote
  */
-export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
-  const formatPrice = (value: number) => `${currencySymbol}${value.toFixed(2)}`;
-  const quoteNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
 
+  const safeCurrency = escapeHTML(currencySymbol);
+  const formatPrice = (value: number) => `${safeCurrency}${value.toFixed(2)}`;
+  const orderId = getOrderId(quote.id);
+  const quoteNumber = `INV-${orderId}`;
+
   const company = getCompanySettings();
   const customer = quote.customerId ? getCustomer(quote.customerId) : null;
 
-  // Format due date if available
   const dueDateStr = quote.dueDate
     ? new Date(quote.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : null;
+
+  // Escape all dynamic content for safe HTML rendering
+  const safeProjectName = escapeHTML(quote.projectName);
+  const safeCustomerName = escapeHTML(customer?.name || quote.clientName || 'Valued Customer');
+  const safeNotes = escapeHTML(quote.notes || '');
+  const safeCompanyName = escapeHTML(company?.name || 'Your Company');
+  const safeCompanyAddress = escapeHTML(company?.address || '');
+  const safeFooter = escapeHTML(company?.footerText || 'Thank you for your business!');
 
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Invoice - ${quote.projectName}</title>
+  <title>Invoice - ${safeProjectName}</title>
   <style>
     * {
       margin: 0;
@@ -52,9 +64,9 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
       box-sizing: border-box;
     }
     body {
-      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.5;
-      color: #1f2937;
+      font-family: sans-serif;
+      line-height: 1.4;
+      color: #1e293b;
       padding: 40px;
       max-width: 800px;
       margin: 0 auto;
@@ -68,44 +80,35 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
       align-items: flex-start;
       margin-bottom: 40px;
       padding-bottom: 20px;
-      border-bottom: 2px solid #e5e7eb;
+      border-bottom: 1px solid #e2e8f0;
     }
     .company-info img {
-      max-height: 60px;
-      margin-bottom: 10px;
-      object-fit: contain;
+      max-height: 40px;
+      margin-bottom: 12px;
     }
     .company-info h1 {
-      font-size: 24px;
-      color: #111827;
-      margin-bottom: 5px;
+      font-size: 20px;
+      color: #0f172a;
+      margin-bottom: 4px;
       font-weight: 700;
     }
     .company-info p {
-      color: #6b7280;
+      color: #64748b;
       font-size: 13px;
       margin-bottom: 2px;
-    }
-    .company-address {
-      white-space: pre-line; 
     }
     .invoice-badge {
       text-align: right;
     }
     .invoice-badge h2 {
-      font-size: 28px;
-      color: #374151;
-      margin-bottom: 8px;
+      font-size: 24px;
+      color: #0f172a;
+      margin-bottom: 2px;
       font-weight: 700;
-      letter-spacing: 2px;
     }
     .invoice-badge p {
-      color: #6b7280;
+      color: #64748b;
       font-size: 13px;
-      margin-bottom: 4px;
-    }
-    .invoice-badge strong {
-      color: #374151;
     }
 
     /* Billing Section */
@@ -119,20 +122,21 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
       flex: 1;
     }
     .section-title {
-      font-size: 11px;
+      font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #9ca3af;
+      color: #94a3b8;
       margin-bottom: 8px;
-      font-weight: 600;
+      font-weight: 700;
     }
     .bill-to h3 {
       font-size: 16px;
-      color: #111827;
+      color: #0f172a;
       margin-bottom: 4px;
+      font-weight: 700;
     }
     .bill-to p {
-      color: #6b7280;
+      color: #475569;
       font-size: 13px;
       margin-bottom: 2px;
     }
@@ -142,61 +146,63 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
     .invoice-details .detail-row {
       display: flex;
       justify-content: flex-end;
-      gap: 20px;
+      align-items: center;
+      gap: 16px;
       margin-bottom: 4px;
     }
     .invoice-details .label {
-      color: #6b7280;
-      font-size: 13px;
+      color: #64748b;
+      font-size: 12px;
     }
     .invoice-details .value {
-      color: #111827;
+      color: #0f172a;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 700;
       min-width: 100px;
-      text-align: right;
     }
     .priority-badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 900;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    .priority-high { background: #fef2f2; color: #dc2626; }
-    .priority-medium { background: #fffbeb; color: #d97706; }
-    .priority-low { background: #f3f4f6; color: #6b7280; }
+    .priority-high { background: #fee2e2; color: #991b1b; }
+    .priority-medium { background: #fef3c7; color: #92400e; }
+    .priority-low { background: #f1f5f9; color: #475569; }
 
     /* Project Details */
     .project-section {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       padding: 20px;
       border-radius: 8px;
-      margin-bottom: 25px;
+      margin-bottom: 30px;
     }
     .project-section h3 {
       font-size: 16px;
       margin-bottom: 12px;
-      color: #111827;
+      color: #0f172a;
+      font-weight: 700;
     }
     .project-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 15px;
+      display: flex;
+      gap: 30px;
     }
     .project-item .label {
-      font-size: 11px;
+      font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #9ca3af;
+      color: #94a3b8;
       margin-bottom: 2px;
+      font-weight: 700;
     }
     .project-item .value {
       font-size: 14px;
-      color: #374151;
-      font-weight: 500;
+      color: #0f172a;
+      font-weight: 600;
     }
 
     /* Cost Table */
@@ -208,12 +214,11 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
     .cost-table th {
       text-align: left;
       padding: 12px 15px;
-      background: #f9fafb;
-      border-bottom: 2px solid #e5e7eb;
-      color: #6b7280;
-      font-weight: 600;
+      border-bottom: 1px solid #e2e8f0;
+      color: #64748b;
+      font-weight: 700;
       text-transform: uppercase;
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.5px;
     }
     .cost-table th:last-child {
@@ -221,42 +226,40 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
     }
     .cost-table td {
       padding: 12px 15px;
-      border-bottom: 1px solid #f3f4f6;
-      font-size: 14px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+      color: #334155;
     }
     .cost-table td:last-child {
       text-align: right;
-      font-weight: 500;
-      font-family: 'SF Mono', 'Courier New', monospace;
-    }
-    .subtotal-row {
-      background: #f9fafb;
+      font-weight: 600;
     }
     .subtotal-row td {
-      font-weight: 600;
-      border-top: 2px solid #e5e7eb;
+      font-weight: 700;
+      color: #0f172a;
+      border-top: 1px solid #e2e8f0;
     }
 
     /* Total Section */
-    .total-section {
-      background: #111827;
+    .total-container {
+      margin-bottom: 30px;
+    }
+    .total-bar {
+      background: #1e293b;
       color: white;
-      padding: 20px 25px;
+      padding: 16px 20px;
       border-radius: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 30px;
     }
-    .total-section h3 {
+    .total-bar h3 {
       font-size: 14px;
-      font-weight: 500;
-      opacity: 0.9;
+      font-weight: 600;
     }
-    .total-section .amount {
-      font-size: 28px;
+    .total-bar .amount {
+      font-size: 24px;
       font-weight: 700;
-      font-family: 'SF Mono', 'Courier New', monospace;
     }
 
     /* Notes Section */
@@ -281,45 +284,46 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
 
     /* Terms Section */
     .terms {
-      background: #f9fafb;
-      padding: 20px;
-      border-radius: 8px;
+      padding: 0 10px;
       font-size: 12px;
-      color: #6b7280;
-      margin-bottom: 30px;
+      color: #64748b;
+      margin-bottom: 40px;
     }
     .terms h4 {
-      color: #374151;
-      margin-bottom: 10px;
-      font-size: 12px;
+      color: #0f172a;
+      margin-bottom: 12px;
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1.5px;
+      font-weight: 800;
     }
     .terms ul {
-      margin-left: 20px;
+      margin-left: 18px;
     }
     .terms li {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      line-height: 1.4;
     }
 
     /* Footer */
     .footer {
       text-align: center;
-      color: #9ca3af;
-      font-size: 11px;
-      padding-top: 20px;
-      border-top: 1px solid #e5e7eb;
-    }
-    .footer p {
-      margin-bottom: 4px;
+      color: #94a3b8;
+      font-size: 12px;
+      padding-top: 30px;
+      padding-bottom: 20px;
+      border-top: 1px solid #f1f5f9;
     }
 
     @media print {
       body {
-        padding: 20px;
+        padding: 0;
       }
-      .no-print {
-        display: none;
+      .total-bar {
+        background: #0f172a !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     }
   </style>
@@ -329,12 +333,12 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
   <div class="header">
     <div class="company-info">
       ${company?.logoUrl ? `<img src="${company.logoUrl}" alt="Company Logo" />` : ''}
-      <h1>${company?.name || 'Your Company'}</h1>
-      ${company?.address ? `<p class="company-address">${company.address}</p>` : ''}
-      ${company?.phone ? `<p>${company.phone}</p>` : ''}
-      ${company?.email ? `<p>${company.email}</p>` : ''}
-      ${company?.website ? `<p>${company.website}</p>` : ''}
-      ${company?.taxId ? `<p>Tax ID: ${company.taxId}</p>` : ''}
+      <h1>${safeCompanyName}</h1>
+      ${safeCompanyAddress ? `<p class="company-address">${safeCompanyAddress}</p>` : ''}
+      ${company?.phone ? `<p>${escapeHTML(company.phone)}</p>` : ''}
+      ${company?.email ? `<p>${escapeHTML(company.email)}</p>` : ''}
+      ${company?.website ? `<p>${escapeHTML(company.website)}</p>` : ''}
+      ${company?.taxId ? `<p>Tax ID: ${escapeHTML(company.taxId)}</p>` : ''}
     </div>
     <div class="invoice-badge">
       <h2>INVOICE</h2>
@@ -347,15 +351,13 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
     <div class="bill-to">
       <div class="section-title">Bill To</div>
       ${customer ? `
-        <h3>${customer.name}</h3>
-        ${customer.company ? `<p>${customer.company}</p>` : ''}
-        ${customer.address ? `<p>${customer.address}</p>` : ''}
-        ${customer.email ? `<p>${customer.email}</p>` : ''}
-        ${customer.phone ? `<p>${customer.phone}</p>` : ''}
-      ` : quote.clientName ? `
-        <h3>${quote.clientName}</h3>
+        <h3>${safeCustomerName}</h3>
+        ${customer.company ? `<p>${escapeHTML(customer.company)}</p>` : ''}
+        ${customer.address ? `<p>${escapeHTML(customer.address)}</p>` : ''}
+        ${customer.email ? `<p>${escapeHTML(customer.email)}</p>` : ''}
+        ${customer.phone ? `<p>${escapeHTML(customer.phone)}</p>` : ''}
       ` : `
-        <p style="color: #9ca3af; font-style: italic;">No client specified</p>
+        <h3>${safeCustomerName}</h3>
       `}
     </div>
     <div class="invoice-details">
@@ -374,45 +376,71 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
       <div class="detail-row">
         <span class="label">Priority:</span>
         <span class="value">
-          <span class="priority-badge priority-${quote.priority.toLowerCase()}">${quote.priority}</span>
+          <span class="priority-badge priority-${quote.priority.toLowerCase()}">${escapeHTML(quote.priority)}</span>
         </span>
       </div>
       ` : ''}
       <div class="detail-row">
         <span class="label">Status:</span>
-        <span class="value">${quote.status || 'Pending'}</span>
+        <span class="value">${escapeHTML(quote.status || 'Pending')}</span>
       </div>
     </div>
   </div>
 
   <!-- Project Details -->
   <div class="project-section">
-    <h3>${quote.projectName}</h3>
+    <h3>${safeProjectName} ${quote.isBatch ? '<span style="font-size: 12px; opacity: 0.6; font-weight: normal;">(Consolidated Batch)</span>' : ''}</h3>
+    ${!quote.isBatch ? `
     <div class="project-grid">
       <div class="project-item">
         <div class="label">Print Type</div>
-        <div class="value">${quote.printType}</div>
+        <div class="value">${escapeHTML(quote.printType)}</div>
       </div>
       <div class="project-item">
         <div class="label">Material</div>
-        <div class="value">${quote.parameters?.materialName || '-'}</div>
+        <div class="value">${escapeHTML(quote.parameters?.materialName || '-')}</div>
       </div>
       <div class="project-item">
         <div class="label">Quantity</div>
-        <div class="value">${quote.quantity}x</div>
+        <div class="value">${escapeHTML(quote.quantity.toString())}x</div>
       </div>
     </div>
+    ` : `
+    <div class="project-grid">
+       <div class="project-item">
+         <div class="label">Total Items</div>
+         <div class="value">${quote.batchItems?.length || 0} Projects</div>
+       </div>
+    </div>
+    `}
   </div>
 
   <!-- Cost Breakdown Table -->
   <table class="cost-table">
     <thead>
+      ${quote.isBatch ? `
+      <tr>
+        <th>Description / Part Name</th>
+        <th>Type</th>
+        <th>Qty</th>
+        <th>Amount</th>
+      </tr>
+      ` : `
       <tr>
         <th>Description</th>
         <th>Amount</th>
       </tr>
+      `}
     </thead>
     <tbody>
+      ${quote.isBatch ? (quote.batchItems || []).map(item => `
+      <tr>
+        <td><strong>${escapeHTML(item.projectName)}</strong><br/><small style="color: #64748b">${escapeHTML(item.parameters?.materialName || '-')}</small></td>
+        <td>${escapeHTML(item.printType)}</td>
+        <td>${item.quantity}x</td>
+        <td>${formatPrice(item.totalPrice)}</td>
+      </tr>
+      `).join('') : `
       <tr>
         <td>Manufacturing Cost</td>
         <td>${formatPrice(quote.materialCost + quote.machineTimeCost + quote.electricityCost + quote.overheadCost + (quote.parameters?.consumablesTotal || 0) + (quote.paintingCost || 0))}</td>
@@ -426,23 +454,26 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
         <td>${formatPrice(quote.subtotal)}</td>
       </tr>
       <tr>
-        <td>Tax</td>
+        <td>Profit Markup</td>
         <td>+${formatPrice(quote.markup)}</td>
       </tr>
+      `}
     </tbody>
   </table>
 
   <!-- Total -->
-  <div class="total-section">
-    <h3>Total Amount Due</h3>
-    <div class="amount">${formatPrice(quote.totalPrice)}</div>
+  <div class="total-container">
+    <div class="total-bar">
+      <h3>Total Amount Due</h3>
+      <div class="amount">${formatPrice(quote.totalPrice)}</div>
+    </div>
   </div>
 
   <!-- Notes -->
-  ${quote.notes ? `
+  ${safeNotes ? `
   <div class="notes-section">
     <h4>Notes</h4>
-    <p>${quote.notes}</p>
+    <p>${safeNotes}</p>
   </div>
   ` : ''}
 
@@ -459,7 +490,7 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
 
   <!-- Footer -->
   <div class="footer">
-    <p>${company?.footerText || 'Thank you for your business!'}</p>
+    <p>${safeFooter}</p>
     <p>Generated by PolymagicPrice</p>
   </div>
 </body>
@@ -473,20 +504,20 @@ export function generateQuoteHTML(quote: QuoteData, currencySymbol: string): str
 export function printQuotePDF(quote: QuoteData, currencySymbol: string): void {
   const html = generateQuoteHTML(quote, currencySymbol);
 
-  // Open new window
-  const printWindow = window.open('', '_blank');
+  // SECURITY FIX (H1): Use Blob URL instead of document.write to prevent
+  // parent window hijacking. Blob URLs open in a fully isolated browsing context
+  // where window.opener is null by default.
+  const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+
+  const printWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
   if (!printWindow) {
+    URL.revokeObjectURL(blobUrl);
     throw new Error('Could not open print window. Please allow popups.');
   }
 
-  // Write HTML content
-  printWindow.document.write(html);
-  printWindow.document.close();
-
-  // Wait for content to load, then trigger print
-  printWindow.onload = () => {
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
-  };
+  // Cleanup Blob URL after a delay to allow the window to load
+  setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+  }, 10000);
 }

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { ChevronDown, Package } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
+import { sanitize } from "@/lib/sanitization";
 
 interface ConsumableItem {
     id: string;
@@ -61,7 +62,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
         if (selectedIds.length === 0) return "Select consumables (optional)";
         if (selectedIds.length === 1) {
             const item = selectedItems[0];
-            return `${item.name}: ${formatPrice(item.value)}`;
+            return `${sanitize(item.name)}: ${formatPrice(item.value)}`;
         }
         return `${selectedIds.length} items selected (${formatPrice(totalValue)})`;
     };
@@ -74,6 +75,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
+                    aria-label={getDisplayText()}
                     className="w-full justify-between font-normal h-10 bg-background hover:bg-secondary/50"
                 >
                     <span className="truncate text-left flex-1 flex items-center gap-2">
@@ -107,12 +109,13 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
                                         id={`${id}-${item.id}`}
                                         checked={selectedIds.includes(item.id)}
                                         onCheckedChange={() => handleToggle(item.id)}
+                                        aria-label={item.name}
                                     />
                                     <Label
                                         htmlFor={`${id}-${item.id}`}
                                         className="flex-1 cursor-pointer flex justify-between items-center"
                                     >
-                                        <span className="font-medium">{item.name}</span>
+                                        <span className="font-medium">{sanitize(item.name)}</span>
                                         <span className="text-sm text-muted-foreground">
                                             {formatPrice(item.value)} {item.unit !== "₹" && `/${item.unit}`}
                                         </span>
@@ -137,4 +140,4 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
 
 ConsumablesSelector.displayName = "ConsumablesSelector";
 
-export default ConsumablesSelector;
+

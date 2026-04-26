@@ -18,25 +18,30 @@
 
 import { Suspense, lazy } from "react";
 import { ShieldCheck } from "lucide-react";
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { BatchQuoteProvider } from "@/contexts/BatchQuoteProvider";
 import { ProductionProvider } from "@/contexts/ProductionProvider";
+import { NotificationProvider } from "@/contexts/NotificationProvider";
+import { IntelligenceProvider } from "@/contexts/IntelligenceProvider";
 import { CurrencyProvider } from "@/components/shared/CurrencyProvider";
-import { useAppProtection } from "@/hooks/useAppProtection";
-import OrderManagement from "./pages/OrderManagement";
+import { UIProvider } from "@/contexts/UIContext";
+
 import Layout from "./components/layout/Layout";
 
 // Lazy load pages for code splitting
-const Index = lazy(() => import("./pages/Index"));
-const Settings = lazy(() => import("./pages/Settings"));
-const SavedQuotes = lazy(() => import("./pages/SavedQuotes"));
-
-const PrintManagement = lazy(() => import("./pages/PrintManagement"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Index = lazy(() => import("@/pages/Index"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const BillingAnalysis = lazy(() => import("@/pages/BillingAnalysis"));
+const OrderManager = lazy(() => import("@/pages/OrderManager"));
+const PrintManager = lazy(() => import("@/pages/PrintManager"));
+const CapacityPlanner = lazy(() => import("@/pages/CapacityPlanner"));
+const DatabaseManager = lazy(() => import("@/pages/DatabaseManager"));
+const Notification = lazy(() => import("@/pages/Notification"));
+const ToolGuide = lazy(() => import("@/pages/ToolGuide"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
 
 // Loading fallback component with better FCP and visual appeal
 const PageLoader = () => (
@@ -83,39 +88,55 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  // Enable UI protection (disable context menu, F12, etc.)
-  // useAppProtection();
-
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <CurrencyProvider>
-          <BatchQuoteProvider>
-            <ProductionProvider>
-              <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    <Route element={<Layout />}>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/settings" element={<Settings />} />
-                    </Route>
-                    <Route path="/saved-quotes" element={<SavedQuotes />} />
-                    <Route path="/order-management" element={<OrderManagement />} />
-
-                    <Route path="/print-management" element={<PrintManagement />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </HashRouter>
-            </ProductionProvider>
-          </BatchQuoteProvider>
-        </CurrencyProvider>
-      </TooltipProvider>
+      <NotificationProvider>
+        <IntelligenceProvider>
+          <UIProvider>
+            <CurrencyProvider>
+              <BatchQuoteProvider>
+                <ProductionProvider>
+                  <TooltipProvider>
+                    <Sonner />
+                    <HashRouter>
+                      <Suspense fallback={<PageLoader />}>
+                        <Routes>
+                          <Route element={<Layout />}>
+                            <Route path="/" element={<Navigate to="/cost-calculator" replace />} />
+                            <Route path="/cost-calculator" element={<Index />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/billing-analysis" element={<BillingAnalysis />} />
+                            <Route path="/order-manager" element={<OrderManager />} />
+                            <Route path="/print-manager" element={<PrintManager />} />
+                            <Route path="/capacity-planner" element={<CapacityPlanner />} />
+                            <Route path="/database-manager" element={<DatabaseManager />} />
+                            <Route path="/notification" element={<Notification />} />
+                            <Route path="/tool-guide" element={<ToolGuide />} />
+                            
+                            {/* Backward Compatibility Redirects */}
+                            <Route path="/calculator" element={<Navigate to="/cost-calculator" replace />} />
+                            <Route path="/manage-orders" element={<Navigate to="/order-manager" replace />} />
+                            <Route path="/system-database" element={<Navigate to="/database-manager" replace />} />
+                            <Route path="/notifications" element={<Navigate to="/notification" replace />} />
+                            <Route path="/saved-quotes" element={<Navigate to="/billing-analysis" replace />} />
+                            <Route path="/order-management" element={<Navigate to="/order-manager" replace />} />
+                            <Route path="/machine-manager" element={<Navigate to="/print-manager" replace />} />
+                            <Route path="/database" element={<Navigate to="/database-manager" replace />} />
+                            
+                            <Route path="*" element={<NotFound />} />
+                          </Route>
+                        </Routes>
+                      </Suspense>
+                    </HashRouter>
+                  </TooltipProvider>
+                </ProductionProvider>
+              </BatchQuoteProvider>
+            </CurrencyProvider>
+          </UIProvider>
+        </IntelligenceProvider>
+      </NotificationProvider>
     </QueryClientProvider>
   );
-
 };
 
 export default App;

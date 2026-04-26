@@ -18,7 +18,8 @@
 
 import { useState, useCallback, useEffect, ReactNode } from 'react';
 import { QuoteData } from '@/types/quote';
-import { BatchQuoteContext } from '@/contexts/BatchQuoteContext';
+import { BatchQuoteContext, BatchQuoteContextType } from '@/contexts/BatchQuoteContext';
+import { getQuotes } from '@/lib/core/sessionStorage';
 
 const STORAGE_KEY = 'batch_quote_items';
 
@@ -61,19 +62,25 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         setBatchItems([]);
     }, []);
 
-    // Calculate batch totals
+    // Calculate batch totals with industrial numerical ceilings
     const batchTotals = batchItems.reduce(
-        (acc, item) => ({
-            totalItems: acc.totalItems + 1,
-            totalQuantity: acc.totalQuantity + (item.quantity || 1),
-            totalMaterialCost: acc.totalMaterialCost + item.materialCost * (item.quantity || 1),
-            totalMachineTimeCost: acc.totalMachineTimeCost + item.machineTimeCost * (item.quantity || 1),
-            totalElectricityCost: acc.totalElectricityCost + item.electricityCost * (item.quantity || 1),
-            totalLaborCost: acc.totalLaborCost + item.laborCost * (item.quantity || 1),
-            totalOverheadCost: acc.totalOverheadCost + item.overheadCost * (item.quantity || 1),
-            totalMarkup: acc.totalMarkup + item.markup * (item.quantity || 1),
-            grandTotal: acc.grandTotal + item.totalPrice,
-        }),
+        (acc, item) => {
+            const qty = item.quantity || 1;
+            // Enforce a $100M ceiling on any cumulative batch value to prevent numerical noise/UI-breakage
+            const CLAMP = 100000000;
+            
+            return {
+                totalItems: Math.min(acc.totalItems + 1, 1000000),
+                totalQuantity: Math.min(acc.totalQuantity + qty, 10000000),
+                totalMaterialCost: Math.min(acc.totalMaterialCost + item.materialCost * qty, CLAMP),
+                totalMachineTimeCost: Math.min(acc.totalMachineTimeCost + item.machineTimeCost * qty, CLAMP),
+                totalElectricityCost: Math.min(acc.totalElectricityCost + item.electricityCost * qty, CLAMP),
+                totalLaborCost: Math.min(acc.totalLaborCost + item.laborCost * qty, CLAMP),
+                totalOverheadCost: Math.min(acc.totalOverheadCost + item.overheadCost * qty, CLAMP),
+                totalMarkup: Math.min(acc.totalMarkup + item.markup * qty, CLAMP),
+                grandTotal: Math.min(acc.grandTotal + item.totalPrice, CLAMP),
+            };
+        },
         {
             totalItems: 0,
             totalQuantity: 0,
@@ -87,17 +94,64 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         }
     );
 
+    const saveBatchAsQuote = useCallback((projectName?: string): QuoteData => {
+        if (batchItems.length === 0) {
+            throw new Error("No items in batch to save");
+        }
+
+        // Aggregate everything into a master quote
+        const mergedProjectNames = batchItems.map(i => i.projectName).join(' and ');
+        const masterWeight = projectName || mergedProjectNames;
+        
+        // Get existing quotes to determine overall count
+        const existingQuotes = getQuotes();
+        
+        // Generate a random segment similar to normal quotes (e.g. 5F6D)
+        const randomSegment = crypto.randomUUID().split('-')[1].toUpperCase();
+        const masterId = `${randomSegment}${existingQuotes.length + 1}`;
+
+        const masterQuote: QuoteData = {
+            id: masterId,
+            projectName: masterWeight,
+            clientName: batchItems[0]?.clientName || "Valued Customer",
+            printType: batchItems.every(i => i.printType === batchItems[0].printType) ? batchItems[0].printType : "FDM", // Default to FDM if mixed
+            printColour: batchItems.length === 1 ? batchItems[0].printColour : "Multiple",
+            materialCost: batchTotals.totalMaterialCost,
+            machineTimeCost: batchTotals.totalMachineTimeCost,
+            electricityCost: batchTotals.totalElectricityCost,
+            laborCost: batchTotals.totalLaborCost,
+            overheadCost: batchTotals.totalOverheadCost,
+            markup: batchTotals.totalMarkup,
+            subtotal: batchTotals.totalMaterialCost + batchTotals.totalMachineTimeCost + batchTotals.totalElectricityCost + batchTotals.totalLaborCost + batchTotals.totalOverheadCost,
+            totalPrice: batchTotals.grandTotal,
+            quantity: 1, // The batch itself is 1 order
+            unitPrice: batchTotals.grandTotal,
+            parameters: {
+                materialName: "Batch Consists of Multiple Materials",
+                machineName: "Multiple Machines",
+            },
+            isBatch: true,
+            batchItems: [...batchItems],
+            createdAt: new Date().toISOString(),
+            status: 'PENDING',
+            priority: 'Medium',
+        };
+
+        return masterQuote;
+    }, [batchItems, batchTotals]);
+
+    const contextValue: BatchQuoteContextType = {
+        batchItems,
+        addItem,
+        removeItem,
+        updateItem,
+        clearBatch,
+        saveBatchAsQuote,
+        batchTotals,
+    };
+
     return (
-        <BatchQuoteContext.Provider
-            value={{
-                batchItems,
-                addItem,
-                removeItem,
-                updateItem,
-                clearBatch,
-                batchTotals,
-            }}
-        >
+        <BatchQuoteContext.Provider value={contextValue}>
             {children}
         </BatchQuoteContext.Provider>
     );

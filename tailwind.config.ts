@@ -107,11 +107,11 @@ export default {
           to: { height: "0", opacity: "0" },
         },
         "fade-in": {
-          from: { opacity: "0", transform: "translateY(8px)" },
+          from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
         "scale-in": {
-          from: { opacity: "0", transform: "scale(0.95)" },
+          from: { opacity: "0", transform: "scale(0.98)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
         "slide-in-right": {
@@ -122,6 +122,22 @@ export default {
           from: { backgroundPosition: "200% 0" },
           to: { backgroundPosition: "-200% 0" },
         },
+        "pulse-soft": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.8" },
+        },
+        "breathe": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.8", transform: "scale(0.98)" },
+        },
+        "ai-float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
+        },
+        "ai-glow": {
+          "0%, 100%": { boxShadow: "0 0 15px hsl(var(--primary) / 0.5)" },
+          "50%": { boxShadow: "0 0 30px hsl(var(--accent) / 0.8)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -130,8 +146,35 @@ export default {
         "scale-in": "scale-in 0.3s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "shimmer": "shimmer 2s linear infinite",
+        "pulse-soft": "pulse-soft 2s ease-in-out infinite",
+        "breathe-yellow": "breathe 2.5s ease-in-out infinite",
+        "ai-float": "ai-float 3s ease-in-out infinite",
+        "ai-glow": "ai-glow 4s ease-in-out infinite",
+      },
+      fontFamily: {
+        sans: ["var(--font-body)", "sans-serif"],
+        mono: ["var(--font-mono)", "monospace"],
       },
     },
   },
+  future: {
+    disableColorOpacityUtilitiesByDefault: true,
+    hoverOnlyWhenSupported: true,
+    respectDefaultRingColorOpacity: true,
+  },
   plugins: [tailwindcssAnimate],
+  corePlugins: {
+    skew: false,
+    sepia: false,
+    invert: false,
+    saturate: false,
+    hueRotate: false,
+    grayscale: false,
+    blur: false,
+    backdropSepia: false,
+    backdropInvert: false,
+    backdropHueRotate: false,
+    backdropSaturate: false,
+    backdropGrayscale: false,
+  },
 } satisfies Config;

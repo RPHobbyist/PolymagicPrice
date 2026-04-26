@@ -19,7 +19,7 @@
 import { useState, useCallback, useMemo, memo, useEffect, useRef } from "react";
 import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
-import { QuoteData, ResinFormData, StoredGcode } from "@/types/quote";
+import { QuoteData, ResinFormData, StoredGcode, Employee, QuoteStatus } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
 import { calculateResinQuote, validateResinForm } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
@@ -34,14 +34,35 @@ import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useStoredGcodes } from "@/hooks/useStoredGcodes";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import * as sessionStore from "@/lib/core/sessionStorage";
 
 interface ResinCalculatorProps {
   onCalculate: (data: QuoteData) => void;
+  preFillData?: Partial<ResinFormData> & { 
+    name?: string; 
+    status?: QuoteStatus; 
+    priority?: string; 
+    dueDate?: string; 
+    customerId?: string; 
+    clientName?: string; 
+    assignedEmployeeId?: string; 
+    notes?: string;
+    failedUnits?: number | string;
+    thumbnail?: string;
+    editQuoteId?: string;
+    id?: string;
+    machineName?: string;
+    materialName?: string;
+  };
 }
 
 const initialFormData: ResinFormData = {
+  id: "",
   projectName: "",
-  printColour: "",
+  printColour: "-",
   materialId: "",
   machineId: "",
   printTime: "",
@@ -57,28 +78,52 @@ const initialFormData: ResinFormData = {
   paintingTime: "",
   paintingLayers: "",
   selectedPaintId: "",
+  selectedPaintId2: "",
+  paintingLayers2: "",
   surfaceAreaCm2: "",
+  notes: "",
+  failedUnits: "",
+  priority: "Medium",
+  dueDate: "",
+  assignedEmployeeId: "",
+  filePath: "",
 };
 
-const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
+const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculatorProps) => {
   const { materials, machines, constants, loading, getConstantValue } = useCalculatorData({ printType: "Resin" });
   const [formData, setFormData] = useState<ResinFormData>(initialFormData);
+  
+  // Stable ID for the current calculation session
+  // Resets only when the entire component remounts (facilitated by the key in Index.tsx)
+  const calculationId = useMemo(() => crypto.randomUUID(), []);
+
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
   const { currency } = useCurrency();
   const { gcodes, saveGcode } = useStoredGcodes();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  // Load employees on mount and on storage change
+  useEffect(() => {
+    const fetchEmployees = () => setEmployees(sessionStore.getEmployees());
+    fetchEmployees();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "session_employees") {
+        fetchEmployees();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   // Filter for Resin files only
   const filteredGcodes = useMemo(() => {
     return gcodes.filter(g => (g.resinVolume || 0) > 0);
   }, [gcodes]);
 
-  const [currentGcodeData, setCurrentGcodeData] = useState<{
-    fileName: string;
-    filePath: string;
-    printTimeHours: number;
-    resinVolumeMl: number;
-    printerModel?: string;
-  } | null>(null);
+  const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
+  const lastLoadedIdRef = useRef<string | null>(null);
 
   const [isPaintingEnabled, setIsPaintingEnabled] = useState(false);
 
@@ -110,20 +155,61 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
 
     setFormData(prev => ({
       ...prev,
-      projectName: data.fileName ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) || data.fileName : prev.projectName,
+      projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
       printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
       resinVolume: data.resinVolumeMl > 0 ? data.resinVolumeMl.toString() : prev.resinVolume,
       machineId: matchedMachineId || prev.machineId,
+      printColour: prev.printColour,
     }));
 
-    setCurrentGcodeData({
-      fileName: data.fileName || "Unknown File",
-      filePath: data.filePath || "",
-      printTimeHours: data.printTimeHours,
-      resinVolumeMl: data.resinVolumeMl,
-      printerModel: data.printerModel
-    });
+    setThumbnail(undefined); // Reset thumbnail for resin or handle if available
   }, [machines]);
+
+  // Handle pre-fill data from library navigation or revision
+  useEffect(() => {
+    if (preFillData) {
+      const targetId = preFillData.editQuoteId || preFillData.id || null;
+      // GUARD: If we already loaded this specific record, don't reset the form
+      if (targetId && lastLoadedIdRef.current === targetId) {
+        return;
+      }
+
+      // Update the ref to prevent re-populating on every keystroke
+      lastLoadedIdRef.current = targetId;
+
+      // If it's a revision, it has all these fields. If not, they fall back to defaults.
+      setFormData(prev => ({
+        ...prev,
+        id: targetId || prev.id,
+        projectName: preFillData.projectName || preFillData.name || prev.projectName,
+        printTime: String(preFillData.printTime || prev.printTime || ""),
+        resinVolume: String(preFillData.resinVolume || prev.resinVolume || ""),
+        materialId: preFillData.materialId || preFillData.materialId || prev.materialId,
+        machineId: preFillData.machineId || preFillData.machineId || prev.machineId,
+        washingTime: String(preFillData.washingTime || prev.washingTime || ""),
+        curingTime: String(preFillData.curingTime || prev.curingTime || ""),
+        laborHours: String(preFillData.laborHours || prev.laborHours || ""),
+        overheadPercentage: String(preFillData.overheadPercentage || prev.overheadPercentage || ""),
+        markupPercentage: String(preFillData.markupPercentage || prev.markupPercentage || "20"),
+        quantity: String(preFillData.quantity || prev.quantity || "1"),
+        priority: preFillData.priority || prev.priority,
+        dueDate: preFillData.dueDate || prev.dueDate,
+        customerId: preFillData.customerId || prev.customerId,
+        clientName: preFillData.clientName || prev.clientName,
+        assignedEmployeeId: preFillData.assignedEmployeeId || prev.assignedEmployeeId,
+        selectedConsumableIds: preFillData.selectedConsumableIds || prev.selectedConsumableIds || [],
+        notes: preFillData.notes || prev.notes,
+        status: preFillData.status || prev.status,
+        failedUnits: preFillData.failedUnits !== undefined ? String(preFillData.failedUnits) : prev.failedUnits,
+        // Painting mapping
+        paintingTime: String(preFillData.paintingTime || prev.paintingTime || ""),
+        paintingLayers: String(preFillData.paintingLayers || prev.paintingLayers || ""),
+        surfaceAreaCm2: String(preFillData.surfaceAreaCm2 || prev.surfaceAreaCm2 || "")
+      }));
+
+      setThumbnail(preFillData.thumbnail);
+    }
+  }, [preFillData, handleResinFileData]);
 
   const handleConsumablesChange = useCallback((selectedIds: string[]) => {
     updateField("selectedConsumableIds", selectedIds);
@@ -164,8 +250,6 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
   }, [gcodes, machines]);
 
   const handleSaveToLibrary = async () => {
-    if (!currentGcodeData) return;
-
     try {
       // Find material and machine names for metadata
       const machine = machines.find(m => m.id === formData.machineId);
@@ -173,14 +257,15 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
 
       const newGcode: StoredGcode = {
         id: crypto.randomUUID(),
-        name: currentGcodeData.fileName,
-        filePath: currentGcodeData.filePath,
-        printTime: currentGcodeData.printTimeHours,
+        name: formData.projectName || "Unnamed Resin Project",
+        filePath: formData.filePath || "Uploaded File",
+        printTime: parseFloat(formData.printTime) || 0,
         filamentWeight: 0, // Not used for resin
-        resinVolume: currentGcodeData.resinVolumeMl,
-        machineName: machine?.name || currentGcodeData.printerModel,
-        materialName: material?.name,
+        resinVolume: parseFloat(formData.resinVolume) || 0,
+        machineName: machine?.name || "Standard Resin Printer",
+        materialName: material?.name || "Standard Resin",
         printType: "Resin",
+        thumbnail: thumbnail,
         createdAt: new Date().toISOString(),
       };
 
@@ -214,8 +299,6 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
     const electricityRate = getConstantValue("electricity");
     const laborRate = getConstantValue("labor");
 
-    const selectedPaintConsumable = constants.find(c => c.id === formData.selectedPaintId);
-    const paintConsumableValue = selectedPaintConsumable ? selectedPaintConsumable.value : 0;
 
     if (!electricityRate || electricityRate <= 0) {
       toast.error("Electricity Rate is required. Please set it in Settings → Consumables.");
@@ -233,6 +316,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
     const quoteData = calculateResinQuote({
       formData: {
         ...formData,
+        id: formData.id || calculationId, // Use existing ID if editing, otherwise the stable session ID
         selectedSpoolId: selectedSpoolId || undefined, // Ensure spool ID is passed
       },
       material: selectedMaterial,
@@ -248,7 +332,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({
@@ -273,24 +357,25 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
     })), [constants]);
 
   const uploadSection = (
-    <div className="flex flex-col gap-4 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
+    <div className="flex flex-col gap-4 p-4 bg-slate-50/50 rounded-xl border border-border">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Calculator className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-foreground">Auto-fill from Resin File</p>
+            <p className="font-normal text-foreground">Auto-fill from Resin File</p>
             <p className="text-sm text-muted-foreground">Upload .cxdlpv4 to extract parameters</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {currentGcodeData && (
+          {(thumbnail || formData.filePath) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleSaveToLibrary}
               className="text-primary hover:text-primary hover:bg-primary/10 gap-2"
+              aria-label="Save current file details to library"
               title="Save current file details to library"
             >
               <Save className="w-4 h-4" />
@@ -304,7 +389,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
       <div className="flex items-center gap-2 pt-2 border-t border-border/50">
         <span className="text-sm text-muted-foreground whitespace-nowrap">Saved Files:</span>
         <Select onValueChange={handleSavedGcodeSelect} disabled={filteredGcodes.length === 0}>
-          <SelectTrigger className="h-8 w-full max-w-[300px] bg-background/50">
+          <SelectTrigger aria-label="Select a saved file" className="h-8 w-full max-w-[300px] bg-background/50">
             <SelectValue placeholder={filteredGcodes.length === 0 ? "No saved files" : "Select a saved file..."} />
           </SelectTrigger>
           <SelectContent>
@@ -312,8 +397,8 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               <SelectItem key={file.id} value={file.id}>
                 <div className="flex items-center gap-2">
                   <span>{file.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({file.printTime}h, {file.resinVolume}ml)
+                  <span className="text-sm text-muted-foreground group-focus:text-white font-normal whitespace-nowrap">
+                    ({file.printTime}hr, {file.resinVolume}ml)
                   </span>
                 </div>
               </SelectItem>
@@ -367,15 +452,15 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" htmlFor="resin-spool-selector" required>
+      <FormFieldRow label="Colour" htmlFor="resin-spool-selector" required>
         <SpoolSelector
           id="resin-spool-selector"
           name="spoolId"
           materialId={formData.materialId}
           value={selectedSpoolId}
-          onChange={(spoolId, color) => {
+          onChange={(spoolId, colour) => {
             setSelectedSpoolId(spoolId);
-            updateField("printColour", color);
+            updateField("printColour", colour || "");
           }}
           requiredWeight={(parseFloat(formData.resinVolume) || 0) * (parseInt(formData.quantity) || 1)}
           itemType="bottle"
@@ -498,9 +583,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)" htmlFor="markup-percentage">
+      <FormFieldRow label="Profit Markup (%)" htmlFor="resin-markup-percentage">
         <TextField
-          id="markup-percentage"
+          id="resin-markup-percentage"
           name="markupPercentage"
           type="number"
           step="0.1"
@@ -508,13 +593,13 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           onChange={(v) => updateField("markupPercentage", v)}
           placeholder="20"
           min={0}
-          max={10000}
+          max={100000}
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Quantity" htmlFor="quantity">
+      <FormFieldRow label="Quantity" htmlFor="resin-quantity">
         <TextField
-          id="quantity"
+          id="resin-quantity"
           name="quantity"
           type="number"
           step="1"
@@ -526,23 +611,62 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
         />
       </FormFieldRow>
 
+      <FormFieldRow label="Order Priority" htmlFor="resin-priority">
+        <SelectField
+          id="resin-priority"
+          name="priority"
+          value={formData.priority || "Medium"}
+          onChange={(v) => updateField("priority", v)}
+          placeholder="Select priority"
+          options={[
+            { id: "Low", label: "Low" },
+            { id: "Medium", label: "Medium" },
+            { id: "High", label: "High" },
+          ]}
+        />
+      </FormFieldRow>
+
+      <FormFieldRow label="Due Date" htmlFor="resin-due-date">
+        <Input
+          id="resin-due-date"
+          name="dueDate"
+          type="date"
+          value={formData.dueDate || ""}
+          min={new Date().toISOString().split('T')[0]}
+          onChange={(e) => updateField("dueDate", e.target.value)}
+          className="h-10"
+        />
+      </FormFieldRow>
+
+      <FormFieldRow label="Assigned Employee" htmlFor="resin-assigned-employee">
+        <SelectField
+          id="resin-assigned-employee"
+          name="assignedEmployeeId"
+          value={formData.assignedEmployeeId || "none"}
+          onChange={(v) => updateField("assignedEmployeeId", v === "none" ? "" : v)}
+          options={[
+            { id: "none", label: "-- Select Employee --" },
+            ...employees.map(e => ({ id: e.id, label: `${e.name} (${e.jobPosition})` }))
+          ]}
+          placeholder="Select employee"
+        />
+      </FormFieldRow>
+
       <div className="pt-4 px-2 sm:px-4 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Post Processing</h2>
-          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-500/20">BETA</span>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Post Processing</h2>
+          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-semibold border border-blue-500/20">BETA</span>
         </div>
 
         <FormFieldRow label="Include Painting" htmlFor="resin-include-painting">
-          <div className="flex items-center h-10">
-            <input
+          <div className="flex items-center h-10 gap-2">
+            <Checkbox
               id="resin-include-painting"
-              type="checkbox"
-              aria-label="Include Painting"
-              className="w-5 h-5 rounded border-input bg-background"
               checked={isPaintingEnabled}
-              onChange={(e) => {
-                setIsPaintingEnabled(e.target.checked);
-                if (e.target.checked) {
+              onCheckedChange={(checked) => {
+                const isChecked = checked === true;
+                setIsPaintingEnabled(isChecked);
+                if (isChecked) {
                   updateField("paintingLayers", "1");
                   updateField("paintingTime", "0.5");
                 } else {
@@ -551,16 +675,21 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
                   updateField("selectedPaintId", "");
                 }
               }}
+              className="border-slate-300 data-[state=checked]:bg-slate-800"
+              aria-label="Include Painting"
             />
-            <span className="ml-2 text-sm text-foreground">Enable</span>
+            <Label htmlFor="resin-include-painting" className="text-sm font-medium cursor-pointer">
+              Enable
+            </Label>
           </div>
         </FormFieldRow>
 
         {isPaintingEnabled && (
           <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-            <FormFieldRow label="Surface Area (cm²)">
+            <FormFieldRow label="Surface Area (cm²)" htmlFor="resin-surface-area">
               <div className="flex gap-2 items-center">
                 <TextField
+                  id="resin-surface-area"
                   type="number"
                   value={formData.surfaceAreaCm2}
                   onChange={(v) => updateField("surfaceAreaCm2", v)}
@@ -578,8 +707,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               </div>
             </FormFieldRow>
 
-            <FormFieldRow label="Choose paint">
+            <FormFieldRow label="Choose paint" htmlFor="resin-paint-choice">
               <SelectField
+                id="resin-paint-choice"
                 value={formData.selectedPaintId || "none"}
                 onChange={(v) => updateField("selectedPaintId", v === "none" ? "" : v)}
                 placeholder="Select paint..."
@@ -603,8 +733,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="Coating Layers">
+            <FormFieldRow label="Coating Layers" htmlFor="resin-coating-layers">
               <TextField
+                id="resin-coating-layers"
                 type="number"
                 step="1"
                 value={formData.paintingLayers}
@@ -615,10 +746,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               />
             </FormFieldRow>
 
-
-
-            <FormFieldRow label="Secondary Paint">
+            <FormFieldRow label="Secondary Paint" htmlFor="resin-secondary-paint">
               <SelectField
+                id="resin-secondary-paint"
                 value={formData.selectedPaintId2 || "none"}
                 onChange={(v) => updateField("selectedPaintId2", v === "none" ? "" : v)}
                 placeholder="Select second paint..."
@@ -643,8 +773,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="2nd Coating Layers">
+            <FormFieldRow label="2nd Coating Layers" htmlFor="resin-coating-layers-2">
               <TextField
+                id="resin-coating-layers-2"
                 type="number"
                 step="1"
                 value={formData.paintingLayers2}
@@ -655,8 +786,9 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="Painting Labor (hrs)">
+            <FormFieldRow label="Painting Labor (hrs)" htmlFor="resin-painting-labor">
               <TextField
+                id="resin-painting-labor"
                 type="number"
                 step="0.1"
                 value={formData.paintingTime}
@@ -669,8 +801,7 @@ const ResinCalculatorTable = memo(({ onCalculate }: ResinCalculatorProps) => {
           </div>
         )}
       </div>
-
-    </QuoteCalculator >
+    </QuoteCalculator>
   );
 });
 

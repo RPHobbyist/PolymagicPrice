@@ -17,11 +17,11 @@
  */
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogFooter, DialogDescription, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Package, CalendarDays, Building2, Paintbrush, ArrowRight, Users, Hammer, PlaySquare, FileCode, X } from "lucide-react";
+import { ArrowRight, PlaySquare, X, Layout, Calendar, ReceiptIndianRupee, Bell, BookOpen, Settings, Printer } from "lucide-react";
 
-const CURRENT_VERSION = "1.3.1"; // Bumped version for new features
+const CURRENT_VERSION = "2.0.0"; // Major UI & Advanced Features Update
 const STORAGE_KEY = "last_seen_version";
 
 export const WhatsNewDialog = ({
@@ -40,16 +40,16 @@ export const WhatsNewDialog = ({
     const setOpen = onExternalOpenChange || setInternalOpen;
 
     useEffect(() => {
-        // Only auto-open if not externally controlled
-        if (externalOpen === undefined) {
-            const lastSeen = localStorage.getItem(STORAGE_KEY);
-            if (lastSeen !== CURRENT_VERSION) {
-                // Small delay to appear after app load
-                const timer = setTimeout(() => setInternalOpen(true), 1000);
-                return () => clearTimeout(timer);
-            }
+        // Only auto-open if the version has changed
+        const lastSeen = localStorage.getItem(STORAGE_KEY);
+        if (lastSeen !== CURRENT_VERSION) {
+            // Small delay to appear after app load
+            const timer = setTimeout(() => {
+                setOpen(true);
+            }, 1000);
+            return () => clearTimeout(timer);
         }
-    }, [externalOpen]);
+    }, [CURRENT_VERSION]); // Run on mount or version change
 
     const handleClose = () => {
         localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);
@@ -72,71 +72,59 @@ export const WhatsNewDialog = ({
                     <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-1">
                             <DialogTitle className="text-2xl font-bold tracking-tight">What's New</DialogTitle>
-                            <div className="flex items-center gap-2 bg-white/10 w-fit px-2.5 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm border border-white/20 !text-white">
-                                <span>New Update {CURRENT_VERSION}</span>
+                            <div className="flex items-center justify-center bg-white/10 w-fit px-3 h-5 rounded-full text-[10px] font-bold backdrop-blur-sm border border-white/20 !text-white uppercase tracking-wider">
+                                <span className="leading-none">New Update {CURRENT_VERSION}</span>
                             </div>
                         </div>
                         <DialogDescription className="text-primary-foreground/90 text-sm">
-                            Check out the latest improvements.
+                            Powered by Local AI models via Ollama.
                         </DialogDescription>
                     </div>
                 </div>
 
                 {/* Features List */}
-                <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-4 space-y-5 max-h-[60vh] overflow-y-auto">
 
                     <FeatureItem
-                        icon={<FileCode className="w-5 h-5 text-green-500" />}
-                        title="Saved Projects"
-                        description="Save frequently printed files to a library. Reload details for both FDM and Resin without re-uploading."
+                        icon={<Layout className="w-6 h-6 text-slate-700" />}
+                        title="Brand New UI"
+                        description="A complete visual overhaul featuring a modern, high-contrast industrial design for better efficiency."
                     />
 
                     <FeatureItem
-                        icon={<Package className="w-5 h-5 text-blue-500" />}
-                        title="Order Manager Board"
-                        description="Visualize production flow. Track orders from Pending to Delivery."
+                        icon={<Calendar className="w-6 h-6 text-slate-700" />}
+                        title="Advanced Capacity Planner"
+                        description="Forecast production timelines and optimize printer utilization with precision."
                     />
 
                     <FeatureItem
-                        icon={<CalendarDays className="w-5 h-5 text-purple-500" />}
-                        title="Capacity Planner"
-                        description="Plan big projects. Select printers to see estimated completion times."
+                        icon={<ReceiptIndianRupee className="w-6 h-6 text-slate-700" />}
+                        title="Advanced Billing & Analysis"
+                        description="Deep financial insights, profit tracking, and professional reporting at your fingertips."
                     />
 
                     <FeatureItem
-                        icon={<Package className="w-5 h-5 text-orange-500" />}
-                        title="Inventory Management"
-                        description="Track filament and resin stock. Automatically deducts usage."
+                        icon={<Bell className="w-6 h-6 text-slate-700" />}
+                        title="Notification Center"
+                        description="Stay synchronized with real-time system alerts and job status updates."
                     />
 
                     <FeatureItem
-                        icon={<Building2 className="w-5 h-5 text-emerald-500" />}
-                        title="Company Settings"
-                        description="Personalize your brand with logo and custom footer on quotes."
+                        icon={<BookOpen className="w-6 h-6 text-slate-700" />}
+                        title="Tool Guide"
+                        description="Comprehensive interactive documentation to help you master the Polymagic ecosystem."
                     />
 
                     <FeatureItem
-                        icon={<Paintbrush className="w-5 h-5 text-pink-500" />}
-                        title="Cleaner Interface"
-                        description="Polished look with unified styles for a professional experience."
+                        icon={<Settings className="w-6 h-6 text-slate-700" />}
+                        title="Advanced Machine Settings"
+                        description="Granular control over machine profiles and encrypted security credentials."
                     />
 
                     <FeatureItem
-                        icon={<Users className="w-5 h-5 text-cyan-500" />}
-                        title="Employee Assignment"
-                        description="Delegate work by assigning employees to specific print jobs."
-                    />
-
-                    <FeatureItem
-                        icon={<Hammer className="w-5 h-5 text-yellow-500" />}
-                        title="Post Processing"
-                        description="Calculate finishing costs, now including painting options."
-                    />
-
-                    <FeatureItem
-                        icon={<Building2 className="w-5 h-5 text-indigo-500" />}
-                        title="Performance Boost"
-                        description="Faster and more stable application performance."
+                        icon={<Printer className="w-6 h-6 text-slate-700" />}
+                        title="Printer Manager"
+                        description="Manage your fleet with real-time status tracking for both online and offline printers."
                     />
 
                 </div>
@@ -160,17 +148,17 @@ export const WhatsNewDialog = ({
 };
 
 const FeatureItem = ({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) => (
-    <div className="flex gap-3 items-start">
-        <div className="shrink-0 p-1.5 bg-muted rounded-md mt-0.5">
+    <div className="flex gap-4 items-start">
+        <div className="shrink-0 mt-1">
             {icon}
         </div>
-        <div className="space-y-0.5">
-            <h3 className="font-medium text-sm leading-none">{title}</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+        <div className="space-y-1.5">
+            <h2 className="font-semibold text-base leading-none tracking-tight">{title}</h2>
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
                 {description}
             </p>
         </div>
     </div>
 );
 
-export default WhatsNewDialog;
+

@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { HelpCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface FormFieldProps {
   label: string;
@@ -33,11 +34,11 @@ interface FormFieldProps {
 }
 
 export const FormFieldRow = memo(({ label, required, highlight, hint, htmlFor, children }: FormFieldProps) => (
-  <div className={`grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-1 sm:gap-4 py-3 px-2 sm:px-4 items-start sm:items-center border-b border-border/50 hover:bg-muted/30 transition-colors ${highlight ? 'bg-accent/5' : ''}`}>
-    <div className="font-medium text-sm sm:text-base flex items-center gap-1.5">
-      <label htmlFor={htmlFor} className="cursor-pointer">
-        {label} {required && <span className="text-destructive">*</span>}
-      </label>
+  <div className={`grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-1 sm:gap-4 py-3 px-2 sm:px-4 items-start sm:items-center border-b border-border/50 hover:bg-muted/30 transition-colors ${highlight ? 'bg-accent/5' : ''}`}>
+    <div className="font-normal text-sm sm:text-base flex items-center gap-1.5">
+      <Label htmlFor={htmlFor} className="cursor-pointer inline-flex items-center gap-1">
+        {label} {required && <span className="text-destructive font-medium ml-0.5">*</span>}
+      </Label>
       {hint && (
         <TooltipProvider>
           <Tooltip delayDuration={300}>
@@ -86,7 +87,14 @@ export const TextField = memo(({ value, onChange, placeholder, type = "text", st
       maxLength={maxLength}
       placeholder={placeholder}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => {
+        const val = e.target.value;
+        if (type === "number" && val !== "") {
+          const num = parseFloat(val);
+          if (num < 0) return;
+        }
+        onChange(val);
+      }}
       className={`bg-background border-input focus:ring-2 focus:ring-primary/20 w-full ${endAdornment ? 'pr-20' : ''} ${className || ''}`}
     />
     {endAdornment && (
@@ -116,14 +124,16 @@ interface SelectFieldProps {
 
 export const SelectField = memo(({ value, onChange, placeholder, options, id, name }: SelectFieldProps) => (
   <Select name={name} value={value} onValueChange={onChange}>
-    <SelectTrigger id={id} className="bg-background">
+    <SelectTrigger id={id} className="bg-background" aria-label={placeholder}>
       <SelectValue placeholder={placeholder} />
     </SelectTrigger>
     <SelectContent className="bg-popover border-border z-50">
       {options.map((option) => (
         <SelectItem key={option.id} value={option.id}>
-          {option.label}
-          {option.sublabel && <span className="text-muted-foreground ml-1">({option.sublabel})</span>}
+          <div className="flex justify-between w-full gap-2 font-normal">
+            <span>{option.label}</span>
+            {option.sublabel && <span className="text-sm text-muted-foreground group-data-[highlighted]:text-white whitespace-nowrap">({option.sublabel})</span>}
+          </div>
         </SelectItem>
       ))}
     </SelectContent>

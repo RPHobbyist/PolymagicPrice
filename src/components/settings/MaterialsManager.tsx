@@ -61,6 +61,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
     unit: "kg",
     print_type: "FDM" as "FDM" | "Resin",
     description: "",
+    lowStockThreshold: "200",
   });
 
   useEffect(() => {
@@ -70,7 +71,8 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
         cost_per_unit: initialData.cost_per_unit.toString(),
         unit: initialData.unit,
         print_type: initialData.print_type,
-        description: "",
+        description: initialData.description || "",
+        lowStockThreshold: (initialData.lowStockThreshold || (initialData.print_type === "FDM" ? "200" : "100")).toString(),
       });
     } else {
       setFormData({
@@ -79,6 +81,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
         unit: "kg",
         print_type: "FDM",
         description: "",
+        lowStockThreshold: "200",
       });
     }
   }, [initialData]);
@@ -96,6 +99,8 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
       cost_per_unit: parseFloat(formData.cost_per_unit),
       unit: formData.unit,
       print_type: formData.print_type,
+      description: formData.description || undefined,
+      lowStockThreshold: parseFloat(formData.lowStockThreshold) || 200,
     }); // ID will be handled by parent or store
   };
 
@@ -113,6 +118,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g., PLA, ABS, Standard Resin"
               required
+              maxLength={100}
             />
           </div>
 
@@ -143,8 +149,13 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
               autoComplete="off"
               type="number"
               step="0.01"
+              min="0"
               value={formData.cost_per_unit}
-              onChange={(e) => setFormData({ ...formData, cost_per_unit: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, cost_per_unit: val });
+              }}
               placeholder="25.00"
               required
             />
@@ -167,6 +178,36 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
                 <SelectItem value="ml">Milliliter (ml)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="lowStockThreshold">Low Stock Threshold ({formData.print_type === "FDM" ? 'g' : 'ml'})</Label>
+            <Input
+              id="lowStockThreshold"
+              name="lowStockThreshold"
+              type="number"
+              min="0"
+              value={formData.lowStockThreshold}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, lowStockThreshold: val });
+              }}
+              placeholder="200"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Input
+              id="description"
+              name="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Notes about this material"
+              maxLength={200}
+            />
           </div>
         </div>
       </div>
@@ -202,19 +243,19 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
     <div className="border border-border rounded-lg overflow-hidden">
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-10"></TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Cost per Unit</TableHead>
-            <TableHead>Stock</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableHead className="w-10 font-semibold text-foreground"></TableHead>
+            <TableHead className="font-semibold text-foreground">Name</TableHead>
+            <TableHead className="font-semibold text-foreground">Type</TableHead>
+            <TableHead className="font-semibold text-foreground">Cost per Unit</TableHead>
+            <TableHead className="font-semibold text-foreground">Stock</TableHead>
+            <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {materials.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-slate-600 py-8">
                 No materials added yet. Add your first material above.
               </TableCell>
             </TableRow>
@@ -243,15 +284,15 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
                     </TableCell>
                     <TableCell className="font-medium">{material.name}</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${material.print_type === "FDM" ? "bg-primary/10 text-primary" : "bg-purple-500/10 text-purple-600"}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${material.print_type === "FDM" ? "bg-primary/10 text-primary" : "bg-purple-500/10 text-purple-600"}`}>
                         {material.print_type}
                       </span>
                     </TableCell>
                     <TableCell>{formatPrice(material.cost_per_unit)}/{material.unit}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Package className="w-4 h-4 text-muted-foreground" />
-                        <span className={isLow ? "text-destructive font-medium" : ""}>
+                        <Package className="w-4 h-4 text-slate-500" />
+                        <span className={isLow ? "text-destructive font-medium" : "text-slate-900"}>
                           {formatStock(stock)}
                         </span>
                         {isLow && <span className="text-xs text-destructive">Low</span>}
@@ -373,13 +414,17 @@ const MaterialsManager = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      sessionStore.deleteMaterial(id);
-      toast.success("Material deleted successfully");
-      fetchMaterials();
-      setDeleteId(null);
+      const result = sessionStore.deleteMaterial(id);
+      if (result.success) {
+        toast.success("Material deleted successfully");
+        fetchMaterials();
+        setDeleteId(null);
+      } else {
+        toast.error(result.message || "Failed to delete material");
+      }
     } catch (error) {
       const err = error as Error;
-      toast.error(err.message || "Failed to delete material");
+      toast.error(err.message || "An unexpected error occurred");
     }
   };
 
@@ -395,9 +440,9 @@ const MaterialsManager = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+        <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-foreground">Materials</h2>
-          <p className="text-sm text-muted-foreground">Manage your printing materials.</p>
+          <p className="text-sm text-slate-600">Manage your printing materials.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
@@ -411,6 +456,7 @@ const MaterialsManager = () => {
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search materials by name or type"
             />
           </div>
           <Button onClick={handleAddNew} className="bg-gradient-accent">

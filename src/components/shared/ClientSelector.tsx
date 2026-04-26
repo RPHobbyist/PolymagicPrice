@@ -78,7 +78,7 @@ export function ClientSelector({ value, onSelect, className, id }: ClientSelecto
             setNewClientName("");
             setOpen(false);
             toast.success(`Client "${newCustomer.name}" created`);
-        } catch (e) {
+        } catch {
             toast.error("Failed to create client");
         }
     };
@@ -166,6 +166,7 @@ export function ClientSelector({ value, onSelect, className, id }: ClientSelecto
                                 placeholder="Business or Person Name"
                                 onKeyDown={(e) => e.key === "Enter" && handleCreateClient()}
                                 aria-label="New Client Name"
+                                maxLength={100}
                             />
                         </div>
                     </div>

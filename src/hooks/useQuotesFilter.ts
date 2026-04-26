@@ -18,6 +18,7 @@
 
 import { useState, useMemo } from "react";
 import { QuoteData } from "@/types/quote";
+import { sanitize } from "@/lib/sanitization";
 
 export type SortOrder = "newest" | "oldest" | "price-high" | "price-low";
 export type FilterType = "all" | "FDM" | "Resin";
@@ -37,7 +38,9 @@ export const useQuotesFilter = (quotes: QuoteData[]) => {
 
         // Filter by search query
         if (searchQuery.trim()) {
-            const query = searchQuery.toLowerCase();
+            const query = sanitize(searchQuery).toLowerCase();
+            if (!query) return result; // Return all if sanitized query is empty
+            
             result = result.filter(q =>
                 q.projectName.toLowerCase().includes(query) ||
                 (q.clientName && q.clientName.toLowerCase().includes(query)) ||

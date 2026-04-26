@@ -109,13 +109,15 @@ export function CustomerReviewDialog({
                         <Label>Rating</Label>
                         <div className="flex gap-1">
                             {[1, 2, 3, 4, 5].map((star) => (
-                                <button
+                                <Button
                                     key={star}
                                     type="button"
+                                    variant="ghost"
+                                    size="icon"
                                     onClick={() => setRating(star as 1 | 2 | 3 | 4 | 5)}
                                     onMouseEnter={() => setHoveredStar(star)}
                                     onMouseLeave={() => setHoveredStar(null)}
-                                    className="p-1 transition-transform hover:scale-110"
+                                    className="p-1 h-auto w-auto transition-transform hover:scale-110 hover:bg-transparent"
                                 >
                                     <Star
                                         className={`w-8 h-8 transition-colors ${star <= (hoveredStar ?? rating)
@@ -123,7 +125,7 @@ export function CustomerReviewDialog({
                                             : "text-muted-foreground/30"
                                             }`}
                                     />
-                                </button>
+                                </Button>
                             ))}
                         </div>
                     </div>
@@ -133,7 +135,7 @@ export function CustomerReviewDialog({
                         <Label>Tags (optional)</Label>
                         <div className="flex flex-wrap gap-2">
                             {TAG_OPTIONS.map((tag) => (
-                                <label
+                                <Label
                                     key={tag.value}
                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer transition-colors ${selectedTags.includes(tag.value)
                                         ? "bg-primary/10 border-primary text-primary"
@@ -144,9 +146,10 @@ export function CustomerReviewDialog({
                                         checked={selectedTags.includes(tag.value)}
                                         onCheckedChange={() => toggleTag(tag.value)}
                                         className="sr-only"
+                                        aria-label={tag.label}
                                     />
-                                    <span className="text-sm">{tag.label}</span>
-                                </label>
+                                    <span className="text-sm font-normal">{tag.label}</span>
+                                </Label>
                             ))}
                         </div>
                     </div>
@@ -160,6 +163,7 @@ export function CustomerReviewDialog({
                             onChange={(e) => setComment(e.target.value)}
                             placeholder="Add notes about this customer..."
                             className="min-h-[80px]"
+                            maxLength={1000}
                         />
                     </div>
                 </div>

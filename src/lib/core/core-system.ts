@@ -19,50 +19,46 @@
 
 // CORE SYSTEM CONFIGURATION
 
-
-// Secure decoder
-const _d = (s: string): string => {
-    try {
-        return typeof window !== 'undefined' ? window.atob(s) : Buffer.from(s, 'base64').toString('utf-8');
-    } catch {
-        return "";
-    }
-};
-
 /**
  * System Identity Configuration
- * Critical for application integrity.
+ * Critical for application integrity and environment synchronization.
  */
 export const SYSTEM_CONFIG = {
-    // Encrypted Assets
+    // Assets from environment or defaults
     get githubUrl() {
-        return _d("aHR0cHM6Ly9naXRodWIuY29tL1JQSG9iYnlpc3QvM0QtUHJpbnQtUHJpY2UtQ2FsY3VsYXRvci5naXQ=");
+        return import.meta.env.VITE_GITHUB_URL || "https://github.com/RPHobbyist/PolymagicPrice.git";
     },
     get youtubeUrl() {
-        return "https://www.youtube.com/playlist?list=PLwLQ_Xr7StXiMV7_xrYweyu3AdNJex-H9";
+        return import.meta.env.VITE_YOUTUBE_URL || "https://www.youtube.com/playlist?list=PLwLQ_Xr7StXiMV7_xrYweyu3AdNJex-H9";
     },
     get downloadUrl() {
-        return _d("aHR0cHM6Ly9naXRodWIuY29tL1JQSG9iYnlpc3QvM0QtUHJpbnQtUHJpY2UtQ2FsY3VsYXRvci9yZWxlYXNlcw==");
+        return import.meta.env.VITE_DOWNLOAD_URL || "https://github.com/RPHobbyist/PolymagicPrice/releases";
     },
     get logo() {
-        return "/logo.png";
+        return "./logo.png";
     },
 
     // Protected Identifiers
     get appName() {
-        return _d("UG9seW1hZ2ljUHJpY2U=");
+        return "PolymagicPrice";
     },
 
     get vendor() {
-        return _d("UnAgSG9iYnlpc3Q=");
+        return import.meta.env.VITE_VENDOR_NAME || "Rp Hobbyist";
     },
 
     get vendorLink() {
-        return _d("aHR0cHM6Ly93d3cucnBob2JieWlzdC5jb20=");
+        return import.meta.env.VITE_VENDOR_URL || "https://www.rphobbyist.com";
+    },
+
+    // Identity Logic
+    get isOfficial() {
+        return import.meta.env.VITE_IS_OFFICIAL === 'true';
     },
 
     // License Validation Header
     get licenseRef() {
-        return "GNU AGPLv3 License - Copyright (c) 2025 " + this.vendor;
+        return `GNU AGPLv3 License - Copyright (c) 2025 ${this.vendor}`;
     }
 };
+

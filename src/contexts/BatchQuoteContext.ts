@@ -25,6 +25,7 @@ export interface BatchQuoteContextType {
     removeItem: (index: number) => void;
     updateItem: (index: number, item: QuoteData) => void;
     clearBatch: () => void;
+    saveBatchAsQuote: (projectName?: string) => QuoteData;
     batchTotals: {
         totalItems: number;
         totalQuantity: number;

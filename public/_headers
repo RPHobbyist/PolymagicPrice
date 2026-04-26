@@ -1,8 +1,8 @@
 /*
-  # Content Security Policy (Basic starting point, adjust as needed)
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://www.youtube.com https://s.ytimg.com https://cdn.emailjs.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.emailjs.com https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com; frame-src https://www.youtube.com;
+  # Content Security Policy (single source of truth — no meta tag CSP in index.html)
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.youtube.com https://s.ytimg.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://cloudflareinsights.com http://localhost:* http://127.0.0.1:* ws://localhost:* https://fonts.googleapis.com https://fonts.gstatic.com; frame-src https://www.youtube.com; object-src 'none'; base-uri 'self';
 
-  # HSTS (1 year)
+  # HSTS (1 year, with preload)
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 
   # Prevent MIME sniffing
@@ -13,3 +13,25 @@
 
   # Referrer Policy
   Referrer-Policy: strict-origin-when-cross-origin
+
+  # Permissions Policy (feature policy)
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+
+# Cache static assets aggressively (fonts, images, JS/CSS bundles)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.png
+  Cache-Control: public, max-age=2592000
+
+/*.ico
+  Cache-Control: public, max-age=2592000
+
+/manifest.json
+  Cache-Control: public, max-age=86400
+
+/robots.txt
+  Cache-Control: public, max-age=86400
+
+/sitemap.xml
+  Cache-Control: public, max-age=86400

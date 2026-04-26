@@ -22,6 +22,8 @@ import { Currency } from "@/types/currency";
 export interface CurrencyContextType {
     currency: Currency;
     setCurrency: (currency: Currency) => void;
+    conversionRate: number;
+    setConversionRate: (rate: number) => void;
     formatPrice: (amount: number) => string;
 }
 

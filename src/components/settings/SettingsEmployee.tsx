@@ -121,14 +121,14 @@ const SettingsEmployee = memo(() => {
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h2 className="text-lg font-medium text-foreground">Employee List</h2>
-                    <p className="text-sm text-muted-foreground">Manage your team members.</p>
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-lg font-semibold text-foreground">Employee List</h2>
+                    <p className="text-sm text-slate-600">Manage your team members.</p>
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                         <Input
                             id="search-employees"
                             name="search"
@@ -138,6 +138,7 @@ const SettingsEmployee = memo(() => {
                             className="pl-9 bg-background/50"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            aria-label="Search employees by name, job position, email or phone"
                         />
                     </div>
                     <Button onClick={handleAddNew} className="bg-gradient-accent">
@@ -150,23 +151,23 @@ const SettingsEmployee = memo(() => {
             <Card className="shadow-sm border-border bg-card overflow-hidden">
                 {filteredEmployees.length === 0 ? (
                     <div className="p-8 text-center">
-                        <Users className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
-                        <h2 className="text-lg font-medium text-foreground mb-2">
+                        <Users className="w-12 h-12 mx-auto text-slate-400 mb-4" />
+                        <h2 className="text-lg font-semibold text-foreground mb-2">
                             {searchQuery ? "No employees found" : "No employees yet"}
                         </h2>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-slate-600">
                             {searchQuery ? "Try a different search term" : "Add your first employee using the button above"}
                         </p>
                     </div>
                 ) : (
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-muted/50">
-                                <TableHead className="font-semibold">Name</TableHead>
-                                <TableHead className="font-semibold">Job Position</TableHead>
-                                <TableHead className="font-semibold">Email</TableHead>
-                                <TableHead className="font-semibold">Phone</TableHead>
-                                <TableHead className="w-24 font-semibold">Actions</TableHead>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="font-semibold text-foreground">Name</TableHead>
+                                <TableHead className="font-semibold text-foreground">Job Position</TableHead>
+                                <TableHead className="font-semibold text-foreground">Email</TableHead>
+                                <TableHead className="font-semibold text-foreground">Phone</TableHead>
+                                <TableHead className="w-24 font-semibold text-foreground text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -174,14 +175,14 @@ const SettingsEmployee = memo(() => {
                                 <TableRow key={employee.id} className="hover:bg-muted/30">
                                     <TableCell className="font-medium">{employee.name}</TableCell>
                                     <TableCell>
-                                        <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium">
+                                        <span className="px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">
                                             {employee.jobPosition}
                                         </span>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground">
+                                    <TableCell className="text-slate-600">
                                         {employee.email || "-"}
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground">
+                                    <TableCell className="text-slate-600">
                                         {employee.phone || "-"}
                                     </TableCell>
                                     <TableCell>
@@ -231,6 +232,7 @@ const SettingsEmployee = memo(() => {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="John Doe"
                                     className="bg-background"
+                                    maxLength={100}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -243,6 +245,7 @@ const SettingsEmployee = memo(() => {
                                     onChange={(e) => setFormData({ ...formData, jobPosition: e.target.value })}
                                     placeholder="3D Print Operator"
                                     className="bg-background"
+                                    maxLength={100}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -256,6 +259,7 @@ const SettingsEmployee = memo(() => {
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     placeholder="john@example.com"
                                     className="bg-background"
+                                    maxLength={255}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -269,6 +273,7 @@ const SettingsEmployee = memo(() => {
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     placeholder="+1 234 567 890"
                                     className="bg-background"
+                                    maxLength={20}
                                 />
                             </div>
                         </div>

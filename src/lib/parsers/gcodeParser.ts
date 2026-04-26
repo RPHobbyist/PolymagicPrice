@@ -30,11 +30,65 @@ export interface GcodeData {
   fileName?: string;
   filePath?: string; // Full path to the uploaded file
   surfaceAreaMm2?: number; // Estimated or calculated surface area
+  featureWeights?: {
+    walls?: number;
+    infill?: number;
+    supports?: number;
+    waste?: number;
+  };
 }
+
+/**
+ * Metadata Hijack Shield: Enforces strict raster-only image formats for thumbnails.
+ * Specifically blocks SVGs and Script-embedded payloads that could bypass sanitization.
+ */
+function sanitizeThumbnail(base64: string | undefined): string | undefined {
+    if (!base64) return undefined;
+    
+    // 1. Enforce strict Mime-Type (no SVG or XML)
+    if (!base64.startsWith('data:image/png;base64,') && !base64.startsWith('data:image/jpeg;base64,')) {
+        console.warn('[Security] Attempted non-raster thumbnail injection.');
+        return undefined;
+    }
+
+    // 2. Scan Base64 payload for hidden SVG/Script patterns if it's suspicious
+    // (Search for "<svg" or "javascript:" in the first 1KB of decoded data)
+    try {
+        const decodedStart = atob(base64.split(',')[1].substring(0, 1024));
+        if (/<svg|<?xml|<script|onload/i.test(decodedStart)) {
+            console.error('[Security] Malicious payload detected in thumbnail Base64.');
+            return undefined;
+        }
+    } catch {
+        // If decoding fails, it's likely not a standard thumbnail
+        return undefined;
+    }
+
+    return base64;
+}
+
+/**
+ * Parser Shield: Enforces strict length limits and sanitization on all
+ * metadata fields extracted from untrusted G-code or 3MF files.
+ */
+function protect(str: string | undefined): string | undefined {
+    if (!str) return undefined;
+    // 1. Truncate to prevent UI overflow or memory bombing
+    let s = str.substring(0, 128);
+    // 2. Strip potential injection patterns
+    s = s.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
+         .replace(/on\w+="[^"]*"/gim, "")
+         .replace(/javascript:|data:|file:|ipc:|polymagic:/gi, "[blocked]");
+    // 3. Normalize whitespace
+    return s.trim();
+}
+
+
 
 /**
  * Parse raw G-code text content to extract print time and filament weight
  */
+
 export function parseGcode(content: string): GcodeData {
   let filamentWeight = 0;
   let timeHours = 0;
@@ -43,6 +97,7 @@ export function parseGcode(content: string): GcodeData {
   let filamentColour = '';
   let filamentSettingsId = '';
   let thumbnail = '';
+  const featureWeights: Record<string, number> = {};
 
   // --- Filament weight patterns (supports various slicer formats) ---
   const weightPatterns = [
@@ -58,9 +113,29 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of weightPatterns) {
     const match = content.match(pattern);
     if (match) {
-      filamentWeight = parseFloat(match[1]);
+      filamentWeight = Math.max(0, parseFloat(match[1]));
       break;
     }
+  }
+
+  // --- Granular Weight (OrcaSlicer/Bambu Studio) ---
+  const wallMatch = content.match(/;\s*wall_filament_used_g\s*=\s*([\d.]+)/i);
+  const infillMatch = content.match(/;\s*(?:sparse_|internal_)?infill_filament_used_g\s*=\s*([\d.]+)/i);
+  const supportMatch = content.match(/;\s*support_filament_used_g\s*=\s*([\d.]+)/i);
+  const totalMatch = content.match(/;\s*total_filament_used_g\s*=\s*([\d.]+)/i);
+
+  if (wallMatch) featureWeights.walls = Math.max(0, parseFloat(wallMatch[1]));
+  if (infillMatch) featureWeights.infill = Math.max(0, parseFloat(infillMatch[1]));
+  if (supportMatch) featureWeights.supports = Math.max(0, parseFloat(supportMatch[1]));
+  
+  // Calculate waste if total and components are present
+  if (totalMatch && (wallMatch || infillMatch || supportMatch)) {
+      const total = parseFloat(totalMatch[1]);
+      const components = (featureWeights.walls || 0) + (featureWeights.infill || 0) + (featureWeights.supports || 0);
+      featureWeights.waste = Math.max(0, total - components);
+      
+      // If we found a total weight here, use it as primary
+      if (filamentWeight === 0) filamentWeight = total;
   }
 
   // --- Filament length patterns ---
@@ -73,7 +148,7 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of lengthPatterns) {
     const match = content.match(pattern);
     if (match) {
-      const value = parseFloat(match[1]);
+      const value = Math.max(0, parseFloat(match[1]));
       // Check if it's meters (convert to mm) or already mm
       if (pattern.source.includes('m(?!m)')) {
         filamentLengthMm = value * 1000;
@@ -140,7 +215,7 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of printerPatterns) {
     const match = content.match(pattern);
     if (match) {
-      printerModel = match[1].trim();
+      printerModel = protect(match[1]) || '';
       break;
     }
   }
@@ -156,7 +231,7 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of colourPatterns) {
     const match = content.match(pattern);
     if (match) {
-      filamentColour = match[1].trim();
+      filamentColour = protect(match[1]) || '';
       break;
     }
   }
@@ -172,7 +247,7 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of materialPatterns) {
     const match = content.match(pattern);
     if (match) {
-      filamentSettingsId = match[1].trim();
+      filamentSettingsId = protect(match[1]) || '';
       break;
     }
   }
@@ -221,20 +296,22 @@ export function parseGcode(content: string): GcodeData {
         const base64Data = rawBlock.replace(/^[ \t]*;[ \t]*/gm, '').replace(/\s/g, '');
 
         if (base64Data.length > 100) {
-          thumbnail = `data:image/${bestThumbType};base64,${base64Data}`;
+          thumbnail = sanitizeThumbnail(`data:image/${bestThumbType === 'jpg' ? 'jpeg' : 'png'};base64,${base64Data}`) || '';
         }
       }
     }
   }
 
   return {
-    printTimeHours: Math.round((timeHours || 0) * 100) / 100,
-    filamentWeightGrams: Math.round((filamentWeight || 0) * 10) / 10,
-    filamentLengthMm: Math.round(filamentLengthMm * 10) / 10,
+    printTimeHours: Math.max(0, Math.round((timeHours || 0) * 100) / 100),
+    filamentWeightGrams: Math.max(0, Math.round((filamentWeight || 0) * 10) / 10),
+    filamentLengthMm: Math.max(0, Math.round(filamentLengthMm * 10) / 10),
     printerModel: printerModel || undefined,
     filamentColour: filamentColour || undefined,
     filamentSettingsId: filamentSettingsId || undefined,
-    thumbnail: thumbnail || undefined,
+    thumbnail:    thumbnail,
+    fileName: '',
+    featureWeights: Object.keys(featureWeights).length > 0 ? featureWeights : undefined
   };
 }
 
@@ -261,8 +338,22 @@ export async function parse3mf(file: File): Promise<GcodeData> {
     );
 
     if (gcodePath) {
+      const fileEntry = zip.files[gcodePath];
+      
+      // Prevent Symlink Ghosting (Ghost Extraction Attack)
+      // Standard symlink permission bit (unix) is 0120000. 
+      // We check if the entry's permissions indicate it's a link.
+      const permissions = (fileEntry as { unixPermissions?: number | string }).unixPermissions;
+      const isSymlink = permissions && (Number(permissions) & 0xF000) === 0xA000;
+      if (isSymlink) {
+          console.error(`[Security] Attempted Symlink Ghosting detected in path [${gcodePath}].`);
+          return { printTimeHours: 0, filamentWeightGrams: 0 };
+      }
 
-      const gcodeText = await zip.files[gcodePath].async('string');
+
+
+      const gcodeText = await fileEntry.async('string');
+
       const result = parseGcode(gcodeText);
 
       // If G-code didn't have thumbnail, try to find one in Metadata
@@ -270,7 +361,7 @@ export async function parse3mf(file: File): Promise<GcodeData> {
         const thumbPath = fileNames.find(p => p.toLowerCase().endsWith('.png') && (p.toLowerCase().includes('thumbnail') || p.toLowerCase().includes('metadata')));
         if (thumbPath) {
           const thumbData = await zip.files[thumbPath].async('base64');
-          result.thumbnail = `data:image/png;base64,${thumbData}`;
+          result.thumbnail = sanitizeThumbnail(`data:image/png;base64,${thumbData}`);
         }
       }
       return result;
@@ -303,10 +394,10 @@ export async function parse3mf(file: File): Promise<GcodeData> {
           }
           // Extract printer model
           if (jsonData.printer_model && !printerModel) {
-            printerModel = jsonData.printer_model;
+            printerModel = protect(jsonData.printer_model) || '';
           }
           if (jsonData.machine && !printerModel) {
-            printerModel = jsonData.machine;
+            printerModel = protect(jsonData.machine) || '';
           }
         } catch {
           // Not valid JSON, continue
@@ -331,7 +422,7 @@ export async function parse3mf(file: File): Promise<GcodeData> {
           // Extract printer model from XML
           const printerMatch = content.match(/printer[_-]?model["\s:=>]+([^"<\n]+)/i);
           if (printerMatch && !printerModel) {
-            printerModel = printerMatch[1].trim();
+            printerModel = protect(printerMatch[1]) || '';
           }
         } catch {
           // Could not read file
@@ -480,20 +571,28 @@ export async function parse3mf(file: File): Promise<GcodeData> {
     if (thumbPath) {
       const ext = thumbPath.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
       const thumbData = await zip.files[thumbPath].async('base64');
-      thumbnail = `data:image/${ext};base64,${thumbData}`;
+      
+      // Enforce a 1MB limit on thumbnail payload size (approx 1.37M chars in base64) to prevent state-bloat
+      if (thumbData.length > 1400000) {
+        console.warn(`[SecureParser] Thumbnail rejected: payload too large (${Math.round(thumbData.length/1024)}KB)`);
+        thumbnail = '';
+      } else {
+        thumbnail = sanitizeThumbnail(`data:image/${ext};base64,${thumbData}`) || '';
+      }
     }
 
     return {
-      printTimeHours: Math.round(printTimeHours * 100) / 100,
-      filamentWeightGrams: Math.round(filamentWeightGrams * 10) / 10,
+      printTimeHours: Math.max(0, Math.round(printTimeHours * 100) / 100),
+      filamentWeightGrams: Math.max(0, Math.round(filamentWeightGrams * 10) / 10),
       printerModel: printerModel || undefined,
       thumbnail: thumbnail || undefined,
       filamentSettingsId: undefined, // 3MF parsing limitation (for now)
-      surfaceAreaMm2: surfaceAreaMm2 > 0 ? Math.round(surfaceAreaMm2 * 100) / 100 : undefined,
+      surfaceAreaMm2: surfaceAreaMm2 > 0 ? Math.max(0, Math.round(surfaceAreaMm2 * 100) / 100) : undefined,
     };
 
-  } catch {
-    // Error parsing 3MF file
+  } catch (err) {
+    console.error("Critical 3MF Parse Failure:", err);
+    // Return zeroed data to prevent crash but log for debugging
     return { printTimeHours: 0, filamentWeightGrams: 0 };
   }
 }

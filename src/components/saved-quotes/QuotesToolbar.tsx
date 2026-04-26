@@ -41,7 +41,7 @@ export const QuotesToolbar = ({
     return (
         <div className="p-4 border-b border-border bg-muted/20 flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="relative w-full md:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <Input
                     id="search-quotes"
                     name="search"
@@ -56,9 +56,10 @@ export const QuotesToolbar = ({
 
             <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
                 <div className="flex items-center gap-2 min-w-[140px]">
-                    <Filter className="w-4 h-4 text-muted-foreground" />
+                    <label htmlFor="filter-type" className="sr-only">Filter by</label>
+                    <Filter className="w-4 h-4 text-slate-500 mr-1" />
                     <Select name="filterType" value={filterType} onValueChange={(v: FilterType) => setFilterType(v)}>
-                        <SelectTrigger className="bg-background w-full" aria-label="Filter by Type">
+                        <SelectTrigger id="filter-type" className="bg-background h-9 border-border" aria-label="Filter by Type">
                             <SelectValue placeholder="All Types" />
                         </SelectTrigger>
                         <SelectContent>
@@ -69,10 +70,11 @@ export const QuotesToolbar = ({
                     </Select>
                 </div>
 
-                <div className="flex items-center gap-2 min-w-[160px]">
-                    <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 min-w-[170px]">
+                    <label htmlFor="sort-order" className="sr-only">Sort by</label>
+                    <ArrowUpDown className="w-4 h-4 text-slate-500 mr-1" />
                     <Select name="sortOrder" value={sortOrder} onValueChange={(v: SortOrder) => setSortOrder(v)}>
-                        <SelectTrigger className="bg-background w-full" aria-label="Sort Quotes">
+                        <SelectTrigger id="sort-order" className="bg-background h-9 border-border" aria-label="Sort Quotes">
                             <SelectValue placeholder="Sort By" />
                         </SelectTrigger>
                         <SelectContent>

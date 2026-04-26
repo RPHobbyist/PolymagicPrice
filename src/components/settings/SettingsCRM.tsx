@@ -17,6 +17,7 @@
  */
 
 import { useState, useCallback, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,13 +25,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, Pencil, Users, Phone, Mail, Search, Plus, Eye, Building2 } from "lucide-react";
+import { FileText, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { Customer } from "@/types/quote";
 import { getCustomers, saveCustomer, deleteCustomer } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { CustomerDetailsDialog } from "@/components/crm/CustomerDetailsDialog";
 import { useCurrency } from "@/hooks/useCurrency";
-import { Badge } from "@/components/ui/badge";
 
 interface CustomerStats {
     totalSpent: number;
@@ -52,6 +52,25 @@ const useAllCustomerStats = (customers: Customer[]) => {
     }, [customers]);
 
     return stats;
+};
+
+const CustomerAvatar = ({ name, className }: { name: string; className?: string }) => {
+    const initials = name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
+    return (
+        <div className={cn(
+            "flex items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs ring-2 ring-background shadow-sm shrink-0",
+            "w-8 h-8",
+            className
+        )}>
+            {initials}
+        </div>
+    );
 };
 
 const SettingsCRM = () => {
@@ -117,6 +136,16 @@ const SettingsCRM = () => {
             return;
         }
 
+        if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            toast.error("Please enter a valid email address");
+            return;
+        }
+
+        if (formData.phone && !/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s./0-9]*$/.test(formData.phone)) {
+            toast.error("Please enter a valid phone number");
+            return;
+        }
+
         try {
             const customerToSave = {
                 id: editingCustomer?.id, // undefined for new
@@ -159,14 +188,14 @@ const SettingsCRM = () => {
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h2 className="text-lg font-medium text-foreground">Customer List</h2>
-                    <p className="text-sm text-muted-foreground">Manage your client database for quotes.</p>
+                <div className="flex flex-col gap-1">
+                    <h2 className="text-lg font-semibold text-foreground">Customer List</h2>
+                    <p className="text-sm text-slate-600">Manage your client database for quotes.</p>
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                     <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                         <Input
                             type="search"
                             id="search-customers"
@@ -176,6 +205,7 @@ const SettingsCRM = () => {
                             className="pl-9 bg-background/50"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            aria-label="Search customers by name, company, email or phone"
                         />
                     </div>
                     <Button onClick={handleAddNew} className="bg-gradient-accent">
@@ -189,11 +219,11 @@ const SettingsCRM = () => {
                 {filteredCustomers.length === 0 ? (
                     <div className="p-10 flex flex-col items-center justify-center text-center gap-5">
                         <div className="p-5 bg-muted/30 rounded-full">
-                            <Users className="w-10 h-10 text-muted-foreground" />
+                            <Users className="w-10 h-10 text-slate-500" />
                         </div>
                         <div>
                             <h3 className="text-xl font-semibold text-foreground">No Customers Found</h3>
-                            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+                            <p className="text-sm text-slate-600 mt-2 max-w-sm">
                                 {searchQuery ? "No customers match your search." : "Start by adding your first customer using the button above."}
                             </p>
                         </div>
@@ -203,73 +233,82 @@ const SettingsCRM = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                    <TableHead className="font-semibold text-foreground">Name / Company</TableHead>
-                                    <TableHead className="font-semibold text-foreground">Contact</TableHead>
+                                    <TableHead className="font-semibold text-foreground">Name</TableHead>
+                                    <TableHead className="font-semibold text-foreground">Company</TableHead>
+                                    <TableHead className="font-semibold text-foreground">Email</TableHead>
+                                    <TableHead className="font-semibold text-foreground">Phone</TableHead>
+                                    <TableHead className="font-semibold text-foreground">Tags</TableHead>
+                                    <TableHead className="font-semibold text-foreground">CRM Report</TableHead>
                                     <TableHead className="text-right font-semibold text-foreground">Total Revenue</TableHead>
-                                    <TableHead className="w-32 font-semibold text-foreground text-right">Actions</TableHead>
+                                    <TableHead className="w-24 font-semibold text-foreground text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {filteredCustomers.map((customer) => (
                                     <TableRow key={customer.id} className="hover:bg-muted/40 transition-colors group">
                                         <TableCell>
-                                            <div className="font-semibold text-foreground">{customer.name}</div>
-                                            {customer.company && (
-                                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                    <Building2 className="w-3 h-3" />
-                                                    {customer.company}
-                                                </div>
-                                            )}
-                                            {customer.tags && customer.tags.length > 0 && (
-                                                <div className="flex gap-1 mt-1">
-                                                    {customer.tags.slice(0, 2).map(tag => (
-                                                        <Badge key={tag} variant="secondary" className="text-[10px] px-1 py-0 h-4">{tag}</Badge>
-                                                    ))}
-                                                    {customer.tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{customer.tags.length - 2}</span>}
-                                                </div>
-                                            )}
+                                            <div className="flex items-center gap-3">
+                                                <CustomerAvatar name={customer.name} />
+                                                <div className="font-medium text-foreground text-sm truncate">{customer.name}</div>
+                                            </div>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                                                {customer.email && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Mail className="w-3.5 h-3.5" />
-                                                        <span>{customer.email}</span>
-                                                    </div>
+                                            <span className="text-sm font-medium text-slate-700">
+                                                {customer.company || "-"}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-sm text-slate-600 truncate max-w-[200px]">
+                                            {customer.email || "-"}
+                                        </TableCell>
+                                        <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                                            {customer.phone || "-"}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {customer.tags?.some(t => t.toUpperCase() === 'VIP') && (
+                                                    <span className="px-2 py-1 rounded-full text-xs bg-amber-100/80 text-amber-700 font-bold border border-amber-200/50">
+                                                        VIP
+                                                    </span>
                                                 )}
-                                                {customer.phone && (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Phone className="w-3.5 h-3.5" />
-                                                        <span>{customer.phone}</span>
-                                                    </div>
+                                                {customer.tags && customer.tags.filter(t => t.toUpperCase() !== 'VIP').slice(0, 1).map(tag => (
+                                                    <span
+                                                        key={tag}
+                                                        className="px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-600 border border-slate-200/50 font-bold"
+                                                    >
+                                                        {tag}
+                                                    </span>
+                                                ))}
+                                                {customer.tags && customer.tags.filter(t => t.toUpperCase() !== 'VIP').length > 1 && (
+                                                    <span className="text-[10px] text-slate-500 self-center">
+                                                        +{customer.tags.filter(t => t.toUpperCase() !== 'VIP').length - 1}
+                                                    </span>
                                                 )}
-                                                {!customer.email && !customer.phone && "-"}
                                             </div>
+                                        </TableCell>
+                                         <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setViewingCustomer(customer)}
+                                                className="h-8 px-2 text-primary hover:bg-primary/10 hover:text-primary-600 flex items-center gap-2 group/report"
+                                            >
+                                                <FileText className="w-4 h-4" />
+                                                <span className="text-xs font-semibold">CRM Report</span>
+                                            </Button>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="font-bold text-foreground tabular-nums">
                                                 {formatPrice(customerStats[customer.id]?.totalSpent || 0)}
                                             </div>
-                                            <div className="text-xs text-muted-foreground">{customerStats[customer.id]?.orderCount || 0} orders</div>
+                                            <div className="text-xs text-slate-600">{customerStats[customer.id]?.orderCount || 0} orders</div>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => setViewingCustomer(customer)}
-                                                    className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 w-8"
-                                                    title="View Details"
-                                                    aria-label="View details"
-                                                >
-                                                    <Eye className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
                                                     onClick={() => handleEdit(customer)}
-                                                    className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 w-8"
-                                                    aria-label="Edit customer"
+                                                    className="text-slate-600 hover:text-primary hover:bg-primary/10 h-7 w-7"
                                                 >
                                                     <Pencil className="w-4 h-4" />
                                                 </Button>
@@ -277,8 +316,7 @@ const SettingsCRM = () => {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => setDeleteId(customer.id)}
-                                                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-                                                    aria-label="Delete customer"
+                                                    className="text-slate-600 hover:text-destructive hover:bg-destructive/10 h-7 w-7"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
@@ -311,6 +349,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     placeholder="John Doe"
                                     className="bg-background"
+                                    maxLength={100}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -323,6 +362,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                                     placeholder="Acme Inc."
                                     className="bg-background"
+                                    maxLength={100}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -336,6 +376,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     placeholder="john@example.com"
                                     className="bg-background"
+                                    maxLength={255}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -349,6 +390,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                     placeholder="+1 234 567 890"
                                     className="bg-background"
+                                    maxLength={20}
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
@@ -361,6 +403,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                                     placeholder="123 Main St, City, Country"
                                     className="bg-background"
+                                    maxLength={300}
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
@@ -373,6 +416,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
                                     placeholder="VIP, Local, Retail"
                                     className="bg-background"
+                                    maxLength={200}
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
@@ -385,6 +429,7 @@ const SettingsCRM = () => {
                                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                                     placeholder="Preferences, specific requirements, etc."
                                     className="bg-background min-h-[60px]"
+                                    maxLength={1000}
                                 />
                             </div>
                         </div>

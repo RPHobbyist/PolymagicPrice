@@ -75,7 +75,7 @@ function readNullTerminatedString(dataView: DataView, offset: number): { value: 
  * - Various lift/speed settings
  * - VolumeMl (float) at offset 20 within the section
  */
-export async function parseCxdlpv4(file: File): Promise<ResinFileData> {
+async function parseCxdlpv4(file: File): Promise<ResinFileData> {
   try {
     const buffer = await file.arrayBuffer();
     const dataView = new DataView(buffer);
@@ -132,7 +132,6 @@ export async function parseCxdlpv4(file: File): Promise<ResinFileData> {
 
 
     // Skip PreviewSmallOffsetAddress (4 bytes)
-    const previewSmallOffset = dataView.getUint32(offset, true); // Kept in case needed later, but marked unused
     offset += 4;
 
     // Skip LayersDefinitionOffsetAddress (4 bytes)

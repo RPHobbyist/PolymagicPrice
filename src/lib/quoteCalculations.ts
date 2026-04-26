@@ -25,6 +25,8 @@ interface CalculationParams {
   laborRate: number;
 }
 
+const round = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+
 interface ConsumableInfo {
   name: string;
   value: number;
@@ -67,19 +69,19 @@ export const calculateFDMQuote = ({
   const markupPercentage = parseFloat(formData.markupPercentage);
   const quantity = formData.quantity ? Math.max(1, parseInt(formData.quantity)) : 1;
 
-  const materialCost = filamentWeightKg * material.cost_per_unit;
-  const machineTimeCost = printTimeHours * machine.hourly_cost;
-  const powerConsumptionKw = machine.power_consumption_watts ? machine.power_consumption_watts / 1000 : 0;
-  const electricityCost = printTimeHours * powerConsumptionKw * electricityRate;
-  const laborCost = laborHours * laborRate;
-  const consumablesTotal = consumables.reduce((sum, c) => sum + c.value, 0);
+  const materialCost = isNaN(filamentWeightKg) ? 0 : filamentWeightKg * (material.cost_per_unit || 0);
+  const machineTimeCost = isNaN(printTimeHours) ? 0 : printTimeHours * (machine.hourly_cost || 0);
+  const powerConsumptionKw = (machine.power_consumption_watts || 0) / 1000;
+  const electricityCost = isNaN(printTimeHours) ? 0 : printTimeHours * powerConsumptionKw * (electricityRate || 0);
+  const laborCost = isNaN(laborHours) ? 0 : laborHours * (laborRate || 0);
+  const consumablesTotal = consumables.reduce((sum, c) => sum + (isNaN(c.value) ? 0 : c.value), 0);
 
   // Painting Calculation
   const paintingTime = formData.paintingTime ? parseFloat(formData.paintingTime) : 0;
   const paintingLayers = formData.paintingLayers ? parseInt(formData.paintingLayers) : 0;
   // Painting fields removed from FormData, using flat consumable value
   const surfaceAreaCm2 = formData.surfaceAreaCm2 ? parseFloat(formData.surfaceAreaCm2) : 0;
-  const surfaceAreaCm2ForStorage = surfaceAreaCm2; // Keep cm² value for storage
+
 
   const paintingLaborCost = paintingTime * laborRate;
 
@@ -130,17 +132,17 @@ export const calculateFDMQuote = ({
   const totalPrice = unitPrice * quantity;
 
   return {
-    materialCost: materialCost * quantity,
-    machineTimeCost: machineTimeCost * quantity,
-    electricityCost: electricityCost * quantity,
-    laborCost: laborCost * quantity,
-    overheadCost: overheadCost * quantity,
-    subtotal: subtotal * quantity,
-    markup: markup * quantity,
-    paintingCost: paintingCost * quantity,
-    unitPrice,
+    materialCost: round(materialCost * quantity),
+    machineTimeCost: round(machineTimeCost * quantity),
+    electricityCost: round(electricityCost * quantity),
+    laborCost: round(laborCost * quantity),
+    overheadCost: round(overheadCost * quantity),
+    subtotal: round(subtotal * quantity),
+    markup: round(markup * quantity),
+    paintingCost: round(paintingCost * quantity),
+    unitPrice: round(unitPrice),
     quantity,
-    totalPrice,
+    totalPrice: round(totalPrice),
     printType: "FDM",
     projectName: formData.projectName,
     printColour: formData.printColour,
@@ -150,6 +152,7 @@ export const calculateFDMQuote = ({
     priority: formData.priority as 'Low' | 'Medium' | 'High' | undefined,
     dueDate: formData.dueDate,
     assignedEmployeeId: formData.assignedEmployeeId,
+    assignedMachineId: formData.machineId,
     parameters: {
       ...formData,
       materialName: material.name,
@@ -159,7 +162,9 @@ export const calculateFDMQuote = ({
       paintConsumableValue: paintingMaterialCost,
       paintConsumableValue2: paintingMaterialCost2,
     },
-    surfaceAreaCm2: surfaceAreaCm2ForStorage,
+    surfaceAreaCm2: surfaceAreaCm2,
+    status: formData.status,
+    failedUnits: formData.failedUnits ? parseInt(formData.failedUnits) : undefined,
   };
 };
 
@@ -185,20 +190,19 @@ export const calculateResinQuote = ({
   const markupPercentage = parseFloat(formData.markupPercentage);
   const quantity = formData.quantity ? Math.max(1, parseInt(formData.quantity)) : 1;
 
-  const materialCost = resinVolumeLiters * material.cost_per_unit + isopropylCost;
-  const totalProcessTime = printTimeHours + washingTimeHours + curingTimeHours;
-  const machineTimeCost = totalProcessTime * machine.hourly_cost;
-  const powerConsumptionKw = machine.power_consumption_watts ? machine.power_consumption_watts / 1000 : 0;
-  const electricityCost = totalProcessTime * powerConsumptionKw * electricityRate;
-  const laborCost = laborHours * laborRate;
-  const consumablesTotal = consumables.reduce((sum, c) => sum + c.value, 0);
+  const materialCost = (isNaN(resinVolumeLiters) ? 0 : resinVolumeLiters * (material.cost_per_unit || 0)) + (isNaN(isopropylCost) ? 0 : isopropylCost);
+  const totalProcessTime = (isNaN(printTimeHours) ? 0 : printTimeHours) + (isNaN(washingTimeHours) ? 0 : washingTimeHours) + (isNaN(curingTimeHours) ? 0 : curingTimeHours);
+  const machineTimeCost = totalProcessTime * (machine.hourly_cost || 0);
+  const powerConsumptionKw = (machine.power_consumption_watts || 0) / 1000;
+  const electricityCost = totalProcessTime * powerConsumptionKw * (electricityRate || 0);
+  const laborCost = isNaN(laborHours) ? 0 : laborHours * (laborRate || 0);
+  const consumablesTotal = consumables.reduce((sum, c) => sum + (isNaN(c.value) ? 0 : c.value), 0);
 
   // Painting Calculation
   const paintingTime = formData.paintingTime ? parseFloat(formData.paintingTime) : 0;
   const paintingLayers = formData.paintingLayers ? parseInt(formData.paintingLayers) : 0;
   // Painting fields removed from FormData, using flat consumable value
   const surfaceAreaCm2 = formData.surfaceAreaCm2 ? parseFloat(formData.surfaceAreaCm2) : 0;
-  const surfaceAreaCm2ForStorage = surfaceAreaCm2; // Keep cm² value for storage
 
   const paintingLaborCost = paintingTime * laborRate;
 
@@ -242,17 +246,17 @@ export const calculateResinQuote = ({
   const totalPrice = unitPrice * quantity;
 
   return {
-    materialCost: materialCost * quantity,
-    machineTimeCost: machineTimeCost * quantity,
-    electricityCost: electricityCost * quantity,
-    laborCost: laborCost * quantity,
-    overheadCost: overheadCost * quantity,
-    subtotal: subtotal * quantity,
-    markup: markup * quantity,
-    paintingCost: paintingCost * quantity,
-    unitPrice,
+    materialCost: round(materialCost * quantity),
+    machineTimeCost: round(machineTimeCost * quantity),
+    electricityCost: round(electricityCost * quantity),
+    laborCost: round(laborCost * quantity),
+    overheadCost: round(overheadCost * quantity),
+    subtotal: round(subtotal * quantity),
+    markup: round(markup * quantity),
+    paintingCost: round(paintingCost * quantity),
+    unitPrice: round(unitPrice),
     quantity,
-    totalPrice,
+    totalPrice: round(totalPrice),
     printType: "Resin",
     projectName: formData.projectName,
     printColour: formData.printColour,
@@ -271,7 +275,13 @@ export const calculateResinQuote = ({
       paintConsumableValue2: paintingMaterialCost2,
       surfaceAreaCm2: formData.surfaceAreaCm2 ? parseFloat(formData.surfaceAreaCm2) : undefined,
     },
-    surfaceAreaCm2: surfaceAreaCm2ForStorage,
+    surfaceAreaCm2: surfaceAreaCm2,
+    priority: formData.priority as 'Low' | 'Medium' | 'High' | undefined,
+    dueDate: formData.dueDate,
+    assignedEmployeeId: formData.assignedEmployeeId,
+    assignedMachineId: formData.machineId,
+    status: formData.status,
+    failedUnits: formData.failedUnits ? parseInt(formData.failedUnits) : undefined,
   };
 };
 
@@ -297,6 +307,11 @@ export const validateFDMForm = (formData: FDMFormData): string | null => {
   if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
   if (quantity > 1000000) return "Quantity exceeds maximum (1,000,000)";
 
+  // Post-processing validation
+  if (formData.paintingTime && parseFloat(formData.paintingTime) < 0) return "Painting labor cannot be negative";
+  if (formData.surfaceAreaCm2 && parseFloat(formData.surfaceAreaCm2) < 0) return "Surface area cannot be negative";
+  if (formData.paintingLayers && parseInt(formData.paintingLayers) < 0) return "Painting layers cannot be negative";
+
   return null;
 };
 
@@ -321,6 +336,11 @@ export const validateResinForm = (formData: ResinFormData): string | null => {
   const quantity = parseInt(formData.quantity);
   if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
   if (quantity > 1000000) return "Quantity exceeds maximum (1,000,000)";
+
+  // Post-processing validation
+  if (formData.paintingTime && parseFloat(formData.paintingTime) < 0) return "Painting labor cannot be negative";
+  if (formData.surfaceAreaCm2 && parseFloat(formData.surfaceAreaCm2) < 0) return "Surface area cannot be negative";
+  if (formData.paintingLayers && parseInt(formData.paintingLayers) < 0) return "Painting layers cannot be negative";
 
   return null;
 };
