@@ -20,7 +20,7 @@
 
 import { QuoteData, QuoteRevision, Material, Machine, CostConstant, Customer, CustomerReview, MaterialSpool, CompanySettings, QuoteStatus, Employee, StoredGcode, AISettings, BridgeSettings } from "@/types/quote";
 import { ProductionJob, ProductionSettings } from "@/types/production";
-import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden } from "../sanitization";
+import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
 
@@ -1371,8 +1371,8 @@ export const getAISettings = (): AISettings => {
 export const saveAISettings = (settings: AISettings) => {
     const sanitized = {
         ...settings,
-        model: sanitize(settings.model || "gpt-4o"),
-        port: isPortForbidden(settings.port) ? 11434 : settings.port
+        model: sanitize(settings.model || "llama3"),
+        port: !isValidPort(settings.port) ? 11434 : settings.port
     };
     const encrypted = wrapSecret(JSON.stringify(sanitized));
     localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, encrypted);

@@ -35,7 +35,8 @@ import {
     ClipboardList,
     ShieldCheck,
     Search,
-    CheckCheck
+    CheckCheck,
+    X
 } from "lucide-react";
 import { useNotifications } from '@/hooks/useNotifications';
 import type { Notification as NotificationType, NotificationStatus } from "@/types/notifications";
@@ -317,10 +318,21 @@ const NotificationItem = ({ item, updateStatus, deleteNotification, navigate }: 
                 )}>
                     {item.title}
                 </h3>
-                <time className="shrink-0 text-[10px] font-normal text-slate-600 uppercase tracking-widest flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    {formatRelativeTime(new Date(item.timestamp))}
-                </time>
+                <div className="flex items-center gap-3">
+                    <time className="shrink-0 text-[10px] font-normal text-slate-600 uppercase tracking-widest flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" />
+                        {formatRelativeTime(new Date(item.timestamp))}
+                    </time>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 w-6 p-0 text-slate-300 hover:text-destructive hover:bg-transparent -mr-2"
+                        onClick={() => deleteNotification(item.id)}
+                        title="Close notification"
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </Button>
+                </div>
             </div>
             
             <p className={cn(

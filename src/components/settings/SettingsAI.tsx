@@ -132,11 +132,16 @@ export default function SettingsAI() {
                                 <Input
                                     id="ollama-port"
                                     type="number"
-                                    value={settings.port}
+                                    value={settings.port || ""}
                                     onChange={(e) => {
                                         const val = e.target.value;
-                                        if (val !== "" && parseInt(val) < 0) return;
-                                        setSettings({ ...settings, port: Number(val) });
+                                        if (val === "") {
+                                            setSettings({ ...settings, port: 0 });
+                                            return;
+                                        }
+                                        const num = parseInt(val);
+                                        if (val !== "" && num < 0) return;
+                                        setSettings({ ...settings, port: isNaN(num) ? 0 : num });
                                     }}
                                     min={1}
                                     max={65535}
