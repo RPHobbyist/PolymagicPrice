@@ -1,7 +1,7 @@
 # PolymagicPrice v2.0.0
 
 <div align="center">
-  <img src="./docs/images/LogoTool.png" alt="PolymagicPrice Logo" width="100%"style="border-radius: 10px; margin-bottom: 20px;">
+  <img src="./docs/images/LogoTool.png" alt="PolymagicPrice Logo" width="100%" style="border-radius: 10px; margin-bottom: 20px;">
   <br>
   <img src="./docs/images/Thumbnail.png" alt="PolymagicPrice Dashboard Banner" width="100%" style="border-radius: 10px; margin-bottom: 20px;">
 
@@ -126,7 +126,7 @@ npm run build
 ---
 
 <div align="center">
-  Made by **[RP Hobbyist](https://www.rphobbyist.com)**
+  Made by <strong><a href="https://www.rphobbyist.com">RP Hobbyist</a></strong>
   <br>
-  <i>Empowering makers with professional-grade tools.</i>
+  <em>Empowering makers with professional-grade tools.</em>
 </div>
