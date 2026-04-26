@@ -1,4 +1,21 @@
-/* Fonts loaded in index.html for performance */
+/*
+ * PolymagicPrice
+ * Copyright (C) 2025 Rp Hobbyist
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Outfit:wght@100..900&family=Roboto+Mono:wght@100..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -26,7 +43,7 @@ All colors MUST be HSL.
     --secondary-foreground: 220 25% 12%;
 
     --muted: 220 15% 95%;
-    --muted-foreground: 220 15% 45%;
+    --muted-foreground: 220 15% 35%;
 
     --accent: 160 85% 40%;
     --accent-foreground: 0 0% 100%;
@@ -49,7 +66,7 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(0deg, hsl(220 80% 50%), hsl(220 80% 50%));
     --gradient-accent: linear-gradient(0deg, hsl(160 85% 40%), hsl(160 85% 40%));
     --gradient-subtle: linear-gradient(0deg, hsl(220 20% 98%), hsl(220 20% 98%));
-    --gradient-glow: transparent;
+    --gradient-glow: none;
 
     --shadow-card: 0 1px 3px hsl(220 25% 12% / 0.05), 0 4px 12px hsl(220 25% 12% / 0.05);
     --shadow-elevated: 0 4px 6px hsl(220 25% 12% / 0.05), 0 12px 40px hsl(220 25% 12% / 0.1);
@@ -58,8 +75,28 @@ All colors MUST be HSL.
     --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-bounce: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-    --font-heading: 'Space Grotesk', sans-serif;
+    /* Standardized Typography Scale (Inter & Outfit) */
+    --font-heading: 'Outfit', 'Inter', sans-serif;
     --font-body: 'Inter', sans-serif;
+    --font-mono: 'Roboto Mono', monospace;
+    --font-brand: 'Outfit', sans-serif;
+
+    /* Font Size Scale */
+    --text-2xs: 0.625rem; /* 10px */
+    --text-xs: 0.75rem;   /* 12px */
+    --text-sm: 0.875rem;  /* 14px */
+    --text-base: 1rem;    /* 16px */
+    --text-lg: 1.125rem;  /* 18px */
+    --text-xl: 1.25rem;   /* 20px */
+    --text-2xl: 1.5rem;   /* 24px */
+    --text-3xl: 1.875rem; /* 30px */
+
+    /* Premium Font Weights */
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+    --weight-black: 800;
   }
 
   .dark {
@@ -97,10 +134,10 @@ All colors MUST be HSL.
     --input: 220 20% 18%;
     --ring: 160 85% 50%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(160 85% 50%), hsl(175 80% 55%));
-    --gradient-accent: linear-gradient(135deg, hsl(160 85% 50%), hsl(200 70% 50%));
-    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 9%), hsl(220 25% 7%));
-    --gradient-glow: radial-gradient(ellipse at top, hsl(160 85% 50% / 0.1), transparent 60%);
+    --gradient-primary: linear-gradient(0deg, hsl(160 85% 50%), hsl(160 85% 50%));
+    --gradient-accent: linear-gradient(0deg, hsl(160 85% 50%), hsl(160 85% 50%));
+    --gradient-subtle: linear-gradient(0deg, hsl(220 25% 9%), hsl(220 25% 9%));
+    --gradient-glow: none;
 
     --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.2), 0 4px 12px hsl(0 0% 0% / 0.2);
     --shadow-elevated: 0 4px 6px hsl(0 0% 0% / 0.25), 0 12px 40px hsl(0 0% 0% / 0.35);
@@ -111,18 +148,27 @@ All colors MUST be HSL.
 @layer base {
   * {
     @apply border-border;
-    box-sizing: border-box;
+  }
+
+  html, body {
+    min-height: 100dvh;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    width: 100%;
   }
 
   html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-stretch: normal;
   }
 
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
+    font-weight: var(--weight-regular);
     line-height: 1.6;
   }
 
@@ -133,32 +179,36 @@ All colors MUST be HSL.
   h5,
   h6 {
     font-family: var(--font-heading);
-    @apply tracking-tight font-semibold;
+    font-weight: var(--weight-semibold);
+    @apply tracking-tight;
+  }
+
+  /* Hide number input spinners globally */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  /* Fix for browser auto-fill visibility issues */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground)) !important;
+    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--background)) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
   }
 }
 
 @layer components {
-
-  /* Animation classes */
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out;
-  }
-
-  .animate-fade-in-up {
-    animation: fadeInUp 0.5s ease-out;
-  }
-
-  .animate-scale-in {
-    animation: scaleIn 0.3s ease-out;
-  }
-
-  .animate-slide-in {
-    animation: slideIn 0.4s ease-out;
-  }
-
-  .animate-pulse-soft {
-    animation: pulseSoft 2s ease-in-out infinite;
-  }
 
   /* Hover effects */
   .hover-lift {
@@ -170,35 +220,9 @@ All colors MUST be HSL.
     box-shadow: var(--shadow-elevated);
   }
 
-  .hover-glow {
-    @apply transition-all duration-300;
-  }
-
-  .hover-glow:hover {
-    box-shadow: var(--shadow-glow);
-  }
-
-  .hover-scale {
-    @apply transition-transform duration-200;
-  }
-
-  .hover-scale:hover {
-    transform: scale(1.02);
-  }
-
   /* Glass effect */
   .glass {
     @apply bg-card/80 backdrop-blur-md;
-  }
-
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-primary bg-clip-text text-transparent;
-  }
-
-  /* Interactive cards */
-  .interactive-card {
-    @apply transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5;
   }
 
   /* Focus ring */
@@ -217,72 +241,6 @@ All colors MUST be HSL.
 
   .stagger-3 {
     animation-delay: 0.3s;
-  }
-
-  .stagger-4 {
-    animation-delay: 0.4s;
-  }
-
-  .stagger-5 {
-    animation-delay: 0.5s;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes pulseSoft {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.7;
   }
 }
 
@@ -306,83 +264,23 @@ All colors MUST be HSL.
 }
 
 /* Selection styles */
-::selection {
+::-selection {
   background: hsl(var(--primary) / 0.2);
   color: hsl(var(--foreground));
 }
 
-@keyframes breathe-yellow {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.8;
-    transform: scale(0.98);
-  }
-}
-
-/* Add a separate glow effect with pseudo-element if needed, or simplfy */
 .animate-breathe-yellow {
-  animation: breathe-yellow 2.5s ease-in-out infinite;
-  /* Add subtle shadow that doesn't animate to maintain look without cost */
   box-shadow: 0 0 8px 1px hsl(45 90% 60% / 0.5);
   border-color: hsl(45 90% 60% / 0.8);
 }
 
-@keyframes rainbow-shimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
-@keyframes burst {
-  0% {
-    opacity: 0;
-    transform: scale(0.5);
-    filter: brightness(2);
-  }
-
-  70% {
-    transform: scale(1.05);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1);
-    filter: brightness(1);
-  }
-}
-
-.animate-burst {
-  animation: burst 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.animate-rainbow-shimmer {
-  background: linear-gradient(90deg,
-      hsl(220 80% 50%),
-      hsl(160 85% 50%),
-      hsl(280 80% 60%),
-      hsl(330 80% 60%),
-      hsl(220 80% 50%));
-  background-size: 400% 400%;
-  animation: rainbow-shimmer 8s ease infinite;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.animate-breathe-yellow {
-  animation: breathe-yellow 2.5s ease-in-out infinite;
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

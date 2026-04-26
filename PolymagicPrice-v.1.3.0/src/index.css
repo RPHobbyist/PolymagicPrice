@@ -1,0 +1,388 @@
+/* Fonts loaded in index.html for performance */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 12%;
+
+    --primary: 220 80% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 25% 12%;
+
+    --muted: 220 15% 95%;
+    --muted-foreground: 220 15% 45%;
+
+    --accent: 160 85% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 150 75% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 220 80% 50%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(0deg, hsl(220 80% 50%), hsl(220 80% 50%));
+    --gradient-accent: linear-gradient(0deg, hsl(160 85% 40%), hsl(160 85% 40%));
+    --gradient-subtle: linear-gradient(0deg, hsl(220 20% 98%), hsl(220 20% 98%));
+    --gradient-glow: transparent;
+
+    --shadow-card: 0 1px 3px hsl(220 25% 12% / 0.05), 0 4px 12px hsl(220 25% 12% / 0.05);
+    --shadow-elevated: 0 4px 6px hsl(220 25% 12% / 0.05), 0 12px 40px hsl(220 25% 12% / 0.1);
+    --shadow-glow: 0 0 40px hsl(220 80% 50% / 0.15);
+
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    --font-heading: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  .dark {
+    --background: 220 25% 7%;
+    --foreground: 220 15% 95%;
+
+    --card: 220 25% 10%;
+    --card-foreground: 220 15% 95%;
+
+    --popover: 220 25% 10%;
+    --popover-foreground: 220 15% 95%;
+
+    --primary: 160 85% 50%;
+    --primary-foreground: 220 25% 7%;
+
+    --secondary: 220 20% 15%;
+    --secondary-foreground: 220 15% 95%;
+
+    --muted: 220 20% 14%;
+    --muted-foreground: 220 15% 55%;
+
+    --accent: 160 85% 50%;
+    --accent-foreground: 220 25% 7%;
+
+    --success: 150 75% 45%;
+    --success-foreground: 220 25% 7%;
+
+    --warning: 38 95% 55%;
+    --warning-foreground: 220 25% 7%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 220 15% 95%;
+
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 160 85% 50%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(160 85% 50%), hsl(175 80% 55%));
+    --gradient-accent: linear-gradient(135deg, hsl(160 85% 50%), hsl(200 70% 50%));
+    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 9%), hsl(220 25% 7%));
+    --gradient-glow: radial-gradient(ellipse at top, hsl(160 85% 50% / 0.1), transparent 60%);
+
+    --shadow-card: 0 1px 3px hsl(0 0% 0% / 0.2), 0 4px 12px hsl(0 0% 0% / 0.2);
+    --shadow-elevated: 0 4px 6px hsl(0 0% 0% / 0.25), 0 12px 40px hsl(0 0% 0% / 0.35);
+    --shadow-glow: 0 0 40px hsl(160 85% 50% / 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+    line-height: 1.6;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    @apply tracking-tight font-semibold;
+  }
+}
+
+@layer components {
+
+  /* Animation classes */
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.4s ease-out;
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-all duration-200;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+
+  .hover-glow:hover {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .hover-scale {
+    @apply transition-transform duration-200;
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.02);
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-card/80 backdrop-blur-md;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+
+  /* Interactive cards */
+  .interactive-card {
+    @apply transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5;
+  }
+
+  /* Focus ring */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Staggered animations */
+  .stagger-1 {
+    animation-delay: 0.1s;
+  }
+
+  .stagger-2 {
+    animation-delay: 0.2s;
+  }
+
+  .stagger-3 {
+    animation-delay: 0.3s;
+  }
+
+  .stagger-4 {
+    animation-delay: 0.4s;
+  }
+
+  .stagger-5 {
+    animation-delay: 0.5s;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseSoft {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Selection styles */
+::selection {
+  background: hsl(var(--primary) / 0.2);
+  color: hsl(var(--foreground));
+}
+
+@keyframes breathe-yellow {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+/* Add a separate glow effect with pseudo-element if needed, or simplfy */
+.animate-breathe-yellow {
+  animation: breathe-yellow 2.5s ease-in-out infinite;
+  /* Add subtle shadow that doesn't animate to maintain look without cost */
+  box-shadow: 0 0 8px 1px hsl(45 90% 60% / 0.5);
+  border-color: hsl(45 90% 60% / 0.8);
+}
+
+@keyframes rainbow-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+    filter: brightness(2);
+  }
+
+  70% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+.animate-burst {
+  animation: burst 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-rainbow-shimmer {
+  background: linear-gradient(90deg,
+      hsl(220 80% 50%),
+      hsl(160 85% 50%),
+      hsl(280 80% 60%),
+      hsl(330 80% 60%),
+      hsl(220 80% 50%));
+  background-size: 400% 400%;
+  animation: rainbow-shimmer 8s ease infinite;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.animate-breathe-yellow {
+  animation: breathe-yellow 2.5s ease-in-out infinite;
+}

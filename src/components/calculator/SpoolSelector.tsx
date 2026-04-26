@@ -21,11 +21,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertTriangle, Package, XCircle } from "lucide-react";
 import { getSpools, getMaterialStock } from "@/lib/core/sessionStorage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { sanitize } from "@/lib/sanitization";
 
 interface SpoolSelectorProps {
     materialId: string;
     value: string;
-    onChange: (spoolId: string, color: string) => void;
+    onChange: (spoolId: string, colour: string) => void;
     placeholder?: string;
     requiredWeight?: number; // g needed for the job (totalWeight)
     itemType?: "spool" | "bottle"; // Defaults to "spool"
@@ -46,9 +48,8 @@ export function SpoolSelector({
     const [showError, setShowError] = useState(false);
 
     // Dynamic terminology
-    const itemName = itemType === "bottle" ? "Bottle" : "Spool";
     const itemUnit = itemType === "bottle" ? "ml" : "g";
-    const defaultPlaceholder = `Select ${itemType === "bottle" ? "bottle" : "spool"}/color`;
+    const defaultPlaceholder = `Select ${itemType === "bottle" ? "bottle" : "spool"}/colour`;
 
     const spools = useMemo(() => {
         if (!materialId) return [];
@@ -80,24 +81,24 @@ export function SpoolSelector({
 
     if (!materialId) {
         return (
-            <Select disabled>
-                <SelectTrigger id={id} className="bg-muted/50">
-                    <SelectValue placeholder="Select material first" />
-                </SelectTrigger>
-            </Select>
+        <Select disabled>
+            <SelectTrigger id={id} className="bg-muted/50" aria-label="Select material first">
+                <SelectValue placeholder="Select material first" />
+            </SelectTrigger>
+        </Select>
         );
     }
 
     if (spools.length === 0) {
         return (
-            <Select disabled>
-                <SelectTrigger id={id} className="bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/30 dark:border-amber-800">
-                    <div className="flex items-center gap-2 text-sm overflow-hidden">
-                        <Package className="w-4 h-4 shrink-0" />
-                        <span className="truncate">No {itemType}s. Add in Settings.</span>
-                    </div>
-                </SelectTrigger>
-            </Select>
+        <Select disabled>
+            <SelectTrigger id={id} aria-label={`No ${itemType}s available`} className="bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/30 dark:border-amber-800">
+                <div className="flex items-center gap-2 text-sm overflow-hidden">
+                    <Package className="w-4 h-4 shrink-0" />
+                    <span className="truncate">No {itemType}s. Add in Settings.</span>
+                </div>
+            </SelectTrigger>
+        </Select>
         );
     }
 
@@ -105,22 +106,22 @@ export function SpoolSelector({
         <div className="space-y-2">
             <Select name={name} value={value} onValueChange={(id) => {
                 const spool = spools.find(s => s.id === id);
-                onChange(id, spool?.color || spool?.name || '');
+                onChange(id, spool?.colour || spool?.name || '');
             }}>
-                <SelectTrigger id={id} className={isInsufficientStock ? "border-destructive ring-1 ring-destructive" : ""}>
+                <SelectTrigger id={id} aria-label={placeholder || defaultPlaceholder} className={isInsufficientStock ? "border-destructive ring-1 ring-destructive" : ""}>
                     <SelectValue placeholder={placeholder || defaultPlaceholder}>
                         {selectedSpool && (
                             <div className="flex items-center gap-2">
-                                {selectedSpool.color && (
+                                {selectedSpool.colour && (
                                     <div
                                         className="w-4 h-4 rounded-full border border-border shrink-0"
-                                        style={{ backgroundColor: selectedSpool.color }}
+                                        style={{ backgroundColor: selectedSpool.colour }}
                                     />
                                 )}
-                                <span>{selectedSpool.name || 'Unnamed'}</span>
-                                <span className="text-muted-foreground">
-                                    ({selectedSpool.currentWeight.toFixed(0)}{itemUnit} left)
-                                </span>
+                                <span>{sanitize(selectedSpool.name || 'Unnamed')}</span>
+                                <Badge variant="outline">
+                                    {selectedSpool.currentWeight.toFixed(0)}{itemUnit} left
+                                </Badge>
                             </div>
                         )}
                     </SelectValue>
@@ -138,14 +139,14 @@ export function SpoolSelector({
                                 className={!canFulfill ? "text-destructive" : ""}
                             >
                                 <div className="flex items-center gap-2 w-full">
-                                    {spool.color && (
+                                    {spool.colour && (
                                         <div
                                             className="w-4 h-4 rounded-full border border-border shrink-0"
-                                            style={{ backgroundColor: spool.color }}
+                                            style={{ backgroundColor: spool.colour }}
                                         />
                                     )}
                                     <span className={`truncate ${!canFulfill ? "line-through opacity-60" : ""}`}>
-                                        {spool.name || 'Unnamed'}
+                                        {sanitize(spool.name || 'Unnamed')}
                                     </span>
                                     <span className={`text-xs ml-auto ${!canFulfill ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                                         {spool.currentWeight.toFixed(0)}{itemUnit}
@@ -171,7 +172,7 @@ export function SpoolSelector({
                     <XCircle className="h-4 w-4" />
                     <AlertDescription className="ml-2">
                         <strong>Insufficient stock!</strong> Need <strong>{requiredWeight.toFixed(0)}{itemUnit}</strong> but
-                        <strong> {selectedSpool.name}</strong> only has <strong>{selectedSpoolStock.toFixed(0)}{itemUnit}</strong> left.
+                        <strong> {sanitize(selectedSpool.name)}</strong> only has <strong>{selectedSpoolStock.toFixed(0)}{itemUnit}</strong> left.
                         <span className="block text-xs mt-1">
                             Shortage: {(requiredWeight - selectedSpoolStock).toFixed(0)}{itemUnit}
                         </span>

@@ -16,49 +16,38 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FileText, Download, Save, FileDown, Package, Factory, AlertTriangle } from "lucide-react";
+import { FileText, Download, Save, FileDown, Package, PieChart as PieChartIcon, Copy, FileSpreadsheet, ChevronDown, Share2 } from "lucide-react";
+import { saveAs } from "file-saver";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { QuoteData } from "@/types/quote";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { printQuotePDF } from "@/lib/pdfGenerator";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
-import { useProduction } from "@/hooks/useProduction";
-import { useCalculatorData } from "@/hooks/useCalculatorData";
-import { getSpools } from "@/lib/core/sessionStorage";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { useState } from "react";
+import { BatchQuoteManager } from "./BatchQuoteManager";
 
 interface QuoteSummaryProps {
   quoteData: QuoteData | null;
   onSaveQuote: (quote: QuoteData) => void;
 }
 
+const CHART_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e'];
+
 const QuoteSummary = memo(({ quoteData, onSaveQuote }: QuoteSummaryProps) => {
   const { currency, formatPrice } = useCurrency();
   const { addItem, batchItems } = useBatchQuote();
-  const { addJob } = useProduction();
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
 
-  // Fetch machines to resolve ID for auto-assignment
-  // Fetch machines to resolve ID for auto-assignment
-  const { machines: fdmMachines } = useCalculatorData({ printType: 'FDM' });
-  const { machines: resinMachines } = useCalculatorData({ printType: 'Resin' });
-
-  const [showLowStockAlert, setShowLowStockAlert] = useState(false);
-  const [pendingSave, setPendingSave] = useState(false);
-  const [stockShortage, setStockShortage] = useState<{ name: string, required: number, available: number, unit: string } | null>(null);
 
   const handleExport = useCallback(() => {
     if (!quoteData) return;
@@ -99,44 +88,112 @@ Generated: ${new Date().toLocaleString()}
     toast.success("Quote exported successfully!");
   }, [quoteData, formatPrice]);
 
+  const handleCopyToClipboard = useCallback(() => {
+    if (!quoteData) return;
+
+    const quoteText = `
+3D PRINT QUOTE - ${quoteData.printType} Printing
+==========================================
+Project: ${quoteData.projectName}
+Colour: ${quoteData.printColour || "N/A"}
+
+COST BREAKDOWN:
+- Material Cost:        ${formatPrice(quoteData.materialCost)}
+- Machine Time:         ${formatPrice(quoteData.machineTimeCost)}
+- Electricity:          ${formatPrice(quoteData.electricityCost)}
+- Labor:                ${formatPrice(quoteData.laborCost)}
+- Overhead:             ${formatPrice(quoteData.overheadCost)}
+
+SUBTOTAL:               ${formatPrice(quoteData.subtotal)}
+Profit Markup:          ${formatPrice(quoteData.markup)}
+
+==========================================
+TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
+==========================================
+    `.trim();
+
+    navigator.clipboard.writeText(quoteText);
+    toast.success("Quote copied to clipboard!");
+  }, [quoteData, formatPrice]);
+
+  const handleExportExcel = useCallback(async () => {
+    if (!quoteData) return;
+
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Quote");
+
+      worksheet.columns = [
+        { header: "Description", key: "desc", width: 30 },
+        { header: "Details", key: "val", width: 40 },
+      ];
+
+      worksheet.addRows([
+        { desc: "Project Name", val: quoteData.projectName },
+        { desc: "Print Type", val: quoteData.printType },
+        { desc: "Material", val: quoteData.parameters.materialName || "-" },
+        { desc: "Machine", val: quoteData.parameters.machineName || "-" },
+        { desc: "Colour", val: quoteData.printColour || "-" },
+        { desc: "", val: "" },
+        { desc: "COST BREAKDOWN", val: "" },
+        { desc: "Material Cost", val: formatPrice(quoteData.materialCost) },
+        { desc: "Machine Time", val: formatPrice(quoteData.machineTimeCost) },
+        { desc: "Electricity", val: formatPrice(quoteData.electricityCost) },
+        { desc: "Labor", val: formatPrice(quoteData.laborCost) },
+        { desc: "Overhead", val: formatPrice(quoteData.overheadCost) },
+        { desc: "Subtotal", val: formatPrice(quoteData.subtotal) },
+        { desc: "Profit Markup", val: formatPrice(quoteData.markup) },
+        { desc: "TOTAL PRICE", val: formatPrice(quoteData.totalPrice) },
+      ]);
+
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(7).font = { bold: true };
+      worksheet.getRow(15).font = { bold: true };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      saveAs(blob, `quote-${quoteData.projectName}-${Date.now()}.xlsx`);
+      toast.success("Excel file generated!");
+    } catch (err) {
+      console.error("Excel export failed:", err);
+      toast.error("Failed to generate Excel file");
+    }
+  }, [quoteData, formatPrice]);
+
+  const featureData = quoteData?.featureWeights ? [
+    { name: 'Walls', value: quoteData.featureWeights.walls || 0 },
+    { name: 'Infill', value: quoteData.featureWeights.infill || 0 },
+    { name: 'Supports', value: quoteData.featureWeights.supports || 0 },
+    { name: 'Waste', value: quoteData.featureWeights.waste || 0 },
+  ].filter(f => f.value > 0).map((f, i) => ({ ...f, colour: CHART_COLORS[i % CHART_COLORS.length] })) : [];
+
+  const COLORS = featureData.map(f => f.colour);
+
+  const { saveBatchAsQuote } = useBatchQuote();
+
   const handleSave = useCallback(() => {
     if (!quoteData) return;
 
-    // Check inventory if spool is selected
-    const spoolId = quoteData.parameters?.selectedSpoolId as string;
-    const materialId = quoteData.parameters?.materialId as string;
-
-    if (spoolId && materialId) {
-      const spools = getSpools(materialId);
-      const spool = spools.find(s => s.id === spoolId);
-
-      if (spool) {
-        // Calculate total weight needed (filamentWeight or resinVolume * quantity)
-        const weight = parseFloat(quoteData.parameters?.filamentWeight as string || quoteData.parameters?.resinVolume as string || "0");
-        const totalNeeded = weight * quoteData.quantity;
-
-        if (spool.currentWeight < totalNeeded) {
-          setStockShortage({
-            name: spool.name,
-            required: totalNeeded,
-            available: spool.currentWeight,
-            unit: quoteData.printType === 'Resin' ? 'ml' : 'g'
-          });
-          setShowLowStockAlert(true);
-          return;
-        }
+    // Check if there are items in the batch. 
+    // If so, we assume the user wants to save the whole batch.
+    if (batchItems.length > 0) {
+      try {
+        const masterQuote = saveBatchAsQuote();
+        onSaveQuote(masterQuote);
+        toast.success("Consolidated Batch saved to history!");
+        // We don't automatically clear the batch here to let the user decide, 
+        // but typically BatchQuoteManager handles clearing.
+        return;
+      } catch {
+        toast.error("Failed to save batch");
       }
     }
 
+    // Standard single quote save
     onSaveQuote(quoteData);
-  }, [quoteData, onSaveQuote]);
+  }, [quoteData, onSaveQuote, batchItems, saveBatchAsQuote]);
 
-  const confirmSave = useCallback(() => {
-    if (quoteData) {
-      onSaveQuote(quoteData);
-      setShowLowStockAlert(false);
-    }
-  }, [quoteData, onSaveQuote]);
 
   const handlePDF = useCallback(() => {
     if (!quoteData) return;
@@ -155,23 +212,7 @@ Generated: ${new Date().toLocaleString()}
     toast.success(`"${quoteData.projectName || 'Quote'}" added to batch!`);
   }, [quoteData, addItem]);
 
-  const handleSendToProduction = useCallback(() => {
-    if (!quoteData) return;
 
-    // Find matching machine ID
-    const allMachines = [...fdmMachines, ...resinMachines];
-    const machineName = quoteData.parameters.machineName || quoteData.parameters.machine; // Handle inconsistent naming if any
-    const matchedMachine = allMachines.find(m => m.name === machineName);
-
-    // Pass machineId if found, otherwise null (unassigned)
-    addJob(quoteData, matchedMachine?.id || null);
-
-    if (matchedMachine) {
-      toast.success(`Job sent to ${matchedMachine.name} queue`);
-    } else {
-      toast.success("Job added to Unassigned Queue");
-    }
-  }, [quoteData, addJob, fdmMachines, resinMachines]);
 
   if (!quoteData) {
     return (
@@ -180,7 +221,7 @@ Generated: ${new Date().toLocaleString()}
           <div className="bg-gradient-subtle rounded-2xl p-5 mb-5 shadow-card">
             <FileText className="w-10 h-10 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">No Quote Yet</h3>
+          <h2 className="text-lg font-semibold text-foreground mb-2">No Quote Yet</h2>
           <p className="text-sm text-muted-foreground max-w-[200px]">
             Fill in the parameters and click Calculate to generate a quote
           </p>
@@ -195,16 +236,16 @@ Generated: ${new Date().toLocaleString()}
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary-foreground/5 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-xl font-bold">Quote Summary</h2>
+            <h2 className="text-xl font-semibold">Quote Summary</h2>
           </div>
-          <p className="text-sm opacity-90 font-medium">{quoteData.printType} Printing</p>
-          <p className="text-sm opacity-75 mt-1">Project: {quoteData.projectName}</p>
+          <p className="text-sm font-medium">{quoteData.printType} Printing</p>
+          <p className="text-sm mt-1">Project: {quoteData.projectName}</p>
           {quoteData.parameters?.materialName && (
-            <p className="text-sm opacity-75 mt-1">Material: {quoteData.parameters.materialName}</p>
+            <p className="text-sm mt-1">Material: {quoteData.parameters.materialName}</p>
           )}
           {quoteData.printColour && (
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm opacity-65">Colour:</span>
+              <span className="text-sm">Colour:</span>
               <div
                 className="w-5 h-5 rounded-full border-2 border-white/30"
                 style={{ backgroundColor: quoteData.printColour.split(';')[0] || quoteData.printColour }}
@@ -216,11 +257,10 @@ Generated: ${new Date().toLocaleString()}
       </div>
 
       <div className="p-6 space-y-5">
-        {/* Cost Breakdown */}
         <div className="space-y-3">
           <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">Cost Breakdown</h3>
 
-          <div className="space-y-2.5 text-sm">
+          <div className="space-y-3">
             <CostRow label="Material Cost" value={quoteData.materialCost} />
             <CostRow label="Machine Time" value={quoteData.machineTimeCost} />
             {quoteData.electricityCost > 0 && (
@@ -236,6 +276,49 @@ Generated: ${new Date().toLocaleString()}
               <CostRow label="Painting (Beta)" value={quoteData.paintingCost} />
             )}
           </div>
+
+          {featureData.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-4">
+                <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-widest">
+                  <PieChartIcon className="w-3.5 h-3.5" />
+                  Material Breakdown
+                </h3>
+                <div className="h-[180px] w-full bg-muted/30 rounded-xl border border-border/50 p-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={featureData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={65}
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {featureData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          borderColor: 'hsl(var(--border))', 
+                          borderRadius: 'var(--radius)', 
+                          fontSize: '10px' 
+                        }}
+                        itemStyle={{ fontSize: '10px', padding: '0' }}
+                        formatter={(value: number) => [`${value.toFixed(2)}g`, '']}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </>
+          )}
 
           <Separator className="my-4" />
 
@@ -265,101 +348,92 @@ Generated: ${new Date().toLocaleString()}
 
           <Separator className="my-4" />
 
-          {/* Total */}
           <div className="bg-gradient-accent rounded-xl p-4 shadow-card">
             <div className="flex justify-between items-center">
               <span className="text-accent-foreground font-semibold">
                 {quoteData.quantity > 1 ? `Total (${quoteData.quantity} units)` : 'Total Price'}
               </span>
-              <span className="text-2xl font-bold text-accent-foreground">
+              <span className="text-2xl font-semibold text-accent-foreground">
                 {formatPrice(quoteData.totalPrice)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="space-y-2.5 pt-2">
           <Button
             onClick={handleSave}
             className="w-full bg-primary hover:bg-primary/90 transition-all shadow-card hover:shadow-md hover:scale-[1.02] duration-200"
           >
             <Save className="w-4 h-4 mr-2" />
-            Save Quote
+            {batchItems.length > 0 ? `Save Batch (${batchItems.length})` : "Save Quote"}
           </Button>
 
-          <Button
-            onClick={handleAddToBatch}
-            variant="outline"
-            className="w-full hover:scale-[1.02] transition-all duration-200"
-          >
-            <Package className="w-4 h-4 mr-2" />
-            Add to Batch {batchItems.length > 0 && `(${batchItems.length})`}
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={handleAddToBatch}
+              variant="outline"
+              className="w-full hover:scale-[1.02] transition-all duration-200"
+            >
+              <Package className="w-4 h-4 mr-2" />
+              Add to Batch
+            </Button>
 
-          <Button
-            onClick={handleSendToProduction}
-            variant="outline"
-            className="w-full hover:scale-[1.02] transition-all duration-200"
-          >
-            <Factory className="w-4 h-4 mr-2" />
-            Send to Production
-          </Button>
+            <Button
+              onClick={() => setIsBatchOpen(true)}
+              variant="secondary"
+              className="w-full hover:scale-[1.02] transition-all duration-200 font-bold bg-primary/5 text-primary border-primary/20 hover:bg-primary/10"
+              disabled={batchItems.length === 0}
+            >
+              <Package className="w-4 h-4 mr-2" />
+              View Batch {batchItems.length > 0 && `(${batchItems.length})`}
+            </Button>
+          </div>
 
-          <Button
-            onClick={handlePDF}
-            variant="outline"
-            className="w-full hover:bg-secondary hover:scale-[1.02] transition-all duration-200"
-          >
-            <FileDown className="w-4 h-4 mr-2" />
-            Export as PDF
-          </Button>
 
-          <Button
-            onClick={handleExport}
-            variant="ghost"
-            size="sm"
-            className="w-full text-muted-foreground hover:text-foreground"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export as Text
-          </Button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              onClick={handleCopyToClipboard}
+              variant="outline"
+              className="w-full hover:scale-[1.02] transition-all duration-200"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Export
+                  <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuItem onClick={handlePDF} className="cursor-pointer">
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Export as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportExcel} className="cursor-pointer">
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  Export as Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExport} className="cursor-pointer">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export as Text
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
-      <AlertDialog open={showLowStockAlert} onOpenChange={setShowLowStockAlert}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Insufficient Stock Warning
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {stockShortage && (
-                <div className="space-y-2">
-                  <p>
-                    This quote requires <strong>{stockShortage.required.toFixed(0)}{stockShortage.unit}</strong> of material,
-                    but <strong>{stockShortage.name}</strong> only has <strong>{stockShortage.available.toFixed(0)}{stockShortage.unit}</strong> remaining.
-                  </p>
-                  <p>
-                    Saving this quote will deduct the material and result in a
-                    negative stock level (<strong>{(stockShortage.available - stockShortage.required).toFixed(0)}{stockShortage.unit}</strong>).
-                  </p>
-                  <p className="font-medium text-foreground mt-2">
-                    Do you want to proceed anyway?
-                  </p>
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmSave} className="bg-destructive hover:bg-destructive/90">
-              Proceed Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+      <BatchQuoteManager open={isBatchOpen} onOpenChange={setIsBatchOpen} onSaveQuote={onSaveQuote} />
     </Card>
   );
 });

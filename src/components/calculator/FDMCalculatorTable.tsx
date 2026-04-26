@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback, useMemo, memo, useEffect } from "react";
+import { useState, useCallback, useMemo, memo, useEffect, useRef } from "react";
 import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
-import { QuoteData, FDMFormData, StoredGcode } from "@/types/quote";
+import { QuoteData, FDMFormData, StoredGcode, QuoteStatus } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
 import { calculateFDMQuote, validateFDMForm } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
@@ -36,14 +36,34 @@ import { getEmployees } from "@/lib/core/sessionStorage";
 import { useStoredGcodes } from "@/hooks/useStoredGcodes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface FDMCalculatorProps {
   onCalculate: (data: QuoteData) => void;
+  preFillData?: Partial<FDMFormData> & { 
+    name?: string; 
+    status?: QuoteStatus; 
+    priority?: string; 
+    dueDate?: string; 
+    customerId?: string; 
+    clientName?: string; 
+    assignedEmployeeId?: string; 
+    notes?: string;
+    failedUnits?: number | string;
+    thumbnail?: string;
+    editQuoteId?: string;
+    id?: string;
+    machineName?: string;
+    materialName?: string;
+  };
 }
 
 const initialFormData: FDMFormData = {
+  id: "",
   projectName: "",
-  printColour: "",
+  printColour: "-",
   materialId: "",
   machineId: "",
   printTime: "",
@@ -57,18 +77,26 @@ const initialFormData: FDMFormData = {
   selectedConsumableIds: [],
   filePath: "", // Store uploaded file path
   customerId: "",
-
   clientName: "",
   assignedEmployeeId: "",
   paintingTime: "",
   paintingLayers: "",
   selectedPaintId: "",
+  selectedPaintId2: "",
+  paintingLayers2: "",
   surfaceAreaCm2: "",
+  notes: "",
+  failedUnits: "",
 };
 
-const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
+const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProps) => {
   const { materials, machines, constants, loading, getConstantValue } = useCalculatorData({ printType: "FDM" });
   const [formData, setFormData] = useState<FDMFormData>(initialFormData);
+  
+  // Stable ID for the current calculation session
+  // Resets only when the entire component remounts (facilitated by the key in Index.tsx)
+  const calculationId = useMemo(() => crypto.randomUUID(), []);
+
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
   const { currency } = useCurrency();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -79,11 +107,22 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
     return gcodes.filter(g => (g.filamentWeight || 0) > 0 && !g.resinVolume);
   }, [gcodes]);
 
-  const [currentGcodeData, setCurrentGcodeData] = useState<GcodeData | null>(null);
+  const [thumbnail, setThumbnail] = useState<string | undefined>(undefined);
+  const lastLoadedIdRef = useRef<string | null>(null);
 
-  // Load employees on mount
+  // Load employees on mount and on storage change
   useEffect(() => {
-    setEmployees(getEmployees());
+    const fetchEmployees = () => setEmployees(getEmployees());
+    fetchEmployees();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "session_employees") {
+        fetchEmployees();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   const [isPaintingEnabled, setIsPaintingEnabled] = useState(false);
@@ -111,27 +150,15 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
     let matchedMachineId = '';
     let matchedMaterialId = '';
 
-    // Normalize function: lowercase and remove non-alphanumeric chars
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
     if (data.printerModel) {
       const normalizedModel = normalize(data.printerModel);
 
-
-
-      // Find exact match only - the normalized G-code model must match the normalized machine name
       const matchedMachine = machines.find(m => {
         const normalizedMachineName = normalize(m.name);
-
-        // Exact normalized match
-        if (normalizedMachineName === normalizedModel) {
-          return true;
-        }
-
-        // Check if one fully contains the other AND they have same key identifiers
-        // e.g., "bambulaba1mini" should match "bambulaba1mini" but NOT "bambulaba1"
+        if (normalizedMachineName === normalizedModel) return true;
         if (normalizedMachineName.includes(normalizedModel) || normalizedModel.includes(normalizedMachineName)) {
-          // Additional check: both must have the same suffix (mini, pro, plus, etc.) if any exists
           const modelHasMini = normalizedModel.includes('mini');
           const machineHasMini = normalizedMachineName.includes('mini');
           const modelHasPro = normalizedModel.includes('pro');
@@ -139,56 +166,103 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           const modelHasPlus = normalizedModel.includes('plus');
           const machineHasPlus = normalizedMachineName.includes('plus');
 
-          // Only match if modifiers are the same
-          return modelHasMini === machineHasMini &&
-            modelHasPro === machineHasPro &&
-            modelHasPlus === machineHasPlus;
+          return modelHasMini === machineHasMini && modelHasPro === machineHasPro && modelHasPlus === machineHasPlus;
         }
-
         return false;
       });
 
       if (matchedMachine) {
         matchedMachineId = matchedMachine.id;
         toast.info(`Auto-selected machine: ${matchedMachine.name}`);
-      } else {
-        // No machine match found
       }
 
-      // Match material from filament_settings_id
       if (data.filamentSettingsId) {
         const normalizedMaterial = normalize(data.filamentSettingsId);
-
         const matchedMaterial = materials.find(m => {
           const normalizedName = normalize(m.name);
-          return normalizedName.includes(normalizedMaterial) ||
-            normalizedMaterial.includes(normalizedName);
+          return normalizedName.includes(normalizedMaterial) || normalizedMaterial.includes(normalizedName);
         });
 
         if (matchedMaterial) {
           matchedMaterialId = matchedMaterial.id;
           toast.info(`Auto-selected material: ${matchedMaterial.name}`);
-        } else {
-          // No material match found
         }
       }
 
       setFormData(prev => ({
         ...prev,
-        projectName: data.fileName ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) || data.fileName : prev.projectName,
+        projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
         printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
         filamentWeight: data.filamentWeightGrams > 0 ? data.filamentWeightGrams.toString() : prev.filamentWeight,
         machineId: matchedMachineId || prev.machineId,
         materialId: matchedMaterialId || prev.materialId,
-        printColour: data.filamentColour || prev.printColour,
-        filePath: data.filePath || prev.filePath, // Store the file path
+        printColour: (data.filamentColour && !data.filamentColour.includes(';')) ? data.filamentColour : prev.printColour,
+        filePath: data.filePath || prev.filePath,
         surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : undefined,
       }));
 
-      // Keep track of current Gcode data for saving
-      setCurrentGcodeData(data);
+      setThumbnail(data.thumbnail);
     }
   }, [machines, materials]);
+
+  // Handle pre-fill data from library navigation or revision
+  useEffect(() => {
+    if (preFillData) {
+      const targetId = preFillData.editQuoteId || preFillData.id || null;
+      const isRevision = !!targetId;
+      
+      // GUARD: If we already loaded this specific record, don't reset the form
+      if (targetId && lastLoadedIdRef.current === targetId) {
+        return;
+      }
+
+      // Update the ref to prevent re-populating on every keystroke
+      lastLoadedIdRef.current = targetId;
+
+      setFormData(prev => ({
+        ...prev,
+        id: targetId || prev.id,
+        projectName: preFillData.projectName || preFillData.name || prev.projectName,
+        printTime: String(preFillData.printTime || prev.printTime || ""),
+        filamentWeight: String(preFillData.filamentWeight || prev.filamentWeight || ""),
+        materialId: preFillData.materialId || preFillData.materialId || prev.materialId,
+        machineId: preFillData.machineId || preFillData.machineId || prev.machineId,
+        laborHours: String(preFillData.laborHours || prev.laborHours || ""),
+        overheadPercentage: String(preFillData.overheadPercentage || prev.overheadPercentage || ""),
+        markupPercentage: String(preFillData.markupPercentage || prev.markupPercentage || "20"),
+        quantity: String(preFillData.quantity || prev.quantity || "1"),
+        priority: preFillData.priority || prev.priority,
+        dueDate: preFillData.dueDate || prev.dueDate,
+        customerId: preFillData.customerId || prev.customerId,
+        clientName: preFillData.clientName || prev.clientName,
+        assignedEmployeeId: preFillData.assignedEmployeeId || prev.assignedEmployeeId,
+        selectedConsumableIds: preFillData.selectedConsumableIds || prev.selectedConsumableIds || [],
+        filePath: preFillData.filePath || prev.filePath,
+        notes: preFillData.notes || prev.notes,
+        status: preFillData.status || prev.status,
+        failedUnits: preFillData.failedUnits !== undefined ? String(preFillData.failedUnits) : prev.failedUnits,
+        // Painting mapping
+        paintingTime: String(preFillData.paintingTime || prev.paintingTime || ""),
+        paintingLayers: String(preFillData.paintingLayers || prev.paintingLayers || ""),
+        surfaceAreaCm2: String(preFillData.surfaceAreaCm2 || prev.surfaceAreaCm2 || "")
+      }));
+
+      // Only run auto-matching for NEW file imports, not for database revisions
+      if (!isRevision) {
+        const gcodeData: GcodeData = {
+          fileName: preFillData.name || preFillData.projectName,
+          filePath: preFillData.filePath,
+          printTimeHours: parseFloat(String(preFillData.printTime || 0)),
+          filamentWeightGrams: parseFloat(String(preFillData.filamentWeight || 0)),
+          printerModel: preFillData.machineName,
+          filamentSettingsId: preFillData.materialName,
+          thumbnail: preFillData.thumbnail,
+        };
+        
+        handleGcodeData(gcodeData);
+      }
+    }
+  }, [preFillData, handleGcodeData]);
 
   const handleSavedGcodeSelect = useCallback((gcodeId: string) => {
     const gcode = gcodes.find(g => g.id === gcodeId);
@@ -209,22 +283,19 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
   }, [gcodes, handleGcodeData]);
 
   const handleSaveToLibrary = async () => {
-    if (!currentGcodeData) return;
-
-    // Find material and machine names for better storage metadata
     const material = materials.find(m => m.id === formData.materialId);
     const machine = machines.find(m => m.id === formData.machineId);
 
     const gcodeToSave: StoredGcode = {
-      id: '', // Will be generated
-      name: formData.projectName || currentGcodeData.fileName,
-      filePath: currentGcodeData.filePath || formData.filePath || "Uploaded File",
-      printTime: parseFloat(formData.printTime) || currentGcodeData.printTimeHours,
-      filamentWeight: parseFloat(formData.filamentWeight) || currentGcodeData.filamentWeightGrams,
-      machineName: machine?.name || currentGcodeData.printerModel,
-      materialName: material?.name || currentGcodeData.filamentSettingsId,
+      id: crypto.randomUUID(),
+      name: formData.projectName || "Unnamed Project",
+      filePath: formData.filePath || "Uploaded File",
+      printTime: parseFloat(formData.printTime) || 0,
+      filamentWeight: parseFloat(formData.filamentWeight) || 0,
+      machineName: machine?.name || "Standard Printer",
+      materialName: material?.name || "Standard Material",
       printType: "FDM",
-      thumbnail: currentGcodeData.thumbnail,
+      thumbnail: thumbnail,
       createdAt: new Date().toISOString()
     };
 
@@ -235,9 +306,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
 
     try {
       await saveGcode(gcodeToSave);
-      // Toast is handled in hook
-    } catch (error) {
-      // Error handling in hook
+    } catch {
+      // Ignore error
     }
   };
 
@@ -269,12 +339,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
       return;
     }
 
-    // Validate mandatory constants
     const electricityRate = getConstantValue("electricity");
     const laborRate = getConstantValue("labor");
-
-    const selectedPaintConsumable = constants.find(c => c.id === formData.selectedPaintId);
-    const paintConsumableValue = selectedPaintConsumable ? selectedPaintConsumable.value : 0;
 
     if (!electricityRate || electricityRate <= 0) {
       toast.error("Electricity Rate is required. Please set it in Settings → Consumables.");
@@ -286,13 +352,13 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
       return;
     }
 
-    // Include selectedSpoolId in formData for inventory tracking
     const selectedPaint = formData.selectedPaintId ? constants.find(c => c.id === formData.selectedPaintId) : undefined;
     const selectedPaint2 = formData.selectedPaintId2 ? constants.find(c => c.id === formData.selectedPaintId2) : undefined;
 
     const quoteData = calculateFDMQuote({
       formData: {
         ...formData,
+        id: formData.id || calculationId, // Use existing ID if editing, otherwise the stable session ID
         selectedSpoolId: selectedSpoolId || undefined,
       },
       material: selectedMaterial,
@@ -300,15 +366,15 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
       electricityRate: getConstantValue("electricity"),
       laborRate: getConstantValue("labor"),
       consumables: selectedConsumables,
-      paintConsumable: selectedPaint, // Pass the full object
-      paintConsumable2: selectedPaint2, // Pass secondary paint
+      paintConsumable: selectedPaint,
+      paintConsumable2: selectedPaint2,
       customerId: formData.customerId,
       clientName: formData.clientName,
     });
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({
@@ -333,25 +399,25 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
     })), [constants]);
 
   const uploadSection = (
-    <div className="flex flex-col gap-4 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-border">
+    <div className="flex flex-col gap-4 p-4 bg-slate-50/50 rounded-xl border border-border">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Calculator className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <p className="font-medium text-foreground">Auto-fill from G-code</p>
+            <p className="font-normal text-foreground">Auto-fill from G-code</p>
             <p className="text-sm text-muted-foreground">Upload or select a saved file</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Save Button */}
-          {(formData.printTime && parseFloat(formData.printTime) > 0 && currentGcodeData) && (
+          {(formData.printTime && parseFloat(formData.printTime) > 0 && (thumbnail || formData.filePath)) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleSaveToLibrary}
               className="text-primary hover:text-primary hover:bg-primary/10 gap-2"
+              aria-label="Save current file details to library"
               title="Save current file details to library"
             >
               <Save className="w-4 h-4" />
@@ -365,7 +431,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
       <div className="flex items-center gap-2 pt-2 border-t border-border/50">
         <span className="text-sm text-muted-foreground whitespace-nowrap">Saved Files:</span>
         <Select onValueChange={handleSavedGcodeSelect} disabled={filteredGcodes.length === 0}>
-          <SelectTrigger className="h-8 w-full max-w-[300px] bg-background/50">
+          <SelectTrigger aria-label="Select a saved file" className="h-8 w-full max-w-[300px] bg-background/50">
             <SelectValue placeholder={filteredGcodes.length === 0 ? "No saved files" : "Select a saved file..."} />
           </SelectTrigger>
           <SelectContent>
@@ -373,8 +439,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               <SelectItem key={g.id} value={g.id}>
                 <div className="flex items-center gap-2">
                   <span>{g.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ({g.printTime}h, {g.filamentWeight}g)
+                  <span className="text-sm text-muted-foreground group-focus:text-white font-normal whitespace-nowrap">
+                    ({g.printTime}hr, {g.filamentWeight}gm)
                   </span>
                 </div>
               </SelectItem>
@@ -413,7 +479,6 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           value={formData.materialId}
           onChange={(v) => {
             updateField("materialId", v);
-            // Reset spool selection when material changes
             setSelectedSpoolId("");
             updateField("printColour", "");
           }}
@@ -422,7 +487,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Color" htmlFor="fdm-spool-selector" required>
+      <FormFieldRow label="Colour" htmlFor="fdm-spool-selector" required>
         <SpoolSelector
           id="fdm-spool-selector"
           name="spoolId"
@@ -512,9 +577,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)" htmlFor="markup-percentage">
+      <FormFieldRow label="Profit Markup (%)" htmlFor="fdm-markup-percentage">
         <TextField
-          id="markup-percentage"
+          id="fdm-markup-percentage"
           name="markupPercentage"
           type="number"
           step="0.1"
@@ -526,9 +591,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Quantity" htmlFor="quantity">
+      <FormFieldRow label="Quantity" htmlFor="fdm-quantity">
         <TextField
-          id="quantity"
+          id="fdm-quantity"
           name="quantity"
           type="number"
           step="1"
@@ -540,9 +605,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Order Priority" htmlFor="priority">
+      <FormFieldRow label="Order Priority" htmlFor="fdm-priority">
         <SelectField
-          id="priority"
+          id="fdm-priority"
           name="priority"
           value={formData.priority || "Medium"}
           onChange={(v) => updateField("priority", v)}
@@ -555,20 +620,21 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Due Date" htmlFor="due-date">
-        <input
-          id="due-date"
+      <FormFieldRow label="Due Date" htmlFor="fdm-due-date">
+        <Input
+          id="fdm-due-date"
           name="dueDate"
           type="date"
           value={formData.dueDate || ""}
+          min={new Date().toISOString().split('T')[0]}
           onChange={(e) => updateField("dueDate", e.target.value)}
-          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background"
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Assigned Employee" htmlFor="assigned-employee">
+      <FormFieldRow label="Assigned Employee" htmlFor="fdm-assigned-employee">
         <SelectField
-          id="assigned-employee"
+          id="fdm-assigned-employee"
           name="assignedEmployeeId"
           value={formData.assignedEmployeeId || "none"}
           onChange={(v) => updateField("assignedEmployeeId", v === "none" ? "" : v)}
@@ -582,21 +648,19 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
 
       <div className="pt-4 px-2 sm:px-4 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Post Processing</h2>
-          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-bold border border-blue-500/20">BETA</span>
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Post Processing</h2>
+          <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px] font-semibold border border-blue-500/20">BETA</span>
         </div>
 
         <FormFieldRow label="Include Painting" htmlFor="fdm-include-painting">
-          <div className="flex items-center h-10">
-            <input
+          <div className="flex items-center h-10 gap-2">
+            <Checkbox
               id="fdm-include-painting"
-              type="checkbox"
-              aria-label="Include Painting"
-              className="w-5 h-5 rounded border-input bg-background"
               checked={isPaintingEnabled}
-              onChange={(e) => {
-                setIsPaintingEnabled(e.target.checked);
-                if (e.target.checked) {
+              onCheckedChange={(checked) => {
+                const isChecked = checked === true;
+                setIsPaintingEnabled(isChecked);
+                if (isChecked) {
                   updateField("paintingLayers", "1");
                   updateField("paintingTime", "0.5");
                 } else {
@@ -605,16 +669,21 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                   updateField("selectedPaintId", "");
                 }
               }}
+              className="border-slate-300 data-[state=checked]:bg-slate-800"
+              aria-label="Include Painting"
             />
-            <span className="ml-2 text-sm text-foreground">Enable</span>
+            <Label htmlFor="fdm-include-painting" className="text-sm font-medium cursor-pointer">
+              Enable
+            </Label>
           </div>
         </FormFieldRow>
 
         {isPaintingEnabled && (
           <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-            <FormFieldRow label="Surface Area (cm²)">
+            <FormFieldRow label="Surface Area (cm²)" htmlFor="fdm-surface-area">
               <div className="flex gap-2 w-full">
                 <TextField
+                  id="fdm-surface-area"
                   type="number"
                   value={formData.surfaceAreaCm2}
                   onChange={(v) => updateField("surfaceAreaCm2", v)}
@@ -636,10 +705,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               </div>
             </FormFieldRow>
 
-
-
-            <FormFieldRow label="Choose paint">
+            <FormFieldRow label="Choose paint" htmlFor="fdm-paint-choice">
               <SelectField
+                id="fdm-paint-choice"
                 value={formData.selectedPaintId || "none"}
                 onChange={(v) => updateField("selectedPaintId", v === "none" ? "" : v)}
                 placeholder="Select paint..."
@@ -649,12 +717,8 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                     .filter(c => c && typeof c.name === 'string' && c.is_visible !== false)
                     .map(c => {
                       let usageRate = "";
-                      // Parse usage rate from description if available (e.g., "Usage Rate: 0.04ml/cm2")
                       const usageMatch = c.description?.match(/Usage Rate:\s*([\d.]+)/i);
-                      if (usageMatch) {
-                        usageRate = ` @ ${usageMatch[1]}ml/cm²`;
-                      }
-
+                      if (usageMatch) usageRate = ` @ ${usageMatch[1]}ml/cm²`;
                       return {
                         id: c.id,
                         label: c.name,
@@ -665,8 +729,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="Coating Layers">
+            <FormFieldRow label="Coating Layers" htmlFor="fdm-coating-layers">
               <TextField
+                id="fdm-coating-layers"
                 type="number"
                 step="1"
                 value={formData.paintingLayers}
@@ -677,10 +742,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               />
             </FormFieldRow>
 
-
-
-            <FormFieldRow label="Secondary Paint">
+            <FormFieldRow label="Secondary Paint" htmlFor="fdm-secondary-paint">
               <SelectField
+                id="fdm-secondary-paint"
                 value={formData.selectedPaintId2 || "none"}
                 onChange={(v) => updateField("selectedPaintId2", v === "none" ? "" : v)}
                 placeholder="Select second paint..."
@@ -691,10 +755,7 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
                     .map(c => {
                       let usageRate = "";
                       const usageMatch = c.description?.match(/Usage Rate:\s*([\d.]+)/i);
-                      if (usageMatch) {
-                        usageRate = ` @ ${usageMatch[1]}ml/cm²`;
-                      }
-
+                      if (usageMatch) usageRate = ` @ ${usageMatch[1]}ml/cm²`;
                       return {
                         id: c.id,
                         label: c.name,
@@ -705,8 +766,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="2nd Coating Layers">
+            <FormFieldRow label="2nd Coating Layers" htmlFor="fdm-coating-layers-2">
               <TextField
+                id="fdm-coating-layers-2"
                 type="number"
                 step="1"
                 value={formData.paintingLayers2}
@@ -717,8 +779,9 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
               />
             </FormFieldRow>
 
-            <FormFieldRow label="Painting Labor (hrs)">
+            <FormFieldRow label="Painting Labor (hrs)" htmlFor="fdm-painting-labor">
               <TextField
+                id="fdm-painting-labor"
                 type="number"
                 step="0.1"
                 value={formData.paintingTime}
@@ -731,7 +794,6 @@ const FDMCalculatorTable = memo(({ onCalculate }: FDMCalculatorProps) => {
           </div>
         )}
       </div>
-
     </QuoteCalculator>
   );
 });

@@ -21,6 +21,13 @@ import { QuoteData } from "./quote";
 export type JobStatus = 'queued' | 'printing' | 'post_processing' | 'completed';
 export type JobPriority = 'low' | 'normal' | 'high';
 
+export interface ProductionSettings {
+    efficiency: number;      // 0-100
+    turnoverMinutes: number; // minutes per unit
+    workHoursPerDay: number; // hours (e.g., 8, 24)
+    enabledMachineIds: string[]; // Machines active in the machine pool
+}
+
 export interface ProductionJob {
     id: string;
     quote: QuoteData;
@@ -28,9 +35,16 @@ export interface ProductionJob {
     machineId: string | null; // null means unassigned/global queue
     priority: JobPriority;
     createdAt: string;
-    startedAt?: string;
-    completedAt?: string;
-    notes?: string;
+    actualPrintTime?: number;
+    startedAt?: string; // When the job actually started printing
+    completedAt?: string; // When the job finished
+    spoolId?: string; // Tracks the specific inventory spool used
+    inventoryDeducted?: number; // Total grams/ml deducted from inventory
+    // Failure Analysis
+    failureReason?: 'SPOOL_EMPTY' | 'MECHANICAL' | 'ADHESION' | 'OTHER' | null;
+    totalScrapMaterial?: number; // Extra material lost during failure
     // For sorting within the same status/machine
     order: number;
+    batchId?: string; // Links back to a master batch quote
+    batchName?: string; // Display name of the parent batch
 }

@@ -20,77 +20,11 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { QuoteData, QuoteStats } from "@/types/quote";
 import { toast } from "sonner";
 import * as sessionStore from "@/lib/core/sessionStorage";
+import { useProduction } from "./useProduction";
 
-// Helper function to deduct inventory when a quote is saved
-const deductInventoryFromQuote = (quote: QuoteData) => {
-  // Only process if we have material and filament weight
-  if (!quote.parameters?.materialName || !quote.parameters?.filamentWeight) {
-    return;
-  }
 
-  const filamentWeight = parseFloat(quote.parameters.filamentWeight as string) || 0;
-  if (filamentWeight <= 0) return;
-
-  // Calculate total deduction (weight × quantity)
-  const totalDeduction = filamentWeight * (quote.quantity || 1);
-
-  // Priority 1: Use the explicitly selected spool ID if available
-  const selectedSpoolId = quote.parameters?.selectedSpoolId as string | undefined;
-  if (selectedSpoolId) {
-    const success = sessionStore.deductFromSpool(selectedSpoolId, totalDeduction);
-    if (success) {
-      // Inventory deducted successfully
-      return;
-    }
-  }
-
-  // Priority 2: Fallback to color matching
-  const materials = sessionStore.getMaterials();
-  const material = materials.find(m => m.name === quote.parameters?.materialName);
-  if (!material) return;
-
-  const spools = sessionStore.getSpools(material.id);
-  if (spools.length === 0) return;
-
-  // Try to find a spool with matching color (case-insensitive)
-  const quoteColor = quote.printColour?.toLowerCase().trim() || '';
-  let targetSpool = spools.find(s =>
-    s.color?.toLowerCase().includes(quoteColor) ||
-    s.name?.toLowerCase().includes(quoteColor)
-  );
-
-  // If no color match, use the spool with most remaining weight
-  if (!targetSpool) {
-    targetSpool = spools.reduce((max, s) => s.currentWeight > max.currentWeight ? s : max, spools[0]);
-  }
-
-  const success = sessionStore.deductFromSpool(targetSpool.id, totalDeduction);
-  if (success) {
-    // Inventory deducted successfully
-  }
-};
-
-// Helper function to restore inventory when a quote is deleted
-const restoreInventoryFromQuote = (quote: QuoteData) => {
-  // Only process if we have material and filament weight
-  if (!quote.parameters?.materialName || (!quote.parameters?.filamentWeight && !quote.parameters?.resinVolume)) {
-    return;
-  }
-
-  const weightVal = parseFloat(quote.parameters.filamentWeight as string || quote.parameters.resinVolume as string) || 0;
-  if (weightVal <= 0) return;
-
-  const totalRestoration = weightVal * (quote.quantity || 1);
-  const selectedSpoolId = quote.parameters?.selectedSpoolId as string | undefined;
-
-  if (selectedSpoolId) {
-    const success = sessionStore.restoreToSpool(selectedSpoolId, totalRestoration);
-    if (success) {
-      // Inventory restored successfully
-    }
-  }
-  // Note: We don't auto-restore for fallback matches as it might restore to the wrong spool
-};
+// Inventory restoration is now managed exclusively by the ProductionProvider 
+// to ensure perfect synchronization with the physical production lifecycle.
 
 interface UseSavedQuotesReturn {
   quotes: QuoteData[];
@@ -99,8 +33,7 @@ interface UseSavedQuotesReturn {
   stats: QuoteStats;
   saveQuote: (quote: QuoteData) => Promise<void>;
   deleteQuote: (id: string) => Promise<void>;
-  updateNotes: (id: string, notes: string) => Promise<void>;
-  duplicateQuote: (quote: QuoteData) => Promise<void>;
+  updateQuote: (id: string, updates: Partial<QuoteData>) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
@@ -108,6 +41,7 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
   const [quotes, setQuotes] = useState<QuoteData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { removeJobByQuoteId } = useProduction();
 
   const fetchQuotes = useCallback(async () => {
     setLoading(true);
@@ -128,34 +62,171 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
 
   useEffect(() => {
     fetchQuotes();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "session_quotes") {
+        fetchQuotes();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("session_quotes_updated", fetchQuotes);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("session_quotes_updated", fetchQuotes);
+    };
   }, [fetchQuotes]);
 
   const stats = useMemo((): QuoteStats => {
     const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekAgoTS = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgoTS = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+    const sixtyDaysAgoTS = now.getTime() - 60 * 24 * 60 * 60 * 1000;
 
-    const totalRevenue = quotes.reduce((sum, q) => sum + q.totalPrice, 0);
-    const recentQuotes = quotes.filter(q =>
-      q.createdAt && new Date(q.createdAt) >= weekAgo
-    ).length;
+    const accum = {
+      totalQuotes: 0,
+      totalRevenue: 0,
+      totalProfit: 0,
+      fdmCount: 0,
+      resinCount: 0,
+      recentQuotes: 0,
+      totalPrintTime: 0,
+      totalFilamentUsed: 0,
+      totalResinUsed: 0,
+      failedPrintsCount: 0,
+      revenueLast30d: 0,
+      revenuePrev30d: 0,
+      totalLaborCost: 0,
+      totalElectricityCost: 0,
+      totalMaterialCost: 0,
+      totalOverheadCost: 0,
+      statusDistribution: {} as Record<string, number>,
+      customerMap: new Map<string, { id?: string; name: string; count: number; revenue: number }>()
+    };
+
+    const parseVal = (val: string | number | undefined | null) => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return parseFloat(val) || 0;
+        return 0;
+    };
+
+    quotes.forEach(q => {
+      const qTime = q.createdAt ? new Date(q.createdAt).getTime() : 0;
+      const isCancelled = q.status === 'CANCELLED';
+      
+      accum.totalQuotes++;
+      
+      // Update Status Distribution
+      const status = q.status || 'PENDING';
+      accum.statusDistribution[status] = (accum.statusDistribution[status] || 0) + 1;
+
+      // Only count revenue/costs for non-cancelled quotes
+      if (!isCancelled) {
+        accum.totalRevenue += q.totalPrice || 0;
+        
+        // FINANCIAL CLOSED LOOP: Adjust time-dependent costs based on Actual vs Estimated time
+        const estimatedTime = parseVal(q.parameters?.printTime);
+        const actualTime = q.actualPrintTime;
+        
+        let laborCost = q.laborCost || 0;
+        let electricityCost = q.electricityCost || 0;
+        let machineCost = q.machineTimeCost || 0;
+
+        if (actualTime && estimatedTime > 0) {
+            const ratio = actualTime / estimatedTime;
+            // Only adjust if the difference is significant (>5%) to avoid noise
+            if (Math.abs(ratio - 1) > 0.05) {
+                laborCost *= ratio;
+                electricityCost *= ratio;
+                machineCost *= ratio;
+            }
+        }
+
+        const actualSubtotal = (q.materialCost || 0) + laborCost + electricityCost + machineCost + (q.overheadCost || 0);
+        accum.totalProfit += ((q.totalPrice || 0) - actualSubtotal);
+        accum.totalLaborCost += laborCost;
+        accum.totalElectricityCost += electricityCost;
+        accum.totalMaterialCost += (q.materialCost || 0);
+        accum.totalOverheadCost += (q.overheadCost || 0);
+
+        if (qTime >= thirtyDaysAgoTS) accum.revenueLast30d += (q.totalPrice || 0);
+        else if (qTime >= sixtyDaysAgoTS) accum.revenuePrev30d += (q.totalPrice || 0);
+      }
+
+      if (qTime >= weekAgoTS) accum.recentQuotes++;
+
+      if (q.printType === "FDM") {
+        accum.fdmCount++;
+        const estimatedWeight = parseVal(q.parameters?.filamentWeight);
+        const actualWeight = q.actualMaterialUsed ?? (estimatedWeight * (q.quantity || 1));
+        accum.totalFilamentUsed += (actualWeight / 1000); // Standardize to kg for dashboard
+      } else {
+        accum.resinCount++;
+        const estimatedVolume = parseVal(q.parameters?.resinVolume);
+        const actualVolume = q.actualMaterialUsed ?? (estimatedVolume * (q.quantity || 1));
+        accum.totalResinUsed += (actualVolume / 1000); // Standardize to L for dashboard
+      }
+
+      const printTime = q.actualPrintTime || parseVal(q.parameters?.printTime);
+      accum.totalPrintTime += printTime;
+      accum.failedPrintsCount += (q.failedUnits || 0);
+
+      // Customer Tracking
+      const cKey = q.customerId || q.clientName || 'Guest';
+      const existingC = accum.customerMap.get(cKey) || { id: q.customerId, name: q.clientName || 'Guest', count: 0, revenue: 0 };
+      accum.customerMap.set(cKey, {
+        id: existingC.id,
+        name: existingC.name,
+        count: existingC.count + 1,
+        revenue: existingC.revenue + (q.totalPrice || 0)
+      });
+    });
+
+    // Derived Metrics
+    const customersList = Array.from(accum.customerMap.values());
+    const repeatCustomersCount = customersList.filter(c => c.count > 1).length;
+    
+    const revenueGrowth = accum.revenuePrev30d > 0 
+      ? ((accum.revenueLast30d - accum.revenuePrev30d) / accum.revenuePrev30d) * 100 
+      : (accum.revenueLast30d > 0 ? 100 : 0);
 
     return {
-      totalQuotes: quotes.length,
-      totalRevenue,
-      avgQuoteValue: quotes.length > 0 ? totalRevenue / quotes.length : 0,
-      fdmCount: quotes.filter(q => q.printType === "FDM").length,
-      resinCount: quotes.filter(q => q.printType === "Resin").length,
-      recentQuotes,
+      totalQuotes: accum.totalQuotes,
+      totalRevenue: accum.totalRevenue,
+      totalProfit: accum.totalProfit,
+      avgQuoteValue: accum.totalQuotes > 0 ? accum.totalRevenue / accum.totalQuotes : 0,
+      fdmCount: accum.fdmCount,
+      resinCount: accum.resinCount,
+      recentQuotes: accum.recentQuotes,
+      totalPrintTime: accum.totalPrintTime,
+      totalFilamentUsed: accum.totalFilamentUsed / 1000,
+      totalResinUsed: accum.totalResinUsed / 1000,
+      failedPrintsCount: accum.failedPrintsCount,
+      repeatCustomerRate: customersList.length > 0 ? (repeatCustomersCount / customersList.length) * 100 : 0,
+      topCustomers: [...customersList].sort((a, b) => b.revenue - a.revenue).slice(0, 5),
+      revenueGrowth,
+      totalLaborCost: accum.totalLaborCost,
+      totalElectricityCost: accum.totalElectricityCost,
+      totalMaterialCost: accum.totalMaterialCost,
+      totalOverheadCost: accum.totalOverheadCost,
+      avgMargin: accum.totalRevenue > 0 ? (accum.totalProfit / accum.totalRevenue) * 100 : 0,
+      statusDistribution: accum.statusDistribution
     };
   }, [quotes]);
 
   const saveQuote = useCallback(async (quote: QuoteData) => {
     try {
       const newQuote = sessionStore.saveQuote(quote);
-      setQuotes(prev => [newQuote, ...prev]);
-
-      // Auto-deduct from inventory
-      deductInventoryFromQuote(quote);
+      
+      setQuotes(prev => {
+        const existingIndex = prev.findIndex(q => q.id === newQuote.id);
+        if (existingIndex !== -1) {
+          const updated = [...prev];
+          updated[existingIndex] = newQuote;
+          return updated;
+        }
+        return [newQuote, ...prev];
+      });
 
       toast.success("Quote saved successfully");
     } catch (err) {
@@ -167,13 +238,8 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
 
   const deleteQuote = useCallback(async (id: string) => {
     try {
-      // Find quote to restore inventory
-      const quoteToDelete = quotes.find(q => q.id === id);
-      if (quoteToDelete) {
-        restoreInventoryFromQuote(quoteToDelete);
-      }
-
       sessionStore.deleteQuote(id);
+      removeJobByQuoteId(id);
       setQuotes(prev => prev.filter(q => q.id !== id));
       toast.success("Quote deleted successfully");
     } catch (err) {
@@ -181,32 +247,19 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
       toast.error(error.message || "Failed to delete quote");
       throw err;
     }
-  }, [quotes]);
+  }, [removeJobByQuoteId]);
 
-  const updateNotes = useCallback(async (id: string, notes: string) => {
+  const updateQuote = useCallback(async (id: string, updates: Partial<QuoteData>) => {
     try {
-      sessionStore.updateQuoteNotes(id, notes);
-      setQuotes(prev =>
-        prev.map(q => q.id === id ? { ...q, notes } : q)
-      );
-      toast.success("Notes updated successfully!");
+      sessionStore.updateQuote(id, updates);
+      await fetchQuotes();
+      toast.success("Quote updated successfully!");
     } catch (err) {
       const error = err as Error;
-      toast.error(error.message || "Failed to update notes");
+      toast.error(error.message || "Failed to update quote");
       throw err;
     }
-  }, []);
-
-  const duplicateQuote = useCallback(async (quote: QuoteData) => {
-    const duplicatedQuote: QuoteData = {
-      ...quote,
-      id: undefined,
-      projectName: `${quote.projectName} (Copy)`,
-      createdAt: undefined,
-      notes: "",
-    };
-    await saveQuote(duplicatedQuote);
-  }, [saveQuote]);
+  }, [fetchQuotes]);
 
   return {
     quotes,
@@ -215,8 +268,7 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
     stats,
     saveQuote,
     deleteQuote,
-    updateNotes,
-    duplicateQuote,
+    updateQuote,
     refetch: fetchQuotes,
   };
 };

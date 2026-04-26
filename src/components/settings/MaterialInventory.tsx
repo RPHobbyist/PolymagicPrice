@@ -18,6 +18,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +52,8 @@ interface MaterialInventoryProps {
     onStockChanged?: () => void;
 }
 
+const DEFAULT_SPOOL_COLOUR = "#3B82F6";
+
 export function MaterialInventory({ material, onStockChanged }: MaterialInventoryProps) {
     const [spools, setSpools] = useState<MaterialSpool[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -60,7 +63,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
     // Form state
     const [formData, setFormData] = useState({
         name: "",
-        color: "#3B82F6",
+        colour: DEFAULT_SPOOL_COLOUR,
         spoolCount: "1",
         weightPerSpool: "",
         currentWeight: "",
@@ -107,7 +110,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
             // When editing, calculate back the per-spool weight (assume 1 spool for existing)
             setFormData({
                 name: spool.name || "",
-                color: spool.color || "#3B82F6",
+                colour: spool.colour || DEFAULT_SPOOL_COLOUR,
                 spoolCount: "1",
                 weightPerSpool: spool.initialWeight.toString(),
                 currentWeight: spool.currentWeight.toString(),
@@ -119,7 +122,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
             setEditingSpool(null);
             setFormData({
                 name: "",
-                color: "#3B82F6",
+                colour: DEFAULT_SPOOL_COLOUR,
                 spoolCount: "1",
                 weightPerSpool: maxWeight.toString(),
                 currentWeight: maxWeight.toString(),
@@ -186,7 +189,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                 id: editingSpool?.id,
                 materialId: material.id,
                 name: formData.name || `${material.name} (${count}x${weightPerSpool}${unit})`,
-                color: formData.color,
+                colour: formData.colour,
                 initialWeight: initial,
                 currentWeight: current,
                 location: formData.location || undefined,
@@ -216,12 +219,12 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
         <div className="space-y-3">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">
+                    <Package className="w-4 h-4 text-slate-500" />
+                    <span className="text-sm font-medium text-slate-900">
                         Stock: {totalStock.toFixed(0)}{unit}
                     </span>
                     {material.lowStockThreshold && totalStock < material.lowStockThreshold && (
-                        <Badge variant="destructive" className="text-[10px] gap-1">
+                        <Badge variant="error" className="gap-1">
                             <AlertTriangle className="w-3 h-3" /> Low Stock
                         </Badge>
                     )}
@@ -232,7 +235,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
             </div>
 
             {spools.length === 0 ? (
-                <Card className="p-6 text-center text-muted-foreground border-dashed">
+                <Card className="p-6 text-center text-slate-600 border-dashed">
                     <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     <p className="text-sm">No inventory tracked</p>
                 </Card>
@@ -241,24 +244,42 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                     <div className="space-y-2">
                         {spools.map((spool) => {
                             const percentage = (spool.currentWeight / spool.initialWeight) * 100;
+                            const isEmpty = spool.currentWeight <= 0.01; // Allow for slight rounding
+                            const isNearEmpty = !isEmpty && spool.currentWeight < 50; // Threshold for "Near Empty"
+
                             return (
-                                <Card key={spool.id} className="p-3 flex items-center gap-3 group">
+                                <Card key={spool.id} className={cn(
+                                    "p-3 flex items-center gap-3 group transition-all",
+                                    isEmpty && "bg-slate-50/50 opacity-75 grayscale-[0.5]",
+                                    isNearEmpty && "border-amber-200 bg-amber-50/30"
+                                )}>
                                     <div
                                         className="w-6 h-6 rounded-full border-2 border-border shrink-0"
-                                        style={{ backgroundColor: spool.color }}
+                                        style={{ backgroundColor: spool.colour }}
                                     />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
-                                            <p className="text-sm font-medium truncate">{spool.name}</p>
+                                            <p className={cn("text-sm font-medium truncate", isEmpty && "text-slate-500 line-through")}>
+                                                {spool.name}
+                                            </p>
+                                            {isEmpty && <Badge variant="secondary" className="h-4 text-[9px] uppercase">Finished</Badge>}
+                                            {isNearEmpty && <Badge variant="warning" className="h-4 text-[9px] uppercase bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200">Near Empty</Badge>}
                                             {spool.location && (
-                                                <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                                <span className="text-[10px] text-slate-600 flex items-center gap-0.5">
                                                     <MapPin className="w-3 h-3" /> {spool.location}
                                                 </span>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Progress value={percentage} className="h-1.5 flex-1" />
-                                            <span className="text-xs text-muted-foreground tabular-nums w-24 text-right">
+                                            <Progress 
+                                                value={percentage} 
+                                                className={cn("h-1.5 flex-1", isEmpty && "opacity-30")} 
+                                                aria-label="Stock level percentage" 
+                                            />
+                                            <span className={cn(
+                                                "text-xs tabular-nums w-24 text-right",
+                                                isEmpty ? "text-slate-400" : (isNearEmpty ? "text-amber-700 font-medium" : "text-slate-600")
+                                            )}>
                                                 {formatWeight(spool.currentWeight)}/{formatWeight(spool.initialWeight)}
                                             </span>
                                         </div>
@@ -269,6 +290,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                             variant="ghost"
                                             className="h-7 w-7"
                                             onClick={() => handleOpenDialog(spool)}
+                                            aria-label={`Edit ${itemName}`}
                                         >
                                             <Pencil className="w-3 h-3" />
                                         </Button>
@@ -277,6 +299,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                             variant="ghost"
                                             className="h-7 w-7 text-destructive hover:text-destructive"
                                             onClick={() => setDeleteId(spool.id)}
+                                            aria-label={`Remove ${itemName}`}
                                         >
                                             <Trash2 className="w-3 h-3" />
                                         </Button>
@@ -309,14 +332,14 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor={`spool-color-${material.id}`}>Color</Label>
+                                <Label htmlFor={`spool-colour-${material.id}`}>Colour</Label>
                                 <input
-                                    id={`spool-color-${material.id}`}
-                                    name="color"
+                                    id={`spool-colour-${material.id}`}
+                                    name="colour"
                                     type="color"
-                                    value={formData.color}
-                                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                    className="w-full h-10 rounded-md border border-input cursor-pointer"
+                                    value={formData.colour}
+                                    onChange={(e) => setFormData({ ...formData, colour: e.target.value })}
+                                    className="w-full h-10 rounded-md border border-input cursor-pointer bg-background p-1"
                                 />
                             </div>
                         </div>
@@ -330,7 +353,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     autoComplete="off"
                                     type="number"
                                     value={formData.spoolCount}
-                                    onChange={(e) => handleSpoolCountOrWeightChange('spoolCount', e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val !== "" && parseFloat(val) < 0) return;
+                                        handleSpoolCountOrWeightChange('spoolCount', val);
+                                    }}
                                     placeholder="1"
                                     min="1"
                                     max="1000"
@@ -344,7 +371,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     autoComplete="off"
                                     type="number"
                                     value={formData.weightPerSpool}
-                                    onChange={(e) => handleSpoolCountOrWeightChange('weightPerSpool', e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val !== "" && parseFloat(val) < 0) return;
+                                        handleSpoolCountOrWeightChange('weightPerSpool', val);
+                                    }}
                                     placeholder="1000"
                                     min="1"
                                     max="25000"
@@ -354,9 +385,9 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
 
                         {/* Total Initial Weight Display */}
                         <div className="p-3 bg-muted/50 rounded-lg text-center">
-                            <span className="text-sm text-muted-foreground">Total Initial Weight: </span>
+                            <span className="text-sm text-slate-600">Total Initial Weight: </span>
                             <span className="text-lg font-bold text-primary">{calculatedInitialWeight.toFixed(0)}{unit}</span>
-                            <span className="text-sm text-muted-foreground"> ({formData.spoolCount} × {formData.weightPerSpool || maxWeight}{unit})</span>
+                            <span className="text-sm text-slate-600"> ({formData.spoolCount} × {formData.weightPerSpool || maxWeight}{unit})</span>
                         </div>
 
                         {/* Current Weight */}
@@ -368,12 +399,16 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                 autoComplete="off"
                                 type="number"
                                 value={formData.currentWeight}
-                                onChange={(e) => setFormData({ ...formData, currentWeight: e.target.value })}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val !== "" && parseFloat(val) < 0) return;
+                                    setFormData({ ...formData, currentWeight: val });
+                                }}
                                 placeholder={calculatedInitialWeight.toString()}
                                 min="0"
                                 max="25000000"
                             />
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-slate-600">
                                 Adjust if some material has already been used
                             </p>
                         </div>
@@ -399,7 +434,11 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     autoComplete="off"
                                     type="number"
                                     value={formData.purchaseCost}
-                                    onChange={(e) => setFormData({ ...formData, purchaseCost: e.target.value })}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val !== "" && parseFloat(val) < 0) return;
+                                        setFormData({ ...formData, purchaseCost: val });
+                                    }}
                                     placeholder="25"
                                     min="0"
                                     max="10000"

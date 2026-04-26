@@ -18,17 +18,21 @@
 
 import { createContext } from "react";
 import { QuoteData } from "@/types/quote";
-import { ProductionJob, JobStatus } from "@/types/production";
+import { ProductionJob, JobStatus, ProductionSettings } from "@/types/production";
 
 export interface ProductionContextType {
     jobs: ProductionJob[];
+    settings: ProductionSettings;
     addJob: (quote: QuoteData, machineId?: string | null) => void;
     updateJob: (jobId: string, updates: Partial<ProductionJob>) => void;
-    moveJob: (jobId: string, newStatus: JobStatus, newMachineId: string | null, newIndex?: number) => void;
+    moveJob: (jobId: string, newStatus: JobStatus, newMachineId: string | null, newIndex?: number, actualPrintTime?: number) => void;
     removeJob: (jobId: string) => void;
+    removeJobByQuoteId: (quoteId: string) => void;
     clearCompleted: () => void;
+    updateSettings: (settings: Partial<ProductionSettings>) => void;
     getJobsByMachine: (machineId: string) => ProductionJob[];
     getUnassignedJobs: () => ProductionJob[];
+    failJob: (jobId: string, reason: 'SPOOL_EMPTY' | 'MECHANICAL' | 'ADHESION' | 'OTHER', scrapGramsResin?: number, failedUnitsCount?: number) => void;
 }
 
 export const ProductionContext = createContext<ProductionContextType | undefined>(undefined);

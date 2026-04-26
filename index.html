@@ -1,58 +1,445 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PolymagicPrice | Rp Hobbyist</title>
+  
+  <!-- CSP is enforced via Cloudflare _headers file (not meta tag) to avoid conflicts with CF-injected scripts -->
+
+  <!-- Primary Meta Tags -->
+  <title>PolymagicPrice — Free Open-Source 3D Printing Price Calculator | FDM & Resin Cost Estimator</title>
   <meta name="description"
-    content="Professional 3D printing price calculator and quote management tool by Rp Hobbyist" />
+    content="The most advanced open-source 3D printing price calculator for FDM and Resin. Upload G-code, manage materials, and generate professional quotes. Local-first, secure, and free." />
   <meta name="keywords"
-    content="3D printing price calculator, 3D printing cost estimator, FDM calculator, Resin printing cost, 3D print quote management" />
+    content="3D printing price calculator, 3D printing cost estimator, FDM calculator, resin printing cost, SLA cost calculator, DLP printing price, 3D print quote generator, filament cost calculator, G-code price estimator, 3D printing business tool, open source 3D printing, free 3D print calculator, print cost per gram, 3D printing markup calculator, PolymagicPrice, Rp Hobbyist" />
   <meta name="author" content="Rp Hobbyist" />
   <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://polymagicprice.com" />
+  <meta name="theme-color" content="#6366f1" />
+  <meta name="application-name" content="PolymagicPrice" />
+  <meta name="theme-color" content="#6366f1" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PolymagicPrice" />
+
+  <!-- Canonical & Identity -->
+  <link rel="canonical" href="https://polymagicprice.rphobbyist.com/" />
   <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- DNS Prefetch & Preconnect for Performance -->
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Fonts with display=swap for CLS optimization -->
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=Saira:ital,wght@1,900&display=swap"
     rel="stylesheet">
 
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="PolymagicPrice" />
+  <meta property="og:url" content="https://polymagicprice.rphobbyist.com/" />
+  <meta property="og:title" content="PolymagicPrice — Free Open-Source 3D Printing Price Calculator" />
+  <meta property="og:description"
+    content="Calculate accurate 3D printing costs for FDM and Resin. Open-source, secure, and professional." />
+  <meta property="og:image" content="https://polymagicprice.rphobbyist.com/logo.png" />
+  <meta property="og:image:alt" content="PolymagicPrice — 3D Printing Price Calculator by Rp Hobbyist" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="1024" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@RPHobbyist" />
+  <meta name="twitter:title" content="PolymagicPrice — 3D Printing Price Calculator" />
+  <meta name="twitter:description"
+    content="Open-source FDM & Resin 3D printing cost calculator. Secure local processing." />
+  <meta name="twitter:image" content="https://polymagicprice.rphobbyist.com/logo.png" />
+  <meta name="twitter:image:alt" content="PolymagicPrice 3D Print Calculator" />
+
+  <!-- Structured Data: SoftwareApplication -->
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "PolymagicPrice",
-      "operatingSystem": "Web",
+      "alternateName": "3D Print Price Calculator",
+      "url": "https://polymagicprice.rphobbyist.com/",
+      "operatingSystem": "Web, Windows, macOS, Linux",
       "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "3D Printing Cost Calculator",
+      "softwareVersion": "2.0.0",
+      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+      "isAccessibleForFree": true,
+      "downloadUrl": "https://github.com/RPHobbyist/PolymagicPrice/releases",
+      "installUrl": "https://polymagicprice.rphobbyist.com/",
+      "featureList": [
+        "FDM Filament Cost Calculator",
+        "Resin SLA/DLP Cost Calculator",
+        "G-code File Auto-Fill Parser",
+        "3MF and CXDLPV4 File Support",
+        "Material & Machine Inventory Management",
+        "Professional Quote Generation & Export",
+        "Quote Dashboard with Analytics",
+        "Multi-Currency Support",
+        "AI-Powered Pricing Insights",
+        "Production Kanban Board",
+        "Order Management System",
+        "Customer CRM",
+        "Desktop App (Electron)",
+        "Open Source (AGPLv3)"
+      ],
+      "screenshot": "https://polymagicprice.rphobbyist.com/logo.png",
       "offers": {
         "@type": "Offer",
         "price": "0",
-        "priceCurrency": "USD"
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
       },
       "author": {
         "@type": "Person",
-        "name": "Rp Hobbyist"
+        "name": "Rp Hobbyist",
+        "url": "https://www.rphobbyist.com"
       },
-      "description": "Professional 3D printing price calculator and quote management tool by Rp Hobbyist"
+      "publisher": {
+        "@type": "Person",
+        "name": "Rp Hobbyist",
+        "url": "https://www.rphobbyist.com"
+      },
+      "description": "PolymagicPrice is a free, open-source 3D printing price calculator for FDM filament and Resin (SLA/DLP) printing. Upload G-code files to auto-calculate material costs, electricity, labor, and generate professional quotes with markup. Built for 3D printing businesses and hobbyists.",
+      "datePublished": "2025-01-01",
+      "dateModified": "2026-04-15"
     }
   </script>
 
-  <meta property="og:title" content="PolymagicPrice | Rp Hobbyist" />
-  <meta property="og:description"
-    content="Professional 3D printing price calculator and quote management tool by Rp Hobbyist" />
-  <meta property="og:type" content="website" />
-  <meta property="og:image" content="/logo.png" />
+  <!-- Structured Data: FAQPage for Rich Snippets -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How do I calculate 3D printing costs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "PolymagicPrice calculates 3D printing costs using a professional formula: Material Cost + Electricity Cost + Machine Depreciation + Labor Cost + Overhead. Simply enter your print time, material weight (or upload a G-code file for auto-fill), and the calculator handles the rest. You can also add custom markup percentages and consumable costs for a complete per-part price breakdown."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is PolymagicPrice free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, PolymagicPrice is 100% free and open-source under the GNU AGPLv3 license. You can use it directly in your browser, download the desktop app for Windows, macOS, or Linux, or self-host the entire application. There are no hidden fees, subscriptions, or paywalls. The full source code is publicly available on GitHub."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What 3D printing technologies does PolymagicPrice support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "PolymagicPrice supports two major 3D printing technologies: FDM (Fused Deposition Modeling) for filament-based printing (PLA, PETG, ABS, TPU, Nylon, etc.) and Resin-based printing including SLA (Stereolithography) and DLP (Digital Light Processing). Each technology has its own dedicated calculator with technology-specific parameters."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I upload G-code files to auto-calculate costs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, PolymagicPrice supports automatic cost calculation from uploaded files. Drag and drop your .gcode, .3mf, or .cxdlpv4 files directly into the calculator. The built-in parser automatically extracts print time, filament weight, resin volume, printer model, and material type — no manual data entry required."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does PolymagicPrice work offline?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The desktop application is designed to work completely offline in an air-gapped environment. All your data is stored locally on your machine. The web version also works offline once loaded, since all calculations are performed client-side with zero server dependency."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is my data private and secure?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Absolutely. PolymagicPrice follows a strict local-first, privacy-absolute architecture. None of your data — quotes, customer information, material costs, or business metrics — ever leaves your machine. There are no external trackers, cloud analytics, or telemetry."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much should I charge for 3D prints?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A professional 3D print price should cover all your costs plus a healthy profit margin. The industry-standard approach is: Total Price = (Material + Electricity + Machine Wear + Labor + Overhead) x (1 + Markup%). Many beginners use the Rule of 3 — calculate your raw costs and multiply by 3. Typical hourly machine rates range from $1-$5 for consumer printers, and markup percentages of 20-50% are standard."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is a good markup percentage for 3D printing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The industry standard markup for 3D printing services ranges from 20% to 50%, depending on your market, complexity, and value-add. For simple parts 20-30% is common, for custom or artisan work 40-50% or higher is justified. PolymagicPrice includes a built-in markup slider so you can instantly see how different levels affect your quote."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I account for failed prints in my pricing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Most businesses experience a 5-15% failure rate. Build a failure fund into your pricing by adding your failure rate percentage to production costs. For example, if a print costs $10 and your failure rate is 10%, price it at $11. PolymagicPrice's overhead percentage field is designed specifically for this."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I calculate electricity costs for 3D printing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The formula is: (Printer Wattage / 1000) x Print Time in Hours x Your Electricity Rate per kWh. Most desktop FDM printers use 100-150W while printing. PolymagicPrice automatically calculates electricity costs when you enter your local rate in Settings."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is resin printing more expensive than FDM filament printing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, resin printing is generally more expensive per part. Standard filament costs $15-$50 per kg, while resin ranges from $35-$150+ per liter. Resin also has hidden costs including IPA for washing, UV curing energy, gloves, and FEP film. PolymagicPrice's Resin calculator accounts for all these."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I price 3D prints for Etsy or online marketplaces?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Factor in platform fees on top of production costs. Etsy charges listing fees, a 6.5% transaction fee, and payment processing fees. Divide your target price by 0.90 to maintain margin after fees. PolymagicPrice calculates your production floor price, which you can adjust with markup to cover marketplace fees."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What file formats does PolymagicPrice support for auto-fill?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "PolymagicPrice supports .gcode files (from Cura, PrusaSlicer, OrcaSlicer, BambuStudio), .3mf files (3D Manufacturing Format), and .cxdlpv4 files (resin printer format from ChiTuBox and similar SLA/DLP slicers). The parser extracts print time, material weight/volume, printer model, and thumbnails."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I connect my Bambu Lab printer to PolymagicPrice?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, the desktop version supports direct Bambu Lab printer integration for real-time print progress monitoring, file sending, and job tracking. The Polymagic Bridge feature creates a seamless link between your slicer and the calculator."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I manage multiple printers and materials in PolymagicPrice?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Navigate to Settings to register your full machine fleet and material inventory. Each printer can be configured with its own costs, wattage, and depreciation rate. Materials are managed separately for FDM and Resin. The Capacity Planner uses your fleet data to forecast lead times across all machines."
+          }
+        }
+      ]
+    }
+  </script>
 
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@RPHobbyist" />
-  <meta name="twitter:image" content="/logo.png" />
+  <!-- Structured Data: WebSite for Sitelinks Search -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "PolymagicPrice",
+      "url": "https://polymagicprice.rphobbyist.com/",
+      "description": "Free open-source 3D printing price calculator for FDM and Resin printing",
+      "publisher": {
+        "@type": "Person",
+        "name": "Rp Hobbyist",
+        "url": "https://www.rphobbyist.com"
+      }
+    }
+  </script>
+
+  <!-- Structured Data: BreadcrumbList for Navigation Signals -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Cost Calculator",
+          "item": "https://polymagicprice.rphobbyist.com/calculator"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Print Manager",
+          "item": "https://polymagicprice.rphobbyist.com/print-manager"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Order Manager",
+          "item": "https://polymagicprice.rphobbyist.com/manage-orders"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "Capacity Planner",
+          "item": "https://polymagicprice.rphobbyist.com/capacity-planner"
+        },
+        {
+          "@type": "ListItem",
+          "position": 5,
+          "name": "Billing & Analysis",
+          "item": "https://polymagicprice.rphobbyist.com/billing-analysis"
+        },
+        {
+          "@type": "ListItem",
+          "position": 6,
+          "name": "Tool Guide & FAQ",
+          "item": "https://polymagicprice.rphobbyist.com/tool-guide"
+        },
+        {
+          "@type": "ListItem",
+          "position": 7,
+          "name": "Settings",
+          "item": "https://polymagicprice.rphobbyist.com/settings"
+        }
+      ]
+    }
+  </script>
+
+  <!-- Structured Data: HowTo for "How to Calculate 3D Printing Costs" -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "How to Calculate 3D Printing Costs with PolymagicPrice",
+      "description": "Learn how to accurately calculate the cost of a 3D print using PolymagicPrice. This step-by-step guide covers material costs, electricity, labor, machine depreciation, and generating professional quotes.",
+      "totalTime": "PT5M",
+      "tool": [
+        { "@type": "HowToTool", "name": "PolymagicPrice Calculator" },
+        { "@type": "HowToTool", "name": "Sliced G-code file (.gcode, .3mf, or .cxdlpv4)" }
+      ],
+      "step": [
+        {
+          "@type": "HowToStep",
+          "position": 1,
+          "name": "Configure your shop settings",
+          "text": "Open Settings and add your materials (e.g., PLA at $25/kg), register your printers with wattage and depreciation, and set your local electricity rate and hourly labor cost.",
+          "url": "https://polymagicprice.rphobbyist.com/settings"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 2,
+          "name": "Slice your 3D model",
+          "text": "Use a slicer like Cura, PrusaSlicer, OrcaSlicer, or BambuStudio to slice your STL or 3MF model. Export the resulting .gcode or .3mf file."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 3,
+          "name": "Upload and auto-fill parameters",
+          "text": "Navigate to the Cost Calculator and drag and drop your sliced file. PolymagicPrice auto-detects print time, material weight, printer model, and material type.",
+          "url": "https://polymagicprice.rphobbyist.com/calculator"
+        },
+        {
+          "@type": "HowToStep",
+          "position": 4,
+          "name": "Set markup and overhead",
+          "text": "Use the markup slider to set your profit margin (20-50% is standard). Add overhead percentage to cover failed prints, packaging, and administrative costs."
+        },
+        {
+          "@type": "HowToStep",
+          "position": 5,
+          "name": "Generate a professional PDF quote",
+          "text": "Review the full cost breakdown showing material, electricity, labor, machine wear, and consumable costs. Click Generate PDF Quote to create a professional document for your customer."
+        }
+      ]
+    }
+  </script>
 </head>
 
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+
+  <!-- Noscript fallback for search engine crawlers and users with JS disabled -->
+  <noscript>
+    <div style="max-width:800px;margin:40px auto;padding:20px;font-family:Arial,system-ui,sans-serif;text-align:center;">
+      <h1>PolymagicPrice — Free 3D Printing Price Calculator</h1>
+      <p>PolymagicPrice is a free, open-source 3D printing price calculator for FDM filament and Resin (SLA/DLP) printing by <a href="https://www.rphobbyist.com">Rp Hobbyist</a>.</p>
+      <h2>Features</h2>
+      <ul style="text-align:left;display:inline-block;">
+        <li>FDM Filament &amp; Resin (SLA/DLP) Cost Calculators</li>
+        <li>G-code, 3MF, and CXDLPV4 File Auto-Fill</li>
+        <li>Material &amp; Machine Inventory Management</li>
+        <li>Professional Quote Generation &amp; Export</li>
+        <li>Quote Dashboard with Analytics</li>
+        <li>Multi-Currency Support</li>
+        <li>AI-Powered Pricing Insights</li>
+        <li>Production Kanban Board &amp; Order Management</li>
+        <li>Customer CRM System</li>
+        <li>Desktop App Available (Windows, macOS, Linux)</li>
+      </ul>
+
+      <h2>Frequently Asked Questions</h2>
+      <div style="text-align:left;">
+        <h3>How do I calculate 3D printing costs?</h3>
+        <p>PolymagicPrice calculates costs using: Material Cost + Electricity Cost + Machine Depreciation + Labor Cost + Overhead. Upload a G-code file for auto-fill or enter values manually.</p>
+
+        <h3>Is PolymagicPrice free to use?</h3>
+        <p>Yes, 100% free and open-source under AGPLv3. Use in your browser, download the desktop app, or self-host. No fees, subscriptions, or paywalls.</p>
+
+        <h3>What 3D printing technologies does PolymagicPrice support?</h3>
+        <p>FDM (Fused Deposition Modeling) for filament printing and Resin-based printing including SLA (Stereolithography) and DLP (Digital Light Processing).</p>
+
+        <h3>Can I upload G-code files to auto-calculate costs?</h3>
+        <p>Yes. Drag and drop .gcode, .3mf, or .cxdlpv4 files. The parser extracts print time, filament weight, resin volume, printer model, and material type automatically.</p>
+
+        <h3>Does PolymagicPrice work offline?</h3>
+        <p>Yes. The desktop app works completely offline. All calculations are performed client-side with zero server dependency.</p>
+
+        <h3>Is my data private and secure?</h3>
+        <p>None of your data ever leaves your machine. No external trackers, cloud analytics, or telemetry. The desktop app uses hardware-backed encryption.</p>
+
+        <h3>How much should I charge for 3D prints?</h3>
+        <p>Total Price = (Material + Electricity + Machine Wear + Labor + Overhead) x (1 + Markup%). The Rule of 3 is a common starting point. Typical markup is 20-50%.</p>
+
+        <h3>What is a good markup percentage for 3D printing?</h3>
+        <p>Industry standard is 20-50%. Simple parts: 20-30%. Custom or artisan work: 40-50% or higher.</p>
+
+        <h3>How do I account for failed prints in my pricing?</h3>
+        <p>Add your failure rate (typically 5-15%) to production costs. Use the overhead percentage field in PolymagicPrice.</p>
+
+        <h3>How do I calculate electricity costs for 3D printing?</h3>
+        <p>Formula: (Printer Wattage / 1000) x Print Hours x Electricity Rate per kWh. Most FDM printers use 100-150W.</p>
+
+        <h3>Is resin printing more expensive than FDM?</h3>
+        <p>Yes. Filament costs $15-$50/kg, resin costs $35-$150+/liter, plus consumables like IPA, gloves, and FEP film.</p>
+
+        <h3>How do I price 3D prints for Etsy?</h3>
+        <p>Include Etsy's 6.5% transaction fee and payment processing. Divide target price by 0.90 to maintain margin after fees.</p>
+
+        <h3>What file formats does PolymagicPrice support?</h3>
+        <p>.gcode (Cura, PrusaSlicer, OrcaSlicer, BambuStudio), .3mf (3D Manufacturing Format), .cxdlpv4 (ChiTuBox resin format).</p>
+
+        <h3>Can I connect my Bambu Lab printer?</h3>
+        <p>Yes. Desktop version supports Bambu Lab integration for real-time monitoring, file sending, and the Polymagic Bridge slicer link.</p>
+
+        <h3>How do I manage multiple printers and materials?</h3>
+        <p>Register your fleet in Settings. Each printer has its own costs, wattage, and depreciation. The Capacity Planner forecasts across all machines.</p>
+      </div>
+
+      <p>This application requires JavaScript to run. Please enable JavaScript in your browser.</p>
+      <p><a href="https://github.com/RPHobbyist/PolymagicPrice">View Source Code on GitHub</a> | <a href="https://www.rphobbyist.com">Visit Rp Hobbyist</a></p>
+    </div>
+  </noscript>
 </body>
 
 </html>

@@ -17,30 +17,35 @@
  */
 
 import { useState, memo, useCallback, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Trash2, FileSpreadsheet, Edit, Eye, Database, AlertTriangle, Copy, Printer, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Trash2, Edit, Eye, Database, AlertTriangle, Printer, FileSpreadsheet, Search, Send, RotateCcw } from "lucide-react";
 import { PrintJobDialog } from "@/components/print-management/PrintJobDialog";
 import { QuoteData } from "@/types/quote";
+import { getOrderId } from "@/lib/utils/order-utils";
 import { BambuDevice, PrinterConnection, PrintOptions } from "@/types/printer";
 import { toast } from "sonner";
-// import ExcelJS from "exceljs"; // Lazy loaded instead
 import { saveAs } from "file-saver";
 import { useCurrency } from "@/hooks/useCurrency";
+import { sanitize } from "@/lib/sanitization";
 
 // New Hooks & Components
 import { useQuotesFilter } from "@/hooks/useQuotesFilter";
 import { QuotesToolbar } from "@/components/saved-quotes/QuotesToolbar";
 import { QuoteDetailsDialog } from "@/components/saved-quotes/QuoteDetailsDialog";
+import { useProduction } from "@/hooks/useProduction";
 
 interface SavedQuotesTableProps {
   quotes: QuoteData[];
   onDeleteQuote: (id: string) => void;
-  onUpdateNotes: (id: string, notes: string) => void;
-  onDuplicateQuote?: (quote: QuoteData) => void;
+  onUpdateQuote: (id: string, updates: Partial<QuoteData>) => void;
 }
 
 // Status helper functions
@@ -53,34 +58,16 @@ const getStatusLabel = (status?: string) => {
     case 'DISPATCHED': return 'Dispatched';
     case 'DELIVERED': return 'Delivered';
     case 'FAILED': return 'Failed';
-    default: return 'Pending';
+    case 'CANCELLED': return 'Cancelled';
+    default: return 'Quoted';
   }
 };
 
-const getStatusStyle = (status?: string) => {
-  switch (status) {
-    case 'APPROVED': return 'bg-emerald-100 text-emerald-700';
-    case 'PRINTING': return 'bg-blue-100 text-blue-700';
-    case 'POST_PROCESSING': return 'bg-amber-100 text-amber-700';
-    case 'DONE': return 'bg-green-100 text-green-700';
-    case 'DISPATCHED': return 'bg-purple-100 text-purple-700';
-    case 'DELIVERED': return 'bg-teal-100 text-teal-700';
-    case 'FAILED': return 'bg-red-100 text-red-700';
-    default: return 'bg-slate-100 text-slate-600';
-  }
-};
 
-const getPriorityStyle = (priority?: string) => {
-  switch (priority) {
-    case 'High': return 'bg-red-100 text-red-700';
-    case 'Low': return 'bg-slate-100 text-slate-600';
-    default: return 'bg-amber-100 text-amber-700'; // Medium
-  }
-};
-
-const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplicateQuote }: SavedQuotesTableProps) => {
+const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQuotesTableProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
+  const [editFailedUnits, setEditFailedUnits] = useState<number | "">(0);
   const [viewingQuote, setViewingQuote] = useState<QuoteData | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [sendingQuote, setSendingQuote] = useState<QuoteData | null>(null);
@@ -146,6 +133,9 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
   };
 
   const { currency, formatPrice } = useCurrency();
+  const { jobs, addJob, moveJob } = useProduction();
+
+
 
   const exportToExcel = useCallback(async () => {
     if (quotes.length === 0) {
@@ -153,12 +143,14 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
       return;
     }
 
-    const ExcelJS = (await import("exceljs")).default;
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Quotes");
+    try {
+        const ExcelJS = (await import("exceljs")).default;
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Quotes");
 
-    worksheet.columns = [
+        worksheet.columns = [
       { header: "S.No", key: "sno", width: 8 },
+      { header: "Order ID", key: "orderId", width: 12 },
       { header: "Project Name", key: "projectName", width: 25 },
       { header: "Client", key: "clientName", width: 20 },
       { header: "Print Type", key: "printType", width: 12 },
@@ -181,17 +173,18 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
     quotes.forEach((quote, index) => {
       worksheet.addRow({
         sno: index + 1,
+        orderId: getOrderId(quote.id),
         projectName: quote.projectName,
         clientName: quote.clientName || "",
         printType: quote.printType,
         printColour: quote.printColour,
-        materialName: quote.parameters.materialName,
-        machineName: quote.parameters.machineName,
+        materialName: quote.parameters?.materialName || "-",
+        machineName: quote.parameters?.machineName || "-",
         materialCost: formatPrice(quote.materialCost),
         machineTimeCost: formatPrice(quote.machineTimeCost),
         electricityCost: formatPrice(quote.electricityCost),
         laborCost: formatPrice(quote.laborCost),
-        consumablesCost: quote.parameters.consumablesTotal ? formatPrice(quote.parameters.consumablesTotal) : formatPrice(0),
+        consumablesCost: quote.parameters?.consumablesTotal ? formatPrice(quote.parameters.consumablesTotal) : formatPrice(0),
         overheadCost: formatPrice(quote.overheadCost),
         subtotal: formatPrice(quote.subtotal),
         markup: formatPrice(quote.markup),
@@ -210,20 +203,31 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
     saveAs(blob, `3d-print-quotes-${Date.now()}.xlsx`);
 
     toast.success("Quotes exported to Excel!");
+    } catch (err) {
+        console.error("Excel Export Failed:", err);
+        toast.error("Failed to generate Excel file. Please check your connection or reload the app.");
+    }
   }, [quotes, formatPrice]);
 
   const handleEditClick = useCallback((quote: QuoteData) => {
     setEditingId(quote.id || null);
     setEditNotes(quote.notes || "");
+    setEditFailedUnits(quote.failedUnits ?? 0);
   }, []);
 
   const handleSaveNotes = useCallback(() => {
     if (editingId !== null) {
-      onUpdateNotes(editingId, editNotes);
+      if (onUpdateQuote) {
+        onUpdateQuote(editingId, { 
+          notes: editNotes, 
+          failedUnits: editFailedUnits === "" ? 0 : editFailedUnits 
+        });
+      }
       setEditingId(null);
       setEditNotes("");
+      setEditFailedUnits(0);
     }
-  }, [editingId, editNotes, onUpdateNotes]);
+  }, [editingId, editNotes, editFailedUnits, onUpdateQuote]);
 
   const handleDeleteConfirm = useCallback(() => {
     if (deleteId !== null) {
@@ -237,11 +241,11 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
       <Card className="p-10 shadow-card bg-card border-dashed border-2 border-border animate-fade-in">
         <div className="flex flex-col items-center justify-center text-center gap-5">
           <div className="p-5 bg-gradient-subtle rounded-2xl shadow-card">
-            <Database className="w-10 h-10 text-muted-foreground" />
+            <Database className="w-10 h-10 text-slate-600" />
           </div>
           <div>
-            <h3 className="text-xl font-semibold text-foreground">No Saved Quotes</h3>
-            <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+            <h2 className="text-xl font-semibold text-foreground">No Quote History</h2>
+            <p className="text-sm text-slate-600 mt-2 max-w-sm">
               Calculate and save quotes to see them here.
             </p>
           </div>
@@ -253,11 +257,11 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
   return (
     <>
       <Card className="shadow-elevated bg-card overflow-hidden border-border animate-fade-in">
-        <div className="bg-gradient-primary p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="bg-primary p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Database className="w-5 h-5 text-primary-foreground" />
-            <h2 className="text-xl font-bold text-primary-foreground">
-              Saved Quotes
+            <Database className="w-5 h-5 text-white" />
+            <h2 className="text-xl font-bold text-white">
+              History
               <span className="ml-2 text-sm font-normal opacity-75">
                 ({filteredAndSortedQuotes.length} / {quotes.length})
               </span>
@@ -287,10 +291,11 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableRow className="bg-slate-100 hover:bg-slate-100">
                 <TableHead className="w-12 font-semibold text-foreground">S.No</TableHead>
+                <TableHead className="w-24 font-semibold text-foreground">Order ID</TableHead>
                 <TableHead className="font-semibold text-foreground">Project Name</TableHead>
-                <TableHead className="font-semibold text-foreground">Client</TableHead>
+                <TableHead className="font-semibold text-foreground">Client Name</TableHead>
                 <TableHead className="font-semibold text-foreground">Type</TableHead>
                 <TableHead className="font-semibold text-foreground">Status</TableHead>
                 <TableHead className="font-semibold text-foreground">Priority</TableHead>
@@ -303,75 +308,142 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
             <TableBody>
               {filteredAndSortedQuotes.length > 0 ? (
                 filteredAndSortedQuotes.map((quote, index) => {
-                  const originalIndex = quotes.findIndex(q => q.id === quote.id);
-
                   return (
                     <TableRow
                       key={quote.id || index}
-                      className="hover:bg-muted/40 transition-colors group"
+                      className="hover:bg-slate-50 transition-colors group"
                     >
-                      <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
-                      <TableCell className="font-semibold text-foreground">{quote.projectName}</TableCell>
-                      <TableCell className="text-muted-foreground">{quote.clientName || "-"}</TableCell>
-                      <TableCell>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${quote.printType === "FDM"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-accent/10 text-accent"
-                          }`}>
-                          {quote.printType}
-                        </span>
+                      <TableCell className="font-medium text-black">{index + 1}</TableCell>
+                      <TableCell className="font-normal text-black uppercase tracking-tight">
+                        {getOrderId(quote.id)}
                       </TableCell>
+                      <TableCell className="text-foreground font-medium max-w-[200px] break-words whitespace-normal leading-tight" title={quote.projectName}>
+                        <div className="flex flex-col gap-1">
+                          {quote.isBatch && (
+                            <Badge variant="outline" className="w-fit text-[9px] h-4 bg-primary/5 text-primary border-primary/30 uppercase font-normal tracking-tighter px-1.5">
+                              Batch ({quote.batchItems?.length || 0} items)
+                            </Badge>
+                          )}
+                          <span className="truncate">
+                            {sanitize(quote.projectName.length > 30 ? quote.projectName.substring(0, 30) + "..." : quote.projectName)}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-black max-w-[200px] break-words whitespace-normal leading-tight" title={quote.clientName || ""}>
+                        {sanitize((quote.clientName || "-").length > 30 ? (quote.clientName || "").substring(0, 30) + "..." : (quote.clientName || "-"))}
+                      </TableCell>
+                        <TableCell>
+                          <span className={cn(
+                            "px-2 py-1 rounded-full text-xs font-bold",
+                            quote.printType === "FDM" ? "bg-primary/10 text-primary" : "bg-purple-500/10 text-purple-600"
+                          )}>
+                            {quote.printType}
+                          </span>
+                        </TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusStyle(quote.status)}`}>
+                        <span className={cn(
+                          "px-2 py-1 rounded-full text-xs font-bold",
+                          quote.status === "DONE" || quote.status === "APPROVED" || quote.status === "DELIVERED" ? "bg-emerald-100/80 text-emerald-700" :
+                          quote.status === "PRINTING" || quote.status === "POST_PROCESSING" || quote.status === "DISPATCHED" ? "bg-primary/10 text-primary" :
+                          quote.status === "FAILED" ? "bg-red-100/80 text-red-700" : "bg-amber-100/80 text-amber-700"
+                        )}>
                           {getStatusLabel(quote.status)}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityStyle(quote.priority)}`}>
+                        <span className={cn(
+                          "px-2 py-1 rounded-full text-xs font-bold",
+                          quote.priority === "High" ? "bg-red-100/80 text-red-700" :
+                          quote.priority === "Low" ? "bg-slate-100 text-slate-600" : "bg-amber-100/80 text-amber-700"
+                        )}>
                           {quote.priority || 'Medium'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-black">
                         {quote.dueDate ? new Date(quote.dueDate).toLocaleDateString() : "-"}
                       </TableCell>
                       <TableCell className="text-right font-bold text-foreground tabular-nums">
                         {formatPrice(quote.totalPrice)}
                       </TableCell>
-                      <TableCell className="max-w-[120px] truncate text-sm text-muted-foreground" title={quote.notes || ""}>
-                        {quote.notes || "-"}
+                      <TableCell className="max-w-[150px] truncate text-sm" title={quote.notes || ""}>
+                        <div className="flex flex-col gap-1">
+                          {(quote.failedUnits || 0) > 0 && (
+                            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-100/80 text-red-700 flex items-center gap-1 w-fit animate-pulse">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              {quote.failedUnits} FAILED
+                            </span>
+                          )}
+                          <span className="text-black">
+                            {quote.notes || "-"}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => setViewingQuote(quote)}
-                            className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-8 w-8"
+                            className="text-black hover:text-primary hover:bg-primary/10 h-8 w-8"
                             title="View details"
+                            aria-label="View quote details"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {onDuplicateQuote && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                if (onDuplicateQuote) onDuplicateQuote(quote);
-                              }}
-                              className="text-muted-foreground hover:text-success hover:bg-success/10 h-8 w-8"
-                              title="Duplicate quote"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={quote.status !== 'APPROVED'}
+                            onClick={() => {
+                                if (onUpdateQuote && quote.id) {
+                                    const isReprint = quote.status === 'FAILED' || (quote.failedUnits || 0) > 0;
+                                    
+                                    if (isReprint) {
+                                        // 1. Clear failed units and approve
+                                        onUpdateQuote(quote.id, { status: 'APPROVED', reprintCount: (quote.reprintCount || 0) + 1 });
+                                        
+                                        // 2. Reset production job if it exists
+                                        const existingJob = jobs.find(j => j.quote.id === quote.id);
+                                        if (existingJob) {
+                                            moveJob(existingJob.id, 'queued', null);
+                                        }
+                                        
+                                        toast.success("Job queued for reprint!");
+                                    } else {
+                                        // 1. Move status to approved
+                                        onUpdateQuote(quote.id, { status: 'APPROVED' });
+                                        
+                                        // 2. Create production job if it doesn't exist
+                                        const existingJob = jobs.find(j => j.quote.id === quote.id);
+                                        if (!existingJob) {
+                                            addJob(quote);
+                                        }
+                                        
+                                        toast.success("Quote sent to production queue!");
+                                    }
+                                }
+                            }}
+                            className={cn(
+                                "h-8 w-8 transition-all hover:bg-primary/10",
+                                !['PENDING', 'FAILED'].includes(quote.status || '') && (quote.failedUnits || 0) === 0
+                                    ? "text-slate-300 cursor-not-allowed" 
+                                    : "text-black hover:text-primary"
+                            )}
+                            title={quote.status === 'FAILED' || (quote.failedUnits || 0) > 0 ? "Reprint Failed Job" : "Send to Production"}
+                            aria-label={quote.status === 'FAILED' || (quote.failedUnits || 0) > 0 ? "Reprint order" : "Send to production"}
+                          >
+                            {quote.status === 'FAILED' || (quote.failedUnits || 0) > 0 ? <RotateCcw className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                          </Button>
 
                           {quote.filePath && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setSendingQuote(quote)}
-                              className="text-muted-foreground hover:text-green-600 hover:bg-green-600/10 h-8 gap-1 px-2"
+                              className="text-slate-600 hover:text-green-600 hover:bg-green-600/10 h-8 gap-1 px-2"
                               title="Print Plate"
+                              aria-label="Print plate to machine"
                             >
                               <Printer className="w-4 h-4" />
                               <span className="text-xs font-medium">Print</span>
@@ -382,8 +454,9 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEditClick(quote)}
-                            className="text-muted-foreground hover:text-accent hover:bg-accent/10 h-8 w-8"
+                            className="text-black hover:text-accent hover:bg-accent/10 h-8 w-8"
                             title="Edit notes"
+                            aria-label="Edit quote notes"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -391,8 +464,9 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
                             variant="ghost"
                             size="icon"
                             onClick={() => setDeleteId(quote.id || null)}
-                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                            className="text-black hover:text-destructive hover:bg-destructive/10 h-8 w-8"
                             title="Delete quote"
+                            aria-label="Delete quote"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -405,7 +479,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
               ) : (
                 <TableRow>
                   <TableCell colSpan={11} className="h-24 text-center">
-                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center text-slate-600">
                       <Search className="w-8 h-8 mb-2 opacity-20" />
                       <p>No quotes match your search filters.</p>
                       <Button variant="link" onClick={() => { setSearchQuery(""); setFilterType("all"); }}>
@@ -428,7 +502,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
               <AlertTriangle className="w-5 h-5 text-destructive" />
               Confirm Delete
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-slate-600">
               Are you sure you want to delete this quote?
               This action cannot be undone.
             </DialogDescription>
@@ -449,15 +523,46 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
         <DialogContent className="bg-card border-border">
           <DialogHeader>
             <DialogTitle className="text-foreground">
-              Edit Notes
+              Edit Project Records
             </DialogTitle>
           </DialogHeader>
-          <Textarea
-            placeholder="Add additional details or notes for this quote..."
-            value={editNotes}
-            onChange={(e) => setEditNotes(e.target.value)}
-            className="min-h-[120px] bg-background border-input focus:ring-2 focus:ring-ring"
-          />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="failed-units" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Production Loss (Failed Units)
+              </Label>
+              <Input
+                id="failed-units"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={editFailedUnits}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val !== "" && parseInt(val) < 0) return;
+                  setEditFailedUnits(val === "" ? "" : parseInt(val) || 0);
+                }}
+                className="bg-background border-input"
+              />
+              <p className="text-[10px] text-slate-600 italic">
+                Record units that failed during printing. These will be added to the dashboard stats.
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                General Notes
+              </Label>
+              <Textarea
+                id="notes"
+                placeholder="Add additional details or notes for this quote..."
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="min-h-[100px] bg-background border-input focus:ring-2 focus:ring-ring"
+                maxLength={2000}
+              />
+            </div>
+          </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditingId(null)}>
               Cancel
@@ -474,6 +579,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
         quote={viewingQuote}
         open={viewingQuote !== null}
         onOpenChange={(open) => !open && setViewingQuote(null)}
+        onUpdateQuote={onUpdateQuote}
       />
 
       {/* Print Job Dialog (Bambu Style) */}
@@ -483,7 +589,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateNotes, onDuplica
         job={{ id: sendingQuote?.id || "temp-job", quote: sendingQuote }}
         machines={printers}
         connections={connections}
-        onSend={handleSendFileConfirm}
+        onSend={(machineId, jobId, fileOrPath, options) => handleSendFileConfirm(machineId, fileOrPath, options)}
       />
     </>
   );

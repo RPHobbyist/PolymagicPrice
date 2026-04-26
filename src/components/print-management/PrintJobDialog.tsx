@@ -35,7 +35,8 @@ import {
 import { RefreshCw, Timer, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { PrinterConnection, PrintOptions } from "@/types/printer";
-import { QuoteData, Machine } from "@/types/quote";
+import { QuoteData } from "@/types/quote";
+import { sanitize } from "@/lib/sanitization";
 
 // Define a minimal Job interface if not available elsewhere
 export interface PrintJobData {
@@ -52,7 +53,7 @@ interface PrintJobDialogProps {
     job: PrintJobData | null;
     machines: { id: string; name: string; }[];
     connections: Record<string, PrinterConnection>;
-    onSend: (machineId: string, fileOrPath: File | string, options: PrintOptions) => Promise<void>;
+    onSend: (machineId: string, jobId: string, fileOrPath: File | string, options: PrintOptions) => Promise<void>;
 }
 
 export function PrintJobDialog({
@@ -98,7 +99,7 @@ export function PrintJobDialog({
                 return;
             }
 
-            await onSend(selectedMachineId, fileToPrint, options);
+            await onSend(selectedMachineId, job.id, fileToPrint, options);
             onOpenChange(false);
         } catch (error) {
             const e = error as Error;
@@ -125,25 +126,25 @@ export function PrintJobDialog({
                     {/* Thumbnail / Image Area */}
                     <div className="flex justify-center">
                         {/* Thumbnail if available, or placeholder */}
-                        <div className="w-48 h-48 bg-muted flex items-center justify-center rounded-lg text-muted-foreground">
+                        <div className="w-48 h-48 bg-muted flex items-center justify-center rounded-lg text-slate-600">
                             No Preview
                         </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="flex justify-center gap-12 text-sm text-muted-foreground">
+                    <div className="flex justify-center gap-12 text-sm text-slate-600">
                         <div className="flex items-center gap-2">
-                            <Timer className="w-4 h-4" />
+                            <Timer className="w-4 h-4" aria-hidden="true" />
                             <span>{job.quote?.parameters?.printTime || "0h 0m"}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Weight className="w-4 h-4" />
+                            <Weight className="w-4 h-4" aria-hidden="true" />
                             <span>{job.quote?.parameters?.filamentWeight || "0"} g</span>
                         </div>
                     </div>
 
                     <div className="text-center font-medium">
-                        {job.customerName || job.id} { /* Or Job Name */}
+                        {sanitize(job.customerName || job.id)}
                     </div>
 
                     {/* Printer Selection */}
@@ -159,13 +160,13 @@ export function PrintJobDialog({
                                 ) : (
                                     connectedMachines.map((m) => (
                                         <SelectItem key={m.id} value={m.id}>
-                                            {m.name}
+                                            {sanitize(m.name)}
                                         </SelectItem>
                                     ))
                                 )}
                             </SelectContent>
                         </Select>
-                        <Button variant="outline" size="icon" className="shrink-0" onClick={() => { /* Refresh logic? */ }}>
+                        <Button variant="outline" size="icon" className="shrink-0" onClick={() => { /* Refresh logic? */ }} aria-label="Refresh printer list">
                             <RefreshCw className="w-4 h-4" />
                         </Button>
                     </div>

@@ -40,8 +40,10 @@ export const MAX_LOGO_SIZE_BYTES = MAX_LOGO_SIZE_MB * 1024 * 1024;
  * Example: "my-model.gcode" -> "my-model"
  */
 export function stripFileExtension(filename: string): string {
-  if (!filename) return "";
-  return filename.substring(0, filename.lastIndexOf('.')) || filename;
+  if (!filename) return "Unnamed Model";
+  const name = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  // Return fallback if name is empty or only noise
+  return name.trim() || "Unnamed Model";
 }
 
 /**
@@ -73,10 +75,8 @@ export function processVisibilityFromDescription(description: string | null, isV
 export function addVisibilityTag(description: string, isVisible: boolean): string {
   let finalDescription = description || "";
 
-  // Remove existing tag if present to avoid duplication
-  if (finalDescription.startsWith('[HIDDEN] ')) {
-    finalDescription = finalDescription.replace('[HIDDEN] ', '');
-  }
+  // Remove existing tag if present to avoid duplication (match with or without trailing space)
+  finalDescription = finalDescription.replace(/^\[HIDDEN\]\s*/, '');
 
   if (!isVisible) {
     finalDescription = `[HIDDEN] ${finalDescription}`;
@@ -117,6 +117,9 @@ export function calculateTotalTime(timeStr: string | undefined, quantity: number
 
   // Multiply by quantity
   totalMinutes *= quantity;
+  
+  // Enforce a ten-year cap (5,256,000 minutes) to prevent numerical UI breaking or Infinity
+  totalMinutes = Math.min(5256000, totalMinutes);
 
   // Format back to string
   const hours = Math.floor(totalMinutes / 60);

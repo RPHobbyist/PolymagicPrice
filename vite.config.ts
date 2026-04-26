@@ -22,7 +22,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "./",
+  base: "/",
   server: {
     host: "localhost",
     port: 8080,
@@ -44,10 +44,12 @@ export default defineConfig(({ mode }) => ({
           // Vendor chunks - separate large libraries
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-charts': ['recharts'],
-          'vendor-utils': ['date-fns', 'clsx', 'class-variance-authority', 'tailwind-merge'],
+          'vendor-utils': ['clsx', 'class-variance-authority', 'tailwind-merge'],
         },
       },
     },
+    // Explicitly enable CSS code splitting for better Lighthouse scores
+    cssCodeSplit: true,
     // Use esbuild for minification (built-in, faster than terser)
     minify: 'esbuild',
     // Drop console in production
@@ -58,6 +60,10 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     // Target modern browsers to avoid legacy polyfills (saves ~12KB)
     target: "es2022",
+    // Optimize module preloading
+    modulePreload: {
+      polyfill: false,
+    },
   },
   // Optimize dependencies
   optimizeDeps: {

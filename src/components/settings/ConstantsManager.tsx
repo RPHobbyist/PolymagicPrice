@@ -184,9 +184,9 @@ const ConstantsManager = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+        <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-foreground">Consumables</h2>
-          <p className="text-sm text-muted-foreground">Manage your printing constants.</p>
+          <p className="text-sm text-slate-600">Manage your printing constants.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:w-64">
@@ -200,6 +200,7 @@ const ConstantsManager = () => {
               className="pl-9 bg-background/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search consumables by name"
             />
           </div>
           <Button onClick={handleAddNew} className="bg-gradient-accent">
@@ -213,19 +214,19 @@ const ConstantsManager = () => {
       <div className="border border-border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Value</TableHead>
-              <TableHead>Unit</TableHead>
-              <TableHead className="w-20 text-center">Visible</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="font-semibold text-foreground">Name</TableHead>
+              <TableHead className="font-semibold text-foreground">Value</TableHead>
+              <TableHead className="font-semibold text-foreground">Unit</TableHead>
+              <TableHead className="w-20 text-center font-semibold text-foreground">Visible</TableHead>
+              <TableHead className="font-semibold text-foreground">Description</TableHead>
+              <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredConstants.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-slate-600 py-8">
                   {searchQuery ? "No results found." : "No constants added yet. Add your first constant above."}
                 </TableCell>
               </TableRow>
@@ -237,12 +238,12 @@ const ConstantsManager = () => {
                   <TableCell>{constant.unit.replace(/\$/g, currency?.symbol || "$")}</TableCell>
                   <TableCell className="text-center">
                     {constant.is_visible !== false ? (
-                      <Eye className="w-4 h-4 mx-auto text-muted-foreground" />
+                      <Eye className="w-4 h-4 mx-auto text-slate-600" />
                     ) : (
-                      <EyeOff className="w-4 h-4 mx-auto text-muted-foreground/50" />
+                      <EyeOff className="w-4 h-4 mx-auto text-slate-400" />
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-slate-600">
                     {constant.description ? constant.description.replace(/cm2/g, "cm²") : "-"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -289,6 +290,7 @@ const ConstantsManager = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., Electricity Rate, Labor Rate"
                   required
+                  maxLength={100}
                 />
               </div>
 
@@ -300,8 +302,13 @@ const ConstantsManager = () => {
                   autoComplete="off"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.value}
-                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val !== "" && parseFloat(val) < 0) return;
+                    setFormData({ ...formData, value: val });
+                  }}
                   placeholder="0.15"
                   required
                 />
@@ -317,6 +324,7 @@ const ConstantsManager = () => {
                   onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                   placeholder="e.g., $/kWh, $/hr, %"
                   required
+                  maxLength={50}
                 />
               </div>
 
@@ -329,6 +337,7 @@ const ConstantsManager = () => {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Optional description"
+                  maxLength={200}
                 />
               </div>
 

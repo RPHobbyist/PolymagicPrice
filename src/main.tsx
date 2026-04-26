@@ -21,8 +21,13 @@ import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
+import { initializeDefaults } from "./lib/core/sessionStorage";
+
 // Disable right-click context menu globally
 document.addEventListener('contextmenu', (event) => event.preventDefault());
+
+// Initialize system storage with factory defaults
+initializeDefaults();
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>

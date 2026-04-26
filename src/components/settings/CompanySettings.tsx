@@ -21,8 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Building2, Save, Upload, Trash2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Save, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getCompanySettings, saveCompanySettings } from "@/lib/core/sessionStorage";
 import { CompanySettings as CompanySettingsType } from "@/types/quote";
@@ -124,16 +124,13 @@ const CompanySettings = () => {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            <div className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold text-foreground">Company Information</h2>
+                <p className="text-sm text-slate-600">These details will appear on your generated quote PDFs and invoices.</p>
+            </div>
+
             <Card>
-                <CardHeader>
-                    <div>
-                        <h2 className="text-2xl font-semibold leading-none tracking-tight">Company Information</h2>
-                        <CardDescription>
-                            These details will appear on your generated quote PDFs and invoices.
-                        </CardDescription>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 pt-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <Label htmlFor="name">Company Name</Label>
@@ -253,7 +250,7 @@ const CompanySettings = () => {
                                     onChange={handleLogoUpload}
                                     className="max-w-[250px]"
                                 />
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-slate-600">
                                     Recommended: Square PNG or JPG, max {MAX_LOGO_SIZE_MB}MB.
                                 </p>
                             </div>

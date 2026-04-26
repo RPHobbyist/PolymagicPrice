@@ -18,8 +18,7 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload, FileBox, Loader2, CheckCircle2 } from "lucide-react";
-// import { parse3mf } from "@/lib/parsers/gcodeParser"; // Lazy loaded
+import { Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils";
 
@@ -31,7 +30,6 @@ interface SurfaceAreaUploadProps {
 export const SurfaceAreaUpload = ({ onSurfaceAreaDetected, className }: SurfaceAreaUploadProps) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [lastUploadedFile, setLastUploadedFile] = useState<string | null>(null);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -61,7 +59,6 @@ export const SurfaceAreaUpload = ({ onSurfaceAreaDetected, className }: SurfaceA
 
             if (data.surfaceAreaMm2 && data.surfaceAreaMm2 > 0) {
                 onSurfaceAreaDetected(data.surfaceAreaMm2);
-                setLastUploadedFile(file.name);
                 toast.success(`Extracted surface area: ${(data.surfaceAreaMm2 / 100).toFixed(2)} cm²`);
             } else {
                 // More descriptive error

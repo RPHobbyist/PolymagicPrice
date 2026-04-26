@@ -18,13 +18,14 @@
 
 import { useState, ReactNode } from "react";
 import { Currency, CURRENCIES } from "@/types/currency";
-import { CurrencyContext } from "@/contexts/CurrencyContext";
+import { CurrencyContext, CurrencyContextType } from "@/contexts/CurrencyContext";
 
 interface CurrencyProviderProps {
     children: ReactNode;
 }
 
 const STORAGE_KEY = "preferred-currency";
+const RATE_STORAGE_KEY = "conversion-rate";
 
 export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
     const [currency, setCurrencyState] = useState<Currency>(() => {
@@ -39,17 +40,51 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         return CURRENCIES[0]; // Default to INR
     });
 
+    const [conversionRate, setRateState] = useState<number>(() => {
+        if (typeof window !== "undefined") {
+            const saved = localStorage.getItem(RATE_STORAGE_KEY);
+            return saved ? parseFloat(saved) : 1.0;
+        }
+        return 1.0;
+    });
+
     const setCurrency = (newCurrency: Currency) => {
         setCurrencyState(newCurrency);
         localStorage.setItem(STORAGE_KEY, newCurrency.code);
     };
 
+    const setConversionRate = (rate: number) => {
+        setRateState(rate);
+        localStorage.setItem(RATE_STORAGE_KEY, rate.toString());
+    };
+
     const formatPrice = (amount: number): string => {
-        return `${currency.symbol}${amount.toFixed(2)}`;
+        // Final Precautionary Layer for numerical edge-cases
+        if (amount === undefined || amount === null || isNaN(amount) || !isFinite(amount)) {
+            return `${currency.symbol} --`;
+        }
+        
+        const converted = amount * conversionRate;
+        
+        // Final sanity check for converted result
+        if (isNaN(converted) || !isFinite(converted)) return `${currency.symbol} --`;
+
+        return `${currency.symbol}${converted.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })}`;
+    };
+
+    const contextValue: CurrencyContextType = {
+        currency,
+        setCurrency,
+        conversionRate,
+        setConversionRate,
+        formatPrice
     };
 
     return (
-        <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice }}>
+        <CurrencyContext.Provider value={contextValue}>
             {children}
         </CurrencyContext.Provider>
     );

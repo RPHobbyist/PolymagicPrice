@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://polymagicprice.com/sitemap.xml

@@ -85,7 +85,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
               </div>
 
               <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold">We'd Love Your Feedback!</h3>
+                <h2 className="text-lg font-semibold">We'd Love Your Feedback!</h2>
                 <p className="text-sm text-muted-foreground max-w-md">
                   Help us improve by sharing your thoughts, suggestions, and experience with this tool.
                 </p>
