@@ -132,30 +132,30 @@ export default function SettingsAI() {
                         </div>
 
                         {!isAllowed && (
-                            <div className="mt-8 p-6 rounded-xl bg-slate-950 text-slate-200 text-left max-w-2xl mx-auto space-y-4 shadow-2xl border border-white/5 animate-in fade-in zoom-in-95 duration-500">
+                            <div className="mt-8 p-6 rounded-xl bg-slate-50 text-slate-900 text-left max-w-2xl mx-auto space-y-4 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-500">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-                                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-                                    <span className="text-[10px] text-slate-500 font-mono ml-2 uppercase tracking-widest">Self-Host Instructions</span>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                                    <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                                    <span className="text-[10px] text-slate-400 font-mono ml-2 uppercase tracking-widest font-bold">Self-Host Instructions</span>
                                 </div>
                                 <div className="space-y-4 font-mono text-xs">
                                     <div className="space-y-1">
-                                        <p className="text-slate-500"># 1. Clone the repository</p>
-                                        <p className="text-indigo-400">git clone https://github.com/RPHobbyist/PolymagicPrice.git</p>
-                                        <p className="text-indigo-400">cd PolymagicPrice</p>
+                                        <p className="text-slate-400 font-medium"># 1. Clone the repository</p>
+                                        <p className="text-indigo-600">git clone https://github.com/RPHobbyist/PolymagicPrice.git</p>
+                                        <p className="text-indigo-600">cd PolymagicPrice</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-slate-500"># 2. Install dependencies</p>
-                                        <p className="text-indigo-400">npm install</p>
+                                        <p className="text-slate-400 font-medium"># 2. Install dependencies</p>
+                                        <p className="text-indigo-600">npm install</p>
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-slate-500"># 3. Run locally</p>
-                                        <p className="text-emerald-400 font-bold underline">npm run dev</p>
+                                        <p className="text-slate-400 font-medium"># 3. Run locally</p>
+                                        <p className="text-emerald-600 font-bold underline">npm run dev</p>
                                     </div>
                                 </div>
-                                <div className="pt-4 border-t border-white/5 text-[10px] text-slate-500 leading-relaxed italic">
-                                    After running, visit <span className="text-slate-300">http://localhost:8080</span> to use local AI offline.
+                                <div className="pt-4 border-t border-slate-200 text-[10px] text-slate-400 leading-relaxed italic">
+                                    After running, visit <span className="text-slate-600 font-bold">http://localhost:8080</span> to use local AI offline.
                                 </div>
                             </div>
                         )}
