@@ -16,12 +16,14 @@ import { getAISettings } from "@/lib/core/sessionStorage";
 import { sanitizeMetadata, sanitizeAIResponse, SECURITY_THRESHOLDS } from "@/lib/sanitization";
 import { Sparkles, AlertCircle, Lightbulb, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { isAIAllowed } from "@/lib/utils";
 
 interface AIInsightsProps {
     quoteData: QuoteData;
 }
 
 export const AIInsights = ({ quoteData }: AIInsightsProps) => {
+    const isAllowed = isAIAllowed;
     const [insights, setInsights] = useState<{
         difficulty: string;
         tips: string[];
@@ -33,6 +35,7 @@ export const AIInsights = ({ quoteData }: AIInsightsProps) => {
     const settings = getAISettings();
 
     const generateInsights = useCallback(async () => {
+        if (!isAllowed) return;
         setLoading(true);
         setError(null);
 
@@ -89,15 +92,15 @@ Respond STRICTLY with a JSON object in this format:
         } finally {
             setLoading(false);
         }
-    }, [quoteData]);
+    }, [quoteData, isAllowed]);
 
     useEffect(() => {
-        if (settings.enabled && quoteData) {
+        if (isAllowed && settings.enabled && quoteData) {
             generateInsights();
         }
-    }, [quoteData, settings.enabled, generateInsights]);
+    }, [quoteData, settings.enabled, generateInsights, isAllowed]);
 
-    if (!settings.enabled) return null;
+    if (!isAllowed || !settings.enabled) return null;
 
     return (
         <Card className="overflow-hidden border-primary/20 bg-primary/5 shadow-sm animate-fade-in group hover:border-primary/40 transition-all duration-300">

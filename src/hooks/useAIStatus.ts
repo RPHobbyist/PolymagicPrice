@@ -19,15 +19,17 @@ import { useState, useEffect, useCallback } from "react";
 import { ollamaClient } from "../services/ai/OllamaClient";
 import { getAISettings } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
+import { isAIAllowed } from "@/lib/utils";
 
 type AIStatus = "connected" | "disconnected" | "disabled" | "checking";
 
 export function useAIStatus() {
+    const isAllowed = isAIAllowed;
     const [status, setStatus] = useState<AIStatus>("checking");
     const settings = getAISettings();
 
     const checkStatus = useCallback(async () => {
-        if (!settings.enabled) {
+        if (!isAllowed || !settings.enabled) {
             setStatus("disabled");
             return;
         }
@@ -46,17 +48,19 @@ export function useAIStatus() {
     }, [settings.enabled, status]);
 
     useEffect(() => {
+        if (!isAllowed) return;
+        
         checkStatus();
 
         // Poll every 30 seconds
         const interval = setInterval(checkStatus, 30000);
         return () => clearInterval(interval);
-    }, [checkStatus]);
+    }, [checkStatus, isAllowed]);
 
     return {
         status,
         checkStatus,
-        isEnabled: settings.enabled,
+        isEnabled: isAllowed && settings.enabled,
         // Metadata for UI security badges
         isLocalOnly: true,
         securityLevel: "high" as const

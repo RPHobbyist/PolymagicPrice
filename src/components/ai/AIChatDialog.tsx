@@ -37,7 +37,7 @@ import { getAISettings } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { useNotifications } from "@/hooks/useNotifications";
 import { Bot, User, Loader2, Send, ShieldCheck, Trash2, BarChart3, PackageSearch, TrendingUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, isAIAllowed } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
 
@@ -71,6 +71,7 @@ const QUICK_ACTIONS = [
 
 
 export const AIChatDialog = ({ open, onOpenChange }: AIChatDialogProps) => {
+    const isAllowed = isAIAllowed;
     const [messages, setMessages] = useState<DisplayMessage[]>([
         {
             role: "assistant",
@@ -97,10 +98,10 @@ export const AIChatDialog = ({ open, onOpenChange }: AIChatDialogProps) => {
 
     // Check connection when dialog opens
     useEffect(() => {
-        if (open && settings.enabled) {
+        if (open && isAllowed && settings.enabled) {
             ollamaClient.testConnection().then(setIsConnected);
         }
-    }, [open, settings.enabled]);
+    }, [open, settings.enabled, isAllowed]);
 
     // ---- Send Message (Streaming + Guardrails) ----
     const handleSend = useCallback(async (overridePrompt?: string) => {

@@ -23,6 +23,7 @@ import { ProductionJob, ProductionSettings } from "@/types/production";
 import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
+import { isAIAllowed, isDesktop } from "../utils";
 
 const generateId = (): string => {
     try {
@@ -1344,6 +1345,8 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
 
 export const getAISettings = (): AISettings => {
+    // Local AI is allowed on Desktop or Localhost (Dev)
+    const isAllowed = isAIAllowed;
     const raw = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
     const fallback: AISettings = {
         enabled: false,
@@ -1352,20 +1355,33 @@ export const getAISettings = (): AISettings => {
         contextLength: 4096
     };
 
-    if (!raw) return fallback;
-
-    try {
-        // Transparent industrial decryption layer
-        const decrypted = unwrapSecret(raw);
-        return JSON.parse(decrypted);
-    } catch {
-        // Fallback for transition from unencrypted legacy data or corruption
+    let settings: AISettings;
+    if (!raw) {
+        settings = fallback;
+    } else {
         try {
-            return JSON.parse(raw);
+            // Transparent industrial decryption layer
+            const decrypted = unwrapSecret(raw);
+            settings = JSON.parse(decrypted);
         } catch {
-            return fallback;
+            // Fallback for transition from unencrypted legacy data or corruption
+            try {
+                settings = JSON.parse(raw);
+            } catch {
+                settings = fallback;
+            }
         }
     }
+
+    // Security & Infrastructure Restriction: 
+    // Enforce Local AI as disabled on production web-hosted environments 
+    // to prevent confusing cross-origin or connectivity errors.
+    // Allowed on Desktop or Localhost (Dev).
+    if (!isAIAllowed) {
+        return { ...settings, enabled: false };
+    }
+    
+    return settings;
 };
 
 export const saveAISettings = (settings: AISettings) => {

@@ -28,6 +28,7 @@ import { ollamaClient } from "@/services/ai/OllamaClient";
 import { isPortForbidden } from "@/lib/sanitization";
 import { toast } from "sonner";
 import { Bot, Save, CheckCircle2, XCircle, Loader2, ExternalLink } from "lucide-react";
+import { isAIAllowed, isDesktop } from "@/lib/utils";
 
 export default function SettingsAI() {
     const [settings, setSettings] = useState(getAISettings());
@@ -35,10 +36,10 @@ export default function SettingsAI() {
     const [models, setModels] = useState<string[]>([]);
     const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-    const isDesktop = 'electronAPI' in window;
+    const isAllowed = isAIAllowed;
 
     const fetchModels = useCallback(async () => {
-        if (!isDesktop) return;
+        if (!isAllowed) return;
         setIsLoadingModels(true);
         try {
             const available = await ollamaClient.listModels(settings.port);
@@ -52,17 +53,17 @@ export default function SettingsAI() {
         } finally {
             setIsLoadingModels(false);
         }
-    }, [settings.port, settings.model, isDesktop]);
+    }, [settings.port, settings.model, isAllowed]);
 
     useEffect(() => {
-        if (settings.enabled && isDesktop) {
+        if (settings.enabled && isAllowed) {
             fetchModels();
         }
-    }, [settings.enabled, settings.port, fetchModels, isDesktop]);
+    }, [settings.enabled, settings.port, fetchModels, isAllowed]);
 
     const handleSave = () => {
-        if (!isDesktop) {
-            toast.error("Local AI is only available on Desktop");
+        if (!isAllowed) {
+            toast.error("Local AI is only available on Desktop (or localhost development)");
             return;
         }
 
@@ -78,7 +79,7 @@ export default function SettingsAI() {
     };
 
     const testConnection = async () => {
-        if (!isDesktop) return;
+        if (!isAllowed) return;
         ollamaClient.resetStatus();
         setTestStatus("testing");
         try {
@@ -98,41 +99,41 @@ export default function SettingsAI() {
                     <p className="text-sm text-slate-600">Configure your offline AI assistant for quoting, insights, and shop analytics via Ollama.</p>
                 </div>
                 <div className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-muted/50 border border-border/50">
-                    <Label htmlFor="ai-enable" className={`text-sm font-medium ${!isDesktop ? 'text-slate-600' : ''}`}>
-                        {settings.enabled ? "AI Active" : "AI Inactive"}
-                        {!isDesktop && " (Desktop Only)"}
+                    <Label htmlFor="ai-enable" className={`text-sm font-medium ${!isAllowed ? 'text-slate-600' : ''}`}>
+                        {(isAllowed && settings.enabled) ? "AI Active" : "AI Inactive"}
+                        {!isAllowed && " (Localhost Only)"}
                     </Label>
                     <Switch
                         id="ai-enable"
-                        checked={isDesktop ? settings.enabled : false}
-                        onCheckedChange={isDesktop ? (v) => {
+                        checked={isAllowed && settings.enabled}
+                        onCheckedChange={isAllowed ? (v) => {
                             setSettings({ ...settings, enabled: v });
                             if (v) testConnection();
-                        } : () => toast.info("Local AI features are restricted to the desktop version for privacy and security.")}
-                        disabled={!isDesktop}
+                        } : () => toast.info("Local AI features are restricted to the desktop version or localhost for privacy and security.")}
+                        disabled={!isAllowed}
                     />
                 </div>
             </div>
 
             <Card className="border-primary/10 shadow-sm overflow-hidden bg-card/50 backdrop-blur-sm">
-                {(!settings.enabled || !isDesktop) && (
+                {(!settings.enabled || !isAllowed) && (
                     <div className="p-12 text-center space-y-4">
                         <div className="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto">
                             <Bot className="w-8 h-8 text-slate-400" />
                         </div>
                         <div className="space-y-1">
-                            <h3 className="text-base font-medium">Local AI is {isDesktop ? "Disconnected" : "Deactivated"}</h3>
+                            <h3 className="text-base font-medium">Local AI is {isAllowed ? "Disconnected" : "Deactivated"}</h3>
                             <p className="text-sm text-slate-600 max-w-sm mx-auto">
-                                {isDesktop 
+                                {isAllowed 
                                     ? "Enable the switch above to connect to your local Ollama instance and unlock smart manufacturing insights."
-                                    : "This feature is restricted to the desktop version for privacy and security. Download the app to use your local AI."
+                                    : "This feature is restricted to the desktop version or localhost for privacy and security. Local AI requires a locally accessible connection."
                                 }
                             </p>
                         </div>
                     </div>
                 )}
                 
-                {settings.enabled && isDesktop && (
+                {settings.enabled && isAllowed && (
                     <CardContent className="p-6 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Left Column: Controls */}

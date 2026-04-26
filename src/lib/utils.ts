@@ -24,6 +24,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Detects if the application is running in a desktop environment (Electron).
+ */
+export const isDesktop = typeof window !== 'undefined' && 'electronAPI' in window;
+
+/**
+ * Detects if the application is running on localhost (Local Development).
+ */
+export const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || 
+   window.location.hostname === '127.0.0.1' ||
+   window.location.hostname.startsWith('192.168.'));
+
+/**
+ * Helper to determine if Local AI features should be allowed.
+ * We allow them on Desktop (always) or on Localhost (for development).
+ */
+export const isAIAllowed = isDesktop || isLocalhost;
+
+/**
  * Global constant for maximum file upload size (100MB)
  */
 export const MAX_FILE_SIZE_MB = 100;
