@@ -31,11 +31,13 @@
 
 ## 🏢 About PolymagicPrice
 
-<div style="text-align: justify;">
-<strong>PolymagicPrice</strong> is the premier <strong>3D printing price calculator</strong> and <strong>print farm management</strong> ecosystem designed for professionals, makers, and hobbyists. This local-first <strong>3D print cost estimator</strong> utilizes precise industrial formulas for **FDM (Filament)** and **Resin (SLA/DLP)** pricing, accurately accounting for material weight, electricity consumption, machine depreciation, and labor overhead. 
+<p align="justify">
+  <strong>PolymagicPrice</strong> is the premier <strong>3D printing price calculator</strong> and <strong>print farm management</strong> ecosystem designed for professionals, makers, and hobbyists. This local-first <strong>3D print cost estimator</strong> utilizes precise industrial formulas for <strong>FDM (Filament)</strong> and <strong>Resin (SLA/DLP)</strong> pricing, accurately accounting for material weight, electricity consumption, machine depreciation, and labor overhead. 
+</p>
 
-Whether you are scaling an Etsy shop or managing an industrial-grade print farm, PolymagicPrice streamlines your workflow with **IoT printer integration**, a **Production Kanban board**, and a built-in **Customer CRM**. Designed with a "Privacy First" philosophy, it keeps all your sensitive business data offline while leveraging **Local AI insights** for smart quoting and shop analytics.
-</div>
+<p align="justify">
+  Whether you are scaling an Etsy shop or managing an industrial-grade print farm, PolymagicPrice streamlines your workflow with <strong>IoT printer integration</strong>, a <strong>Production Kanban board</strong>, and a built-in <strong>Customer CRM</strong>. Designed with a "Privacy First" philosophy, it keeps all your sensitive business data offline while leveraging <strong>Local AI insights</strong> for smart quoting and shop analytics.
+</p>
 
 <br>
 
