@@ -215,16 +215,6 @@ export default function SettingsAI() {
                                 <li className="pl-1">
                                     <strong className="text-slate-900 font-bold">Download Model</strong>: Open the Ollama app and download your favourite model (we recommend <code className="bg-muted px-1.5 py-0.5 rounded text-slate-900 font-mono">gemma3:1b</code>).
                                 </li>
-                                <li className="pl-1 leading-relaxed">
-                                    <strong className="text-slate-900 font-bold">Enable Web Access</strong>: If using the <strong className="text-slate-900 font-bold">hosted web version</strong>, you must allow cross-origin requests. Stop Ollama, then restart it with:
-                                    <div className="mt-2 space-y-1.5">
-                                        <div><span className="text-slate-500 text-[10px]">Windows (PowerShell):</span></div>
-                                        <code className="block bg-muted px-2 py-1 rounded text-slate-900 font-mono text-[11px] break-all">$env:OLLAMA_ORIGINS="*"; ollama serve</code>
-                                        <div><span className="text-slate-500 text-[10px]">Mac / Linux:</span></div>
-                                        <code className="block bg-muted px-2 py-1 rounded text-slate-900 font-mono text-[11px] break-all">OLLAMA_ORIGINS=* ollama serve</code>
-                                    </div>
-                                    <p className="mt-1.5 text-[10px] text-slate-500">This step is <strong>not needed</strong> for the Desktop App — only for the web version.</p>
-                                </li>
                                 <li className="pl-1">
                                     <strong className="text-slate-900 font-bold">Initialize</strong>: Enable the switch above and click <strong className="text-slate-900 font-bold">"Save Settings"</strong> to link to your local AI.
                                 </li>

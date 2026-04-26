@@ -25,7 +25,7 @@ export const AppHeader = () => {
                 <div className="flex items-center justify-between h-full gap-4">
                     {/* Left Section: Logo */}
                     <div className="flex-1 flex items-center justify-start min-w-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion: string }}>
-                        <Link to="/cost-calculator" className="flex-shrink-0 transition-transform hover:scale-105">
+                        <Link to="/cost-calculator" className="flex-shrink-0">
                             <img src={SYSTEM_CONFIG.logo} alt={SYSTEM_CONFIG.vendor} width={1024} height={1024} className="h-16 sm:h-20 w-auto object-contain" />
                         </Link>
                     </div>
