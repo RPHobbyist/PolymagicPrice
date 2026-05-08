@@ -31,6 +31,8 @@ interface SEOConfig {
   ogDescription?: string;
   /** Open Graph image URL (optional) */
   ogImage?: string;
+  /** Robots directive (optional, e.g. "noindex, nofollow") */
+  robots?: string;
 }
 
 const BRAND_SUFFIX = " | PolymagicPrice";
@@ -47,7 +49,8 @@ export function useDocumentSEO({
   canonical,
   ogTitle,
   ogDescription,
-  ogImage
+  ogImage,
+  robots
 }: SEOConfig) {
   useEffect(() => {
     // 1. Set page title
@@ -79,6 +82,11 @@ export function useDocumentSEO({
 
     // 3. Update standard meta tags
     if (description) updateMetaTag("description", description);
+    if (robots) {
+      updateMetaTag("robots", robots);
+    } else {
+      updateMetaTag("robots", "index, follow");
+    }
     
     // 4. Update Canonical Link
     const fullCanonical = canonical 
@@ -118,6 +126,6 @@ export function useDocumentSEO({
     return () => {
       // Default reset logic if needed, but SPA nav usually handles this via next hook call
     };
-  }, [title, description, canonical, ogTitle, ogDescription, ogImage]);
+  }, [title, description, canonical, ogTitle, ogDescription, ogImage, robots]);
 }
 

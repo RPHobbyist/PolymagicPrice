@@ -6,6 +6,9 @@ User-agent: *
 Allow: /
 Disallow: /assets/*.js.map
 Disallow: /assets/*.css.map
+Disallow: /settings
+Disallow: /database-manager
+Disallow: /order-manager
 
 # Google-specific
 User-agent: Googlebot

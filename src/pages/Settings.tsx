@@ -41,6 +41,7 @@ const Settings = () => {
     description: "Configure your 3D printing materials, machines, consumables, customers, and company settings in PolymagicPrice.",
     canonical: "/settings",
     ogTitle: "Workshop Settings | PolymagicPrice",
+    robots: "noindex, nofollow",
   });
 
 

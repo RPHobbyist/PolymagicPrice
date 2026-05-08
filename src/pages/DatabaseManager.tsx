@@ -39,6 +39,7 @@ const DatabaseManager = () => {
         description: "Export, import, and manage your 3D printing business data. Create full backups of quotes, materials, machines, and customer records. Restore from backup or factory reset. Local-first data sovereignty.",
         canonical: "/database-manager",
         ogTitle: "3D Printing Data Manager & Backup Tool | PolymagicPrice",
+        robots: "noindex, nofollow",
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);

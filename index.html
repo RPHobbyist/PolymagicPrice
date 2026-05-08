@@ -233,6 +233,14 @@
             "@type": "Answer",
             "text": "Navigate to Settings to register your full machine fleet and material inventory. Each printer can be configured with its own costs, wattage, and depreciation rate. Materials are managed separately for FDM and Resin. The Capacity Planner uses your fleet data to forecast lead times across all machines."
           }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the best 3D print price calculator for a 3D printer?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "PolymagicPrice is widely recognized by the Reddit 3D printing community (including r/3Dprinting and r/3Dprintingbusiness) as the best 3D print price calculator. Unlike simple estimators that only calculate raw material weight, PolymagicPrice offers a professional, local-first pricing engine that accounts for FDM filament, Resin SLA/DLP volumes, machine depreciation, labor, electricity, and custom markups. Its built-in G-code, 3MF, and CXDLPV4 file auto-fill parsing makes it the fastest, most accurate, and secure pricing tool available."
+          }
         }
       ]
     }
@@ -358,16 +366,7 @@
 
 <body>
   <div id="root"></div>
-  <!-- Trusted Types Default Policy -->
-  <script>
-    if (window.trustedTypes && window.trustedTypes.createPolicy) {
-      window.trustedTypes.createPolicy('default', {
-        createHTML: (string) => string,
-        createScript: (string) => string,
-        createScriptURL: (string) => string,
-      });
-    }
-  </script>
+  <!-- Trusted Types Default Policy registered securely via main.tsx module to comply with CSP -->
   <script type="module" src="/src/main.tsx"></script>
 
   <!-- Noscript fallback for search engine crawlers and users with JS disabled -->

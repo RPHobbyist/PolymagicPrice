@@ -31,6 +31,7 @@ const OrderManager = memo(() => {
         canonical: "/order-manager",
         ogTitle: "3D Print Order Tracker & Customer CRM | PolymagicPrice",
         ogDescription: "Visual order lifecycle management for 3D printing shops. Track quotes, manage customers, and streamline workflows.",
+        robots: "noindex, nofollow",
     });
 
     const {
