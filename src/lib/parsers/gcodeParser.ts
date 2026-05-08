@@ -18,6 +18,7 @@
 
 // G-code and 3MF parser utility to extract print time and filament usage
 import JSZip from 'jszip';
+import DOMPurify from 'dompurify';
 
 export interface GcodeData {
   printTimeHours: number;
@@ -75,11 +76,11 @@ function protect(str: string | undefined): string | undefined {
     if (!str) return undefined;
     // 1. Truncate to prevent UI overflow or memory bombing
     let s = str.substring(0, 128);
-    // 2. Strip potential injection patterns
-    s = s.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-         .replace(/on\w+="[^"]*"/gim, "")
-         .replace(/javascript:|data:|file:|ipc:|polymagic:/gi, "[blocked]");
-    // 3. Normalize whitespace
+    // 2. Strict sanitization with DOMPurify to neutralize all HTML/XSS payloads
+    s = DOMPurify.sanitize(s, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    // 3. Strip custom protocol handlers
+    s = s.replace(/javascript:|data:|file:|ipc:|polymagic:/gi, "[blocked]");
+    // 4. Normalize whitespace
     return s.trim();
 }
 

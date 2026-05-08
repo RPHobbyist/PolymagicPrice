@@ -30,16 +30,7 @@
   <link rel="apple-touch-icon" href="/logo.png" />
   <link rel="manifest" href="/manifest.json" />
 
-  <!-- DNS Prefetch & Preconnect for Performance -->
-  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-
-  <!-- Fonts with display=swap for CLS optimization -->
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=Saira:ital,wght@1,900&display=swap"
-    rel="stylesheet">
+  <!-- Local Fonts -->
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
@@ -367,6 +358,16 @@
 
 <body>
   <div id="root"></div>
+  <!-- Trusted Types Default Policy -->
+  <script>
+    if (window.trustedTypes && window.trustedTypes.createPolicy) {
+      window.trustedTypes.createPolicy('default', {
+        createHTML: (string) => string,
+        createScript: (string) => string,
+        createScriptURL: (string) => string,
+      });
+    }
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 
   <!-- Noscript fallback for search engine crawlers and users with JS disabled -->

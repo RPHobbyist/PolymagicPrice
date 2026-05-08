@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { useState } from "react";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -287,7 +288,7 @@ export default function ToolGuidePage() {
                 DO NOT source this data from user input, imports, or CMS without DOMPurify. */}
             <script
                 type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(JSON.stringify(faqSchema)) }}
             />
             <PageHeader 
                 title="Tool Guide" 

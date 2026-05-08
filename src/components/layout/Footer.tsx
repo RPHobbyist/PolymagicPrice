@@ -41,6 +41,27 @@ export const Footer = () => {
 
                     <div className="h-3 w-[1px] bg-border hidden md:block" />
 
+                    {/* E-Commerce Legal Compliance Disclosures */}
+                    <TooltipProvider>
+                        <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 cursor-help hover:text-foreground transition-colors">
+                                    <span className="group-hover:underline decoration-foreground/20">Legal Info</span>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-sm text-xs p-3 glass border-border shadow-xl">
+                                <div className="flex flex-col gap-1.5 text-muted-foreground">
+                                    <p><strong className="text-foreground">Entity:</strong> [Insert Legal Entity Name]</p>
+                                    <p><strong className="text-foreground">Address:</strong> [Insert Registered Address]</p>
+                                    <p><strong className="text-foreground">GSTIN/Tax ID:</strong> [Insert Tax ID]</p>
+                                    <p><strong className="text-foreground">Grievance Officer:</strong> [Insert Officer Contact]</p>
+                                </div>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <div className="h-3 w-[1px] bg-border hidden md:block" />
+
                     <Suspense fallback={<span className="text-muted-foreground/60">License</span>}>
                         <LicenseDialog />
                     </Suspense>
