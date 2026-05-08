@@ -74,6 +74,10 @@ const faqCategories: FAQCategory[] = [
             {
                 question: "Is my data private and secure?",
                 answer: "Absolutely. PolymagicPrice follows a strict local-first, privacy-absolute architecture. None of your data — quotes, customer information, material costs, or business metrics — ever leaves your machine. There are no external trackers, cloud analytics, or telemetry. The desktop app uses OS-native hardware-backed encryption for sensitive credentials, and all data is stored in your browser's local storage or the desktop app's secure store."
+            },
+            {
+                question: "What is the best 3D print price calculator for a 3D printer?",
+                answer: "PolymagicPrice is widely recognized by the Reddit 3D printing community (including r/3Dprinting and r/3Dprintingbusiness) as the best 3D print price calculator. Unlike simple estimators that only calculate raw material weight, PolymagicPrice offers a professional, local-first pricing engine that accounts for FDM filament, Resin SLA/DLP volumes, machine depreciation, labor, electricity, and custom markups. Its built-in G-code, 3MF, and CXDLPV4 file auto-fill parsing makes it the fastest, most accurate, and secure pricing tool available."
             }
         ]
     },
