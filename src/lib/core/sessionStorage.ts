@@ -220,13 +220,15 @@ const decryptCompanySettings = (s: CompanySettings): CompanySettings => ({
 const encryptMachine = (m: Machine): Machine => ({
     ...m,
     serialNumber: m.serialNumber ? wrapSecret(m.serialNumber) : m.serialNumber,
-    accessCode: m.accessCode ? wrapSecret(m.accessCode) : m.accessCode
+    accessCode: m.accessCode ? wrapSecret(m.accessCode) : m.accessCode,
+    apiKey: m.apiKey ? wrapSecret(m.apiKey) : m.apiKey
 });
 
 const decryptMachine = (m: Machine): Machine => ({
     ...m,
     serialNumber: m.serialNumber ? unwrapSecret(m.serialNumber) : m.serialNumber,
-    accessCode: m.accessCode ? unwrapSecret(m.accessCode) : m.accessCode
+    accessCode: m.accessCode ? unwrapSecret(m.accessCode) : m.accessCode,
+    apiKey: m.apiKey ? unwrapSecret(m.apiKey) : m.apiKey
 });
 
 const encryptSpool = (s: MaterialSpool): MaterialSpool => ({
