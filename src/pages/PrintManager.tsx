@@ -37,11 +37,11 @@ const isMachineVisible = (_machine: Machine) => {
 
 const PrintManager = () => {
     useDocumentSEO({
-        title: "Print Manager — 3D Machine Control & Job Tracking",
-        description: "Manage your 3D printing production with a visual Kanban board. Assign print jobs to FDM and Resin machines, track real-time progress with Bambu Lab integration, and monitor your machines in one dashboard. Free and open-source.",
+        title: "Print Manager — 3D Machine Dashboard & Job Tracking",
+        description: "Monitor and manage your 3D print farm with a visual Kanban dashboard. Assign jobs to FDM/Resin machines, track real-time progress via Bambu Lab integration, and streamline your production queue.",
         canonical: "/print-manager",
         ogTitle: "3D Print Job Manager & Machine Dashboard | PolymagicPrice",
-        ogDescription: "Visual Kanban board for 3D machine management. Assign jobs, track progress, and integrate with Bambu Lab printers."
+        ogDescription: "Visual Kanban board for 3D printer management. Assign jobs, track real-time telemetry, and integrate with Bambu Lab machines."
     });
 
     const { machines: fdmMachines } = useCalculatorData({ printType: 'FDM' });

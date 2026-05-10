@@ -118,10 +118,10 @@ const RECOMMENDATIONS: Recommendation[] = [
 export default function CapacityPlannerPage() {
     useDocumentSEO({
         title: "Capacity Planner — 3D Print Farm Production Forecasting",
-        description: "Plan 3D printing production schedules and forecast delivery timelines. Calculate lead times, check order feasibility, and optimize printer utilization with production analysis. Free capacity planning for FDM and Resin print farms.",
+        description: "Forecast production timelines and lead times for your 3D print farm. Analyze machine utilization, check order feasibility against deadlines, and optimize your 3D printing business throughput.",
         canonical: "/capacity-planner",
         ogTitle: "3D Print Farm Capacity Planner & Lead Time Calculator | PolymagicPrice",
-        ogDescription: "Forecast production timelines and optimize printer utilization for your 3D printing business.",
+        ogDescription: "Optimize your print farm production with advanced lead time forecasting and machine utilization analysis."
     });
 
     const [allMachines, setAllMachines] = useState(() => getMachines());

@@ -29,10 +29,10 @@ import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 const BillingAnalysis = () => {
     useDocumentSEO({
         title: "Billing & Analysis — 3D Printing Revenue & Quote Analytics",
-        description: "Analyze your 3D printing business finances with revenue dashboards, customer insights, and quote history tracking. Monitor profit margins, identify top clients, and track revenue growth. Free analytics for 3D printing businesses.",
+        description: "Analyze your 3D printing business finances with revenue dashboards, customer insights, and quote history tracking. Monitor profit margins, identify top clients, and track revenue growth.",
         canonical: "/billing-analysis",
         ogTitle: "3D Printing Business Analytics & Revenue Dashboard | PolymagicPrice",
-        ogDescription: "Track revenue, analyze profit margins, and manage quote history for your 3D printing business.",
+        ogDescription: "Track revenue, analyze profit margins, and manage quote history for your 3D printing business."
     });
 
 

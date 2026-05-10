@@ -190,7 +190,7 @@ const Index = memo(() => {
   }, [location.state, handleIncomingGcode]);
 
   useDocumentSEO({
-    title: "Cost Calculator — Professional 3D Print Quotation Engine",
+    title: "Cost Calculator — Free 3D Printing Price Calculator & Quotation Engine",
     description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, auto-calculate material costs, electricity, labor, and generate professional quotes.",
     canonical: "/cost-calculator",
     ogTitle: "Free 3D Printing Price Calculator | FDM & Resin Cost Estimator",

@@ -35,11 +35,11 @@ import { Input } from "@/components/ui/input";
 
 const DatabaseManager = () => {
     useDocumentSEO({
-        title: "Database Manager — Backup & Restore Your 3D Printing Data",
-        description: "Export, import, and manage your 3D printing business data. Create full backups of quotes, materials, machines, and customer records. Restore from backup or factory reset. Local-first data sovereignty.",
+        title: "Database Manager — 3D Printing Data Backup & Restore",
+        description: "Export, import, and manage your 3D printing business data. Create full backups of quotes, materials, machines, and customer records. Ensure data sovereignty with local-first backups.",
         canonical: "/database-manager",
         ogTitle: "3D Printing Data Manager & Backup Tool | PolymagicPrice",
-        robots: "noindex, nofollow",
+        ogDescription: "Securely manage your 3D printing shop data. Export and import full database backups for local data sovereignty."
     });
 
     const fileInputRef = useRef<HTMLInputElement>(null);

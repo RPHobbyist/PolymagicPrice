@@ -37,11 +37,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 
 const Settings = () => {
   useDocumentSEO({
-    title: "Settings — Workshop Configuration",
-    description: "Configure your 3D printing materials, machines, consumables, customers, and company settings in PolymagicPrice.",
+    title: "Workshop Settings — 3D Printer & Material Configuration",
+    description: "Configure your 3D printing workshop in PolymagicPrice. Manage material inventory (FDM/Resin), printer profiles, personnel, and company branding for professional quotes.",
     canonical: "/settings",
-    ogTitle: "Workshop Settings | PolymagicPrice",
-    robots: "noindex, nofollow",
+    ogTitle: "Workshop Settings & Shop Configuration | PolymagicPrice",
+    ogDescription: "Complete workshop management. Configure printers, materials, labor rates, and business details for accurate cost calculation."
   });
 
 

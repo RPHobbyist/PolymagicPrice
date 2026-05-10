@@ -3,9 +3,9 @@
 
 User-agent: *
 Allow: /
-Allow: /cost-calculator
-Disallow: /tmp/
 Disallow: /private/
+Disallow: /tmp/
+Disallow: /dist/
 
 # Sitemap location
 Sitemap: https://polymagicprice.rphobbyist.com/sitemap.xml

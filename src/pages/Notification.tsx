@@ -102,9 +102,11 @@ const groupNotifications = (notifs: NotificationType[]) => {
 
 const Notification = () => {
     useDocumentSEO({
-        title: "Notifications — 3D Print Shop Alerts & System Monitoring",
-        description: "Real-time monitoring dashboard for your 3D printing workshop. Track inventory alerts, maintenance schedules, production delays, and AI-powered insights. Never miss a low-stock warning or overdue order.",
+        title: "Notifications — 3D Print Shop Alerts & Monitoring",
+        description: "Real-time monitoring dashboard for your 3D printing workshop. Track inventory alerts, maintenance schedules, production delays, and AI-powered insights.",
         canonical: "/notification",
+        ogTitle: "3D Print Shop Alerts & System Monitoring | PolymagicPrice",
+        ogDescription: "Stay on top of your 3D printing production. Monitor machine status, low-stock alerts, and production delays in real-time."
     });
 
     const { notifications, updateStatus, deleteNotification, clearAll, unreadCount } = useNotifications();

@@ -88,11 +88,11 @@ const faqs = [
 export default function Landing() {
   // 1. Inject SEO Metadata & AEO Structured Data
   useDocumentSEO({
-    title: "PolymagicPrice – Free 3D Printing Cost Calculator | FDM & Resin Estimator",
-    description: "Quit losing money on hidden 3D printing costs. PolymagicPrice is an industrial-grade, local-first 3D printing cost calculator. 100% secure, offline-capable, and free forever.",
+    title: "PolymagicPrice: Free 3D Print Price Calculator & Manager",
+    description: "Calculate exact 3D printing costs for FDM and Resin. PolymagicPrice is a privacy-first tool for hobbyists and print farms to track material, electricity, and labor.",
     canonical: "/",
-    ogTitle: "PolymagicPrice – Free 3D Printing Cost Calculator",
-    ogDescription: "Ditch the spreadsheets. Standardize your 3D printing workflow with an industrial-grade, local-first estimator. Secure, private, and open source.",
+    ogTitle: "PolymagicPrice: Free 3D Print Price Calculator & Manager",
+    ogDescription: "Calculate exact 3D printing costs for FDM and Resin. Standardize your 3D printing workflow with an industrial-grade, local-first estimator.",
     ogImage: SYSTEM_CONFIG.logo,
     jsonLd: [
       {
@@ -236,8 +236,8 @@ export default function Landing() {
               className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-[1.15]"
               variants={itemVariants}
             >
-              Quit Losing Money on <br />
-              <span className="text-emerald-600">Hidden 3D Print Costs</span>
+              The Ultimate Free <br />
+              <span className="text-emerald-600">3D Print Price Calculator</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -245,7 +245,7 @@ export default function Landing() {
               className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal max-w-xl"
               variants={itemVariants}
             >
-              Standardize your quoting workflow with our industrial-grade 3D printing cost calculator. Calculate accurate FDM & Resin costs instantly without cloud fees or data leaks.
+              The professional 3D print quotation tool for makers. Calculate accurate FDM & Resin costs instantly using our 3D printing cost estimator. Secure, private, and open source.
             </motion.p>
 
             {/* CTAs */}
@@ -303,10 +303,10 @@ export default function Landing() {
           {/* Section Header */}
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-3 leading-snug">
-              3D Print Farm Management & Cost Calculator <br /> Features
+              Professional 3D Print Quotation Tool & <br /> Farm Management Software
             </h2>
             <p className="text-slate-600 text-sm leading-relaxed">
-              Ditch rough estimates. PolymagicPrice brings production precision, print farm automation, and offline AI for 3D printing into your workshop.
+              PolymagicPrice is a comprehensive 3D printing cost estimator. Features include production precision, print farm automation, and offline AI analysis.
             </p>
           </div>
 
@@ -354,9 +354,9 @@ export default function Landing() {
 
             {/* Feature 4 */}
             <motion.div className="bg-slate-50 border border-slate-200/80 rounded-xl p-6 hover-lift hover:border-emerald-300 transition-all shadow-sm group" variants={itemVariants}>
-              <h3 className="text-base font-bold text-slate-900 mb-2 font-heading">Capacity Planner</h3>
+              <h3 className="text-base font-bold text-slate-900 mb-2 font-heading">Print Farm Capacity Planner</h3>
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                Forecast delivery feasibility using a round-robin scheduler. Auto-detects printer build volume mismatches and physical material shortages.
+                Forecast delivery feasibility across your print farm fleet. Auto-detects printer build volume mismatches and physical material shortages.
               </p>
               <Link to="/capacity-planner" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Plan Production <ArrowRight className="w-3 h-3" />
@@ -365,9 +365,9 @@ export default function Landing() {
 
             {/* Feature 5 */}
             <motion.div className="bg-slate-50 border border-slate-200/80 rounded-xl p-6 hover-lift hover:border-emerald-300 transition-all shadow-sm group" variants={itemVariants}>
-              <h3 className="text-base font-bold text-slate-900 mb-2 font-heading">Offline AI Assistant</h3>
+              <h3 className="text-base font-bold text-slate-900 mb-2 font-heading">AI-Powered Pricing Analysis</h3>
               <p className="text-xs text-slate-500 leading-relaxed mb-4">
-                Integrates offline with Ollama on your local machine. Redacts PII, prevents code extraction, and generates operational reports securely.
+                Integrates offline with Ollama on your local machine. Redacts PII, prevents code extraction, and generates operational pricing reports securely.
               </p>
               <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Learn More <ArrowRight className="w-3 h-3" />

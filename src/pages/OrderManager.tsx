@@ -27,11 +27,10 @@ import { PageHeader } from "@/components/layout/PageHeader";
 const OrderManager = memo(() => {
     useDocumentSEO({
         title: "Order Manager — 3D Print Order Tracking & Customer CRM",
-        description: "Track 3D printing orders from quote to delivery with a visual Kanban board. Manage customer relationships, log requirements, and streamline your 3D printing business. Free and open-source.",
+        description: "Track 3D printing orders from quote to delivery with a visual Kanban board. Manage customer relationships, log requirements, and streamline your 3D printing business workflow.",
         canonical: "/order-manager",
         ogTitle: "3D Print Order Tracker & Customer CRM | PolymagicPrice",
-        ogDescription: "Visual order lifecycle management for 3D printing shops. Track quotes, manage customers, and streamline workflows.",
-        robots: "noindex, nofollow",
+        ogDescription: "Visual order lifecycle management for 3D printing shops. Track quotes, manage customers, and streamline workshop workflows."
     });
 
     const {

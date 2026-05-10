@@ -131,11 +131,11 @@ const faqCategories: FAQCategory[] = [
 
 export default function ToolGuidePage() {
     useDocumentSEO({
-        title: "Tool Guide & FAQ — 3D Printing Price Calculator Help",
-        description: "Complete guide to PolymagicPrice features plus answers to common questions about 3D printing costs, pricing markup, FDM vs resin expenses, G-code auto-fill, and running a 3D printing business.",
+        title: "Tool Guide & FAQ — Master 3D Printing Cost Calculation",
+        description: "Comprehensive guide to PolymagicPrice features. Learn how to calculate 3D printing costs, set profit markups, compare FDM vs Resin expenses, and use G-code auto-fill for accurate pricing.",
         canonical: "/tool-guide",
-        ogTitle: "PolymagicPrice Tool Guide & FAQ — How to Calculate 3D Printing Costs",
-        ogDescription: "Learn how to calculate 3D printing costs, set markup percentages, price for Etsy, and manage your print business with PolymagicPrice."
+        ogTitle: "3D Printing Cost Guide & FAQ | PolymagicPrice Help",
+        ogDescription: "Expert tips on 3D printing price calculation, Etsy pricing strategies, and workshop management with PolymagicPrice."
     });
 
     const [openIndex, setOpenIndex] = useState<number | null>(0);

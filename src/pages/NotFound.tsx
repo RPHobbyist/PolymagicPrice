@@ -25,7 +25,7 @@ const NotFound = () => {
 
   useDocumentSEO({
     title: "404 — Page Not Found",
-    description: "The page you are looking for does not exist. Return to PolymagicPrice homepage to calculate 3D printing costs.",
+    description: "The page you are looking for does not exist. Return to the PolymagicPrice homepage to calculate 3D printing costs and manage your print farm.",
   });
 
   useEffect(() => {
