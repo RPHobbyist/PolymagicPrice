@@ -2,6 +2,20 @@
 <html lang="en" dir="ltr">
 
 <head>
+  <!-- Register Trusted Types Default Policy immediately to cover any edge-injected scripts (like Cloudflare) -->
+  <script>
+    if (typeof window !== 'undefined' && window.trustedTypes && window.trustedTypes.createPolicy) {
+      try {
+        window.trustedTypes.createPolicy('default', {
+          createHTML: (string) => string,
+          createScript: (string) => string,
+          createScriptURL: (string) => string,
+        });
+      } catch (e) {
+        console.warn('Trusted Types policy initialization skipped:', e);
+      }
+    }
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="google-site-verification" content="B99nLvJVy4RhRaZop7zmGAJtMG8RcA7CQ30HMKtGifI" />
@@ -371,7 +385,7 @@
 
 <body>
   <div id="root"></div>
-  <!-- Trusted Types Default Policy registered securely via main.tsx module to comply with CSP -->
+  <!-- Trusted Types Default Policy registered securely via early inline script in head to comply with CSP -->
   <script type="module" src="/src/main.tsx"></script>
 
   <!-- Noscript fallback for search engine crawlers and users with JS disabled -->

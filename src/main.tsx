@@ -16,18 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Register Trusted Types Default Policy before any other imports or code execution
-if (typeof window !== 'undefined' && window.trustedTypes && window.trustedTypes.createPolicy) {
-  try {
-    window.trustedTypes.createPolicy('default', {
-      createHTML: (string) => string,
-      createScript: (string) => string,
-      createScriptURL: (string) => string,
-    });
-  } catch (e) {
-    console.warn('Trusted Types policy registration failed or was already registered:', e);
-  }
-}
+// Trusted Types Default Policy is now registered via inline script in index.html for maximum early availability
 
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
