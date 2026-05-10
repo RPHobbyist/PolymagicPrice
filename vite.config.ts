@@ -74,6 +74,10 @@ export default defineConfig(({ mode }) => ({
       '@tanstack/react-query',
       'recharts',
       'lucide-react',
+      'jszip',
+      'dompurify',
+      'file-saver',
+      'exceljs',
     ],
   },
 }));

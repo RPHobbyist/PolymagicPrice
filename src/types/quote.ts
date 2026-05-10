@@ -196,6 +196,7 @@ export interface FDMFormData {
   notes?: string;
   status?: QuoteStatus;
   failedUnits?: string;
+  thumbnail?: string;
 }
 
 export interface ResinFormData {
@@ -231,6 +232,7 @@ export interface ResinFormData {
   notes?: string;
   status?: QuoteStatus;
   failedUnits?: string;
+  thumbnail?: string;
 }
 
 export interface QuoteStats {

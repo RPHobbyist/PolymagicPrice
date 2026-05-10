@@ -26,22 +26,45 @@ import {
     getSystemHealthIssues
 } from '@/lib/core/sessionStorage';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 
 import { NotificationContext } from '@/contexts/NotificationContext';
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const location = useLocation();
+    
+    // Track if this is a returning visitor to suppress initial noise for first-timers
+    const [hasVisitedBefore] = useState(() => {
+        const visited = localStorage.getItem('polymagic_has_visited') === 'true';
+        return visited;
+    });
+
+    useEffect(() => {
+        if (!hasVisitedBefore) {
+            // Mark as visited for future sessions
+            localStorage.setItem('polymagic_has_visited', 'true');
+        }
+    }, [hasVisitedBefore]);
 
     const refresh = useCallback(() => {
         setNotifications(getNotifications());
     }, []);
 
-    const addNotification = useCallback((notification: Omit<Notification, "id" | "timestamp" | "status">) => {
+    const addNotification = useCallback((notification: Omit<Notification, "id" | "timestamp" | "status">, showToast = true) => {
         const newNotif = saveNotification(notification);
         setNotifications(prev => [newNotif, ...prev]);
         
-        // Show a small toast for new notifications if not already on the notifications page
-        if (window.location.pathname !== '/notifications') {
+        // Logic to suppress "pop up" boxes (toasts) based on user requirements:
+        // 1. Never show on landing page ("/")
+        // 2. Do not show for first time visitors (until they refresh/return)
+        const isLandingPage = location.pathname === '/';
+        const shouldShowToast = showToast && 
+                                !isLandingPage && 
+                                hasVisitedBefore && 
+                                location.pathname !== '/notifications';
+
+        if (shouldShowToast) {
             const toastType = (notification.type.toLowerCase() === 'warning' ? 'warning' : 
                                notification.type.toLowerCase() === 'success' ? 'success' :
                                notification.type.toLowerCase() === 'error' ? 'error' : 'info') as 'info' | 'success' | 'warning' | 'error';
@@ -49,9 +72,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 description: notification.message,
             });
         }
-    }, []);
+    }, [location.pathname, hasVisitedBefore]);
 
-    const checkHealth = useCallback(() => {
+    const checkHealth = useCallback((onMount = false) => {
         const issues = getSystemHealthIssues();
         const currentNotifs = getNotifications();
         
@@ -59,7 +82,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             // Only add if a notification with this title doesn't already exist (and isn't deleted)
             const exists = currentNotifs.some(n => n.title === issue.title && n.status !== 'CANCELLED');
             if (!exists) {
-                addNotification(issue);
+                // Suppress toasts on initial mount
+                addNotification(issue, !onMount);
             }
         });
         
@@ -68,11 +92,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     useEffect(() => {
         refresh();
-        // Initial health check
-        checkHealth();
+        // Initial health check - suppress toasts on mount
+        checkHealth(true);
         
-        // Poll for updates every 1 minute for system health
-        const interval = setInterval(checkHealth, 60000);
+        // Poll for updates every 1 minute for system health - allow toasts for new dynamic issues
+        const interval = setInterval(() => checkHealth(false), 60000);
 
         // Cross-tab Synchronization: Refresh notifications when they change in storage
         const handleStorageChange = (e: StorageEvent) => {

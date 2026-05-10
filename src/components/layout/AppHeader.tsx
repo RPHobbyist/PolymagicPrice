@@ -20,7 +20,7 @@ import { SYSTEM_CONFIG } from "@/lib/core/core-system";
 
 export const AppHeader = () => {
     return (
-        <header className="border-b border-border bg-white sticky top-0 z-50 shadow-sm w-full h-[32px] sm:h-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties & { WebkitAppRegion: string }}>
+        <header className="border-b border-border bg-white sticky top-0 z-[100] shadow-sm w-full h-auto" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties & { WebkitAppRegion: string }}>
             <div className="mx-auto px-6 h-16 sm:h-20 max-w-[1800px] w-full">
                 <div className="flex items-center justify-between h-full gap-4">
                     {/* Left Section: Logo */}
@@ -34,7 +34,7 @@ export const AppHeader = () => {
                     <div className="flex-1 flex items-center justify-center min-w-0">
                         <div className="h-8 sm:h-11 flex items-center justify-center flex-shrink-0">
                             <img 
-                                src="./brand-logo.png" 
+                                src={SYSTEM_CONFIG.brandLogo} 
                                 alt="PolymagicPrice" 
                                 className="h-full w-auto object-contain"
                             />

@@ -35,7 +35,10 @@ export const SYSTEM_CONFIG = {
         return import.meta.env.VITE_DOWNLOAD_URL || "https://github.com/RPHobbyist/PolymagicPrice/releases";
     },
     get logo() {
-        return "./logo.png";
+        return import.meta.env.VITE_VENDOR_LOGO || "/logo.webp";
+    },
+    get brandLogo() {
+        return import.meta.env.VITE_BRAND_LOGO || "/brand-logo.webp";
     },
 
     // Protected Identifiers
@@ -49,6 +52,14 @@ export const SYSTEM_CONFIG = {
 
     get vendorLink() {
         return import.meta.env.VITE_VENDOR_URL || "https://www.rphobbyist.com";
+    },
+
+    get vendorEmail() {
+        return import.meta.env.VITE_VENDOR_EMAIL || "rphobbyist@gmail.com";
+    },
+
+    get baseUrl() {
+        return import.meta.env.VITE_BASE_URL || "https://polymagicprice.rphobbyist.com";
     },
 
     // Identity Logic

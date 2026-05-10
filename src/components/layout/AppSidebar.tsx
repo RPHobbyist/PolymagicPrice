@@ -17,6 +17,7 @@
  */
 import { NavLink } from "react-router-dom";
 import { 
+    Home,
     Calculator, 
     Printer, 
     Calendar, 
@@ -46,6 +47,7 @@ interface NavItemProps {
 }
 
 const navItems = [
+    { icon: Home, label: "Home", path: "/" },
     { icon: Calculator, label: "Cost Calculator", path: "/cost-calculator" },
     { icon: ClipboardList, label: "Order Manager", path: "/order-manager" },
     { icon: Printer, label: "Print Manager", path: "/print-manager" },
@@ -62,6 +64,7 @@ const NavItem = ({ icon: Icon, label, path, isNotification }: NavItemProps) => {
     const { unreadCount } = useNotifications();
     const location = useLocation();
     const isActive = location.pathname === path || (path !== "/" && location.pathname.startsWith(path));
+    const isHome = path === "/";
 
     return (
         <div className="w-full flex justify-center py-0.5 relative z-[60]">
@@ -69,17 +72,27 @@ const NavItem = ({ icon: Icon, label, path, isNotification }: NavItemProps) => {
                 <TooltipTrigger asChild>
                     <NavLink
                         to={path}
+                        target={path === "/" ? "_blank" : undefined}
+                        rel={path === "/" ? "noopener noreferrer" : undefined}
                         aria-label={label}
                         className={cn(
                             "flex items-center justify-center h-10 w-10 rounded-lg transition-all duration-200 group relative select-none cursor-pointer pointer-events-auto",
                             isActive 
-                                ? "bg-primary text-white shadow-md" 
-                                : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
+                                ? isHome
+                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                                    : "bg-primary text-white shadow-md" 
+                                : isHome
+                                    ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                    : "text-slate-600 hover:bg-slate-200/60 hover:text-slate-900"
                         )}
                     >
                         <Icon className={cn(
                             "w-5 h-5 shrink-0 transition-all", 
-                            isActive ? "text-white scale-110" : "text-slate-700 group-hover:text-slate-900"
+                            isActive 
+                                ? "text-white scale-110" 
+                                : isHome
+                                    ? "text-emerald-600 group-hover:text-emerald-700 scale-105"
+                                    : "text-slate-700 group-hover:text-slate-900"
                         )} />
                         {isNotification && unreadCount > 0 && (
                             <Badge 
@@ -108,17 +121,17 @@ export const AppSidebar = () => {
             <aside 
                 className="h-full bg-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300 z-50 shrink-0 w-[64px] relative"
             >
-                {/* Unified Navigation Column */}
-                <div className="flex-1 py-8 flex flex-col items-center gap-6 overflow-y-auto scrollbar-none px-2 relative">
+                {/* Unified Navigation Column - Completely Fixed & Compact */}
+                <div className="flex-1 py-5 flex flex-col items-center gap-4 overflow-hidden px-2 relative">
                     {/* All Navigation Items in a single stable flow */}
-                    <div className="flex flex-col items-center gap-4 w-full">
+                    <div className="flex flex-col items-center gap-2.5 w-full">
                         {navItems.map((item) => (
                             <NavItem key={item.path} {...item} />
                         ))}
                     </div>
 
                     {/* Bottom Settings - Separated by mt-auto wrapper for layout stability */}
-                    <div className="mt-auto pb-4 pt-4 border-t border-slate-200/60 w-full flex flex-col items-center gap-4">
+                    <div className="mt-auto pb-2 pt-2 border-t border-slate-200/60 w-full flex flex-col items-center gap-2.5">
                         <NavItem icon={Settings} label="Settings" path="/settings" />
                     </div>
                 </div>

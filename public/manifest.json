@@ -10,9 +10,9 @@
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/logo.webp",
       "sizes": "1024x1024",
-      "type": "image/png",
+      "type": "image/webp",
       "purpose": "any maskable"
     }
   ],

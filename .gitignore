@@ -1,40 +1,41 @@
-# ─── Dependencies ────────────────────────────────────────────────
+# Dependencies
 node_modules/
 
-# ─── Build Output ────────────────────────────────────────────────
+# Build
 dist/
 dist-ssr/
 dist-electron/
 *.tsbuildinfo
+vite.config.ts.timestamp-*
 
-# ─── Environment Variables (may contain secrets) ─────────────────
+# Environment
 # .env.example is committed as a template for contributors
 .env
 .env.local
 .env.*.local
 .env.production
 .env.staging
+.env.test
+.env.test.local
 
-# ─── Electron Desktop (private, not part of the web OSS release) ─
+# Desktop
 electron/
 release-packager/
 
-# ─── Logs ────────────────────────────────────────────────────────
+# Logs
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# ─── OS Files ────────────────────────────────────────────────────
+# System
 .DS_Store
 Thumbs.db
 Desktop.ini
 *.lnk
 
-# ─── Editor / IDE ────────────────────────────────────────────────
+# IDE
 .vscode/*
 !.vscode/extensions.json
 .idea/
@@ -45,18 +46,18 @@ Desktop.ini
 *.sw?
 *.code-workspace
 
-# ─── Testing ─────────────────────────────────────────────────────
+# Testing
 test-assets/
 coverage/
 *.lcov
 
-# ─── Package Manager ────────────────────────────────────────────
+# Package Manager
 *.local
 .pnpm-debug.log*
 .yarn/
 .pnp.*
 
-# ─── Security: Never commit these ───────────────────────────────
+# Identity & Certificates
 *.pem
 *.key
 *.p12
@@ -66,7 +67,7 @@ coverage/
 *.cert
 *.crt
 
-# ─── Archives / Binaries (should never be in source) ────────────
+# Binaries
 *.7z
 *.zip
 *.tar.gz
@@ -79,13 +80,21 @@ coverage/
 *.deb
 *.rpm
 
-# ─── Build Caches ───────────────────────────────────────────────
+# Cache
 .eb-cache/
 .cache/
 .parcel-cache/
 .turbo/
 .vercel/
 .netlify/
+.vite/
 
-# ─── Misc ────────────────────────────────────────────────────────
+.eslintcache
+.stylelintcache
+
+# Local
 *.map
+lint_results.txt
+*.bak
+*.tmp
+temp/

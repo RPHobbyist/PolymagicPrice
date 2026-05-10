@@ -36,16 +36,26 @@ export function useAIStatus() {
 
         try {
             const isConnected = await ollamaClient.testConnection();
-            setStatus(isConnected ? "connected" : "disconnected");
-        } catch (err) {
-            const error = err as Error;
-            // Only toast if it was previously connected to avoid spamming while offline
-            if (status === "connected") {
-                toast.error(error.message || "AI Connection Lost");
-            }
-            setStatus("disconnected");
+            const newStatus = isConnected ? "connected" : "disconnected";
+            
+            setStatus(prev => {
+                // Only toast if it was previously connected and now is not
+                if (prev === "connected" && newStatus === "disconnected") {
+                    toast.error("AI Connection Lost - Check Ollama status");
+                } else if (prev !== "connected" && newStatus === "connected") {
+                    toast.success("AI Assistant Online");
+                }
+                return newStatus;
+            });
+        } catch {
+            setStatus(prev => {
+                if (prev === "connected") {
+                    toast.error("AI Connection Lost");
+                }
+                return "disconnected";
+            });
         }
-    }, [settings.enabled, status]);
+    }, [settings.enabled, isAllowed]);
 
     useEffect(() => {
         if (!isAllowed) return;

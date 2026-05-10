@@ -20,6 +20,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { getQuotes, getMachines, getLowStockMaterials, getProductionJobs, getSpools } from '@/lib/core/sessionStorage';
 import * as sessionStore from '@/lib/core/sessionStorage';
 import { ProductionJob } from '@/types/production';
+import { useLocation } from 'react-router-dom';
 
 
 interface IntelligenceContextType {
@@ -37,6 +38,7 @@ const IntelligenceContext = createContext<IntelligenceContextType | undefined>(u
 
 export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { addNotification, notifications } = useNotifications();
+    const location = useLocation();
 
     // Use a ref for notifications to avoid dependency cycle:
     // analyzeSystem → adds notification → notifications change → analyzeSystem recreates → useEffect re-runs
@@ -44,6 +46,9 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
     notificationsRef.current = notifications;
 
     const analyzeSystem = useCallback(() => {
+        // Optimization: Never run analysis or show notifications on landing page
+        if (location.pathname === '/') return;
+
         const now = new Date();
         const quotes = getQuotes();
         const machines = getMachines();
@@ -270,12 +275,17 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 });
             }
         });
-    }, [addNotification]);
+    }, [addNotification, location.pathname]);
 
     useEffect(() => {
         // Initial analysis after a short delay to ensure other providers are ready
         const timeout = setTimeout(analyzeSystem, 2000);
         
+        // Re-analyze when the user moves from landing to a tool page
+        if (location.pathname !== '/') {
+            analyzeSystem();
+        }
+
         // Cross-tab Synchronization: Re-analyze immediately on relevant data changes
         const handleStorageChange = (e: StorageEvent) => {
             const relevantKeys = [
@@ -300,7 +310,7 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
             clearInterval(interval);
             window.removeEventListener('storage', handleStorageChange);
         };
-    }, [analyzeSystem]);
+    }, [analyzeSystem, location.pathname]);
 
     return (
         <IntelligenceContext.Provider value={{ analyzeSystem }}>

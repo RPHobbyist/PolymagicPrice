@@ -328,11 +328,12 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       paintConsumable2: selectedPaint2, // Pass secondary paint
       customerId: formData.customerId,
       clientName: formData.clientName,
+      thumbnail: thumbnail,
     });
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId, thumbnail]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({

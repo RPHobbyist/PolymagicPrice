@@ -165,6 +165,7 @@ export const calculateFDMQuote = ({
     surfaceAreaCm2: surfaceAreaCm2,
     status: formData.status,
     failedUnits: formData.failedUnits ? parseInt(formData.failedUnits) : undefined,
+    thumbnail: formData.thumbnail,
   };
 };
 
@@ -282,6 +283,7 @@ export const calculateResinQuote = ({
     assignedMachineId: formData.machineId,
     status: formData.status,
     failedUnits: formData.failedUnits ? parseInt(formData.failedUnits) : undefined,
+    thumbnail: formData.thumbnail,
   };
 };
 

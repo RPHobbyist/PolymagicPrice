@@ -38,6 +38,7 @@ import { AIInsights } from "@/components/ai/AIInsights";
 import { KanbanSquare } from "lucide-react";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 import { sanitize, sanitizeObject } from "@/lib/sanitization";
+import { SYSTEM_CONFIG } from "@/lib/core/core-system";
 
 const SavedQuotesTable = lazy(() => import("@/components/quotes/SavedQuotesTable"));
 
@@ -62,6 +63,22 @@ interface IncomingGcodeData {
 const Index = memo(() => {
   const location = useLocation();
 
+  // --- STATE DECLARATIONS (Moved to top to prevent TDZ ReferenceErrors) ---
+  const [quoteData, setQuoteData] = useState<QuoteData | null>(null);
+  const [preFillData, setPreFillData] = useState<Record<string, unknown> | null>(null);
+  const [editQuoteId, setEditQuoteId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("fdm");
+  const [resetKey, setResetKey] = useState(0);
+
+  const {
+    quotes,
+    loading,
+    saveQuote,
+    deleteQuote,
+    updateQuote,
+  } = useSavedQuotes();
+
+  // --- HANDLERS ---
   const handleIncomingGcode = useCallback((gcodeData: IncomingGcodeData) => {
     try {
       const type = gcodeData.printType || ((gcodeData.resinVolume || 0) > 0 ? "Resin" : "FDM");
@@ -123,15 +140,15 @@ const Index = memo(() => {
             formData: baseFormData as unknown as FDMFormData,
             material,
             machine,
-            electricityRate: constants.find(c => c.name === 'Electricity Cost')?.value || 0,
-            laborRate: constants.find(c => c.name === 'Labor Rate')?.value || 0,
+            electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
+            laborRate: constants.find(c => c.id === 'labor')?.value || 0,
           })
         : calculateResinQuote({
             formData: baseFormData as unknown as ResinFormData,
             material,
             machine,
-            electricityRate: constants.find(c => c.name === 'Electricity Cost')?.value || 0,
-            laborRate: constants.find(c => c.name === 'Labor Rate')?.value || 0,
+            electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
+            laborRate: constants.find(c => c.id === 'labor')?.value || 0,
           });
 
       setQuoteData({
@@ -178,26 +195,16 @@ const Index = memo(() => {
     canonical: "/cost-calculator",
     ogTitle: "Free 3D Printing Price Calculator | FDM & Resin Cost Estimator",
     ogDescription: "Calculate exact 3D printing costs for FDM and Resin. Upload G-code, auto-fill parameters, and generate professional PDF quotes.",
-    ogImage: "/logo.png"
+    ogImage: SYSTEM_CONFIG.logo
   });
 
-  const [quoteData, setQuoteData] = useState<QuoteData | null>(null);
-  const [preFillData, setPreFillData] = useState<Record<string, unknown> | null>(null);
-  const [editQuoteId, setEditQuoteId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("fdm");
-
-  const [resetKey, setResetKey] = useState(0);
-
   const {
-    quotes,
-    loading,
-    saveQuote,
-    deleteQuote,
-    updateQuote,
-  } = useSavedQuotes();
+    addQuote: addToBatch,
+    items: batchItems,
+    clear: clearBatch,
+    totalPrice: batchTotal
+  } = useBatchQuote();
 
-
-  const { clearBatch } = useBatchQuote();
 
   const handleReset = useCallback(() => {
     setQuoteData(null);
@@ -231,8 +238,8 @@ const Index = memo(() => {
         const safeFilename = sanitize(filename);
 
         // Pre-calculation Structural Validation for Bridge Metadata
-        if (!content || typeof content !== 'object') {
-            throw new Error("Bridge delivered invalid slicer metadata payload");
+        if (!content || typeof content !== 'string') {
+            throw new Error("Bridge delivered invalid slicer metadata payload (expected string)");
         }
 
         const parsedData = parseGcode(content);
@@ -324,8 +331,8 @@ const Index = memo(() => {
       {/* Glow effect */}
       <div className="fixed inset-0 bg-gradient-glow pointer-events-none" />
 
-      <main className="mx-auto px-4 py-8 pb-20 sm:px-6 lg:px-8 max-w-[1800px] w-full animate-fade-in stagger-1 relative z-10">
-        <div className="grid lg:grid-cols-[1fr_380px] gap-4 sm:gap-8">
+      <main className="mx-auto px-4 py-4 pb-20 sm:px-6 lg:px-8 max-w-[1800px] w-full animate-fade-in stagger-1 relative z-10">
+        <div className="grid lg:grid-cols-[1fr_380px] gap-4 sm:gap-6">
           {/* Calculator Section */}
           <div className="space-y-6 animate-fade-in">
             <Card className="shadow-elevated border-border bg-card overflow-hidden hover-glow">

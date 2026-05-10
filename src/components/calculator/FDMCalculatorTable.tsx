@@ -370,11 +370,12 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       paintConsumable2: selectedPaint2,
       customerId: formData.customerId,
       clientName: formData.clientName,
+      thumbnail: thumbnail,
     });
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId, thumbnail]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({

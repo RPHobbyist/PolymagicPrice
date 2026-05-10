@@ -36,7 +36,7 @@ import {
 import { getAISettings } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { useNotifications } from "@/hooks/useNotifications";
-import { Bot, User, Loader2, Send, ShieldCheck, Trash2, BarChart3, PackageSearch, TrendingUp } from "lucide-react";
+import { Bot, User, Send, ShieldCheck, Trash2, BarChart3, PackageSearch, TrendingUp } from "lucide-react";
 import { cn, isAIAllowed } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
@@ -320,7 +320,7 @@ export const AIChatDialog = ({ open, onOpenChange }: AIChatDialogProps) => {
                     <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
                             <img 
-                                src="/ai-bot-icon.jpg" 
+                                src="/ai-bot-icon.webp" 
                                 alt="Bot" 
                                 className="w-10 h-10 rounded-full border-2 border-slate-100 shadow-sm"
                             />

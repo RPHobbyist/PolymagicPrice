@@ -1,0 +1,4 @@
+Contact: mailto:security@rphobbyist.com
+Expires: 2027-05-09T12:00:00.000Z
+Preferred-Languages: en
+Canonical: https://polymagicprice.rphobbyist.com/.well-known/security.txt

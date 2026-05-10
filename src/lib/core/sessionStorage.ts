@@ -23,7 +23,7 @@ import { ProductionJob, ProductionSettings } from "@/types/production";
 import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
-import { isAIAllowed, isDesktop } from "../utils";
+import { isAIAllowed } from "../utils";
 
 const generateId = (): string => {
     try {
@@ -1348,7 +1348,6 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
 export const getAISettings = (): AISettings => {
     // Local AI is allowed on Desktop or Localhost (Dev)
-    const isAllowed = isAIAllowed;
     const raw = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
     const fallback: AISettings = {
         enabled: false,

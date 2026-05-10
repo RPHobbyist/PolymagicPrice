@@ -100,7 +100,7 @@ const Layout = () => {
                                             >
                                                 <div className="relative group">
                                                     <img 
-                                                        src="./ai-bot-icon.jpg" 
+                                                        src="/ai-bot-icon.webp" 
                                                         alt="AI Assistant" 
                                                         className={cn(
                                                             "w-16 h-16 rounded-full border-2 shadow-xl group-hover:scale-110 transition-transform duration-300 object-cover",

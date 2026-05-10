@@ -33,6 +33,8 @@ interface SEOConfig {
   ogImage?: string;
   /** Robots directive (optional, e.g. "noindex, nofollow") */
   robots?: string;
+  /** JSON-LD Structured Data objects (optional) */
+  jsonLd?: object | object[];
 }
 
 const BRAND_SUFFIX = " | PolymagicPrice";
@@ -50,7 +52,8 @@ export function useDocumentSEO({
   ogTitle,
   ogDescription,
   ogImage,
-  robots
+  robots,
+  jsonLd
 }: SEOConfig) {
   useEffect(() => {
     // 1. Set page title
@@ -122,10 +125,27 @@ export function useDocumentSEO({
       updateMetaTag("twitter:image", ogImage.startsWith("http") ? ogImage : `${BASE_URL}${ogImage}`);
     }
 
+    // 7. Inject JSON-LD Structured Data (AEO/Search Engines)
+    const scriptId = "structured-data-script";
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    
+    if (jsonLd) {
+      const payload = Array.isArray(jsonLd) ? jsonLd : [jsonLd];
+      if (!script) {
+        script = document.createElement("script");
+        script.id = scriptId;
+        script.type = "application/ld+json";
+        document.head.appendChild(script);
+      }
+      script.text = JSON.stringify(payload);
+    } else if (script) {
+      script.remove();
+    }
+
     // Cleanup: not strictly necessary but keeps head clean
     return () => {
-      // Default reset logic if needed, but SPA nav usually handles this via next hook call
+      // JSON-LD is removed automatically if jsonLd is missing in next call
     };
-  }, [title, description, canonical, ogTitle, ogDescription, ogImage, robots]);
+  }, [title, description, canonical, ogTitle, ogDescription, ogImage, robots, jsonLd]);
 }
 

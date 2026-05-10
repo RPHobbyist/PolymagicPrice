@@ -49,7 +49,7 @@ export const WhatsNewDialog = ({
             }, 1000);
             return () => clearTimeout(timer);
         }
-    }, [CURRENT_VERSION]); // Run on mount or version change
+    }, [setOpen]); // Run on mount or version change
 
     const handleClose = () => {
         localStorage.setItem(STORAGE_KEY, CURRENT_VERSION);

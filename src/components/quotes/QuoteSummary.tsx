@@ -35,6 +35,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { printQuotePDF } from "@/lib/pdfGenerator";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
 import { BatchQuoteManager } from "./BatchQuoteManager";
+import { Realistic3DPrinter } from "@/components/shared/Realistic3DPrinter";
 
 interface QuoteSummaryProps {
   quoteData: QuoteData | null;
@@ -257,6 +258,16 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
       </div>
 
       <div className="p-6 space-y-5">
+        {/* Realistic Machine Visualization */}
+        <div className="mb-2 -mx-2">
+            <Realistic3DPrinter 
+                isCompact 
+                weight={quoteData.parameters?.filamentWeight ? parseFloat(String(quoteData.parameters.filamentWeight)) : 120} 
+                printHours={quoteData.parameters?.printTime ? parseFloat(String(quoteData.parameters.printTime)) : 8} 
+                finalPrice={quoteData.totalPrice} 
+            />
+        </div>
+
         <div className="space-y-3">
           <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">Cost Breakdown</h3>
 
@@ -285,7 +296,7 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
                   <PieChartIcon className="w-3.5 h-3.5" />
                   Material Breakdown
                 </h3>
-                <div className="h-[180px] w-full bg-muted/30 rounded-xl border border-border/50 p-2">
+                <div className="h-[140px] w-full bg-muted/30 rounded-xl border border-border/50 p-2">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie

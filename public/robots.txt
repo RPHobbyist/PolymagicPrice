@@ -1,25 +1,11 @@
-# PolymagicPrice — robots.txt
-# https://polymagicprice.rphobbyist.com
+# PolymagicPrice Robots.txt
+# Standard instructions for web crawlers
 
-# Allow all crawlers
 User-agent: *
 Allow: /
-Disallow: /assets/*.js.map
-Disallow: /assets/*.css.map
-Disallow: /settings
-Disallow: /database-manager
-Disallow: /order-manager
-
-# Google-specific
-User-agent: Googlebot
-Allow: /
-
-# Bing-specific
-User-agent: Bingbot
-Allow: /
+Allow: /cost-calculator
+Disallow: /tmp/
+Disallow: /private/
 
 # Sitemap location
 Sitemap: https://polymagicprice.rphobbyist.com/sitemap.xml
-
-# Host directive (Yandex)
-Host: https://polymagicprice.rphobbyist.com

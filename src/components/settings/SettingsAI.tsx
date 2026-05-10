@@ -28,7 +28,7 @@ import { ollamaClient } from "@/services/ai/OllamaClient";
 import { isPortForbidden } from "@/lib/sanitization";
 import { toast } from "sonner";
 import { Bot, Save, CheckCircle2, XCircle, Loader2, ExternalLink } from "lucide-react";
-import { isAIAllowed, isDesktop } from "@/lib/utils";
+import { isAIAllowed } from "@/lib/utils";
 
 export default function SettingsAI() {
     const [settings, setSettings] = useState(getAISettings());

@@ -32,16 +32,17 @@ import { UIProvider } from "@/contexts/UIContext";
 import Layout from "./components/layout/Layout";
 
 // Lazy load pages for code splitting
-const Index = lazy(() => import("@/pages/Index"));
-const Settings = lazy(() => import("@/pages/Settings"));
-const BillingAnalysis = lazy(() => import("@/pages/BillingAnalysis"));
-const OrderManager = lazy(() => import("@/pages/OrderManager"));
-const PrintManager = lazy(() => import("@/pages/PrintManager"));
-const CapacityPlanner = lazy(() => import("@/pages/CapacityPlanner"));
-const DatabaseManager = lazy(() => import("@/pages/DatabaseManager"));
-const Notification = lazy(() => import("@/pages/Notification"));
-const ToolGuide = lazy(() => import("@/pages/ToolGuide"));
-const NotFound = lazy(() => import("@/pages/NotFound"));
+const Landing = lazy(() => import("./pages/Landing"));
+const Index = lazy(() => import("./pages/Index"));
+const Settings = lazy(() => import("./pages/Settings"));
+const BillingAnalysis = lazy(() => import("./pages/BillingAnalysis"));
+const OrderManager = lazy(() => import("./pages/OrderManager"));
+const PrintManager = lazy(() => import("./pages/PrintManager"));
+const CapacityPlanner = lazy(() => import("./pages/CapacityPlanner"));
+const DatabaseManager = lazy(() => import("./pages/DatabaseManager"));
+const Notification = lazy(() => import("./pages/Notification"));
+const ToolGuide = lazy(() => import("./pages/ToolGuide"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback component with better FCP and visual appeal
 const PageLoader = () => (
@@ -90,19 +91,21 @@ const queryClient = new QueryClient({
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <NotificationProvider>
-        <IntelligenceProvider>
-          <UIProvider>
-            <CurrencyProvider>
-              <BatchQuoteProvider>
-                <ProductionProvider>
-                  <TooltipProvider>
-                    <Sonner />
-                    <BrowserRouter>
+      <BrowserRouter>
+        <NotificationProvider>
+          <IntelligenceProvider>
+            <UIProvider>
+              <CurrencyProvider>
+                <BatchQuoteProvider>
+                  <ProductionProvider>
+                    <TooltipProvider>
+                      <Sonner />
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
+                          {/* Standalone Landing Page outside Layout */}
+                          <Route path="/" element={<Landing />} />
+
                           <Route element={<Layout />}>
-                            <Route path="/" element={<Navigate to="/cost-calculator" replace />} />
                             <Route path="/cost-calculator" element={<Index />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/billing-analysis" element={<BillingAnalysis />} />
@@ -127,14 +130,14 @@ const App = () => {
                           </Route>
                         </Routes>
                       </Suspense>
-                    </BrowserRouter>
-                  </TooltipProvider>
-                </ProductionProvider>
-              </BatchQuoteProvider>
-            </CurrencyProvider>
-          </UIProvider>
-        </IntelligenceProvider>
-      </NotificationProvider>
+                    </TooltipProvider>
+                  </ProductionProvider>
+                </BatchQuoteProvider>
+              </CurrencyProvider>
+            </UIProvider>
+          </IntelligenceProvider>
+        </NotificationProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   );
 };
