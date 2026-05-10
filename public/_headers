@@ -1,6 +1,6 @@
 /*
   # Content Security Policy (single source of truth — no meta tag CSP in index.html)
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; require-trusted-types-for 'script';
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com http://localhost:* http://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; require-trusted-types-for 'script';
 
   # HSTS (1 year, with preload)
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
