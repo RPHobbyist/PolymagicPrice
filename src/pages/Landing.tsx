@@ -93,62 +93,7 @@ export default function Landing() {
     canonical: "/",
     ogTitle: "PolymagicPrice: Free 3D Print Price Calculator & Manager",
     ogDescription: "Calculate exact 3D printing costs for FDM and Resin. Standardize your 3D printing workflow with an industrial-grade, local-first estimator.",
-    ogImage: SYSTEM_CONFIG.logo,
-    jsonLd: [
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": SYSTEM_CONFIG.appName,
-        "operatingSystem": "Web, Windows, macOS, Linux",
-        "applicationCategory": "BusinessApplication, ProductivityApplication",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        },
-        "description": "Professional-grade, local-first 3D printing cost calculation and print farm management software.",
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "5",
-          "reviewCount": "124"
-        }
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": SYSTEM_CONFIG.appName,
-        "alternateName": `${SYSTEM_CONFIG.vendor} ${SYSTEM_CONFIG.appName}`,
-        "url": SYSTEM_CONFIG.vendorLink,
-        "logo": `${SYSTEM_CONFIG.vendorLink}${SYSTEM_CONFIG.brandLogo}`,
-        "founder": {
-          "@type": "Person",
-          "name": SYSTEM_CONFIG.vendor
-        }
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "url": SYSTEM_CONFIG.baseUrl,
-        "name": SYSTEM_CONFIG.appName,
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": `${SYSTEM_CONFIG.vendorLink}/search?q={search_term_string}`,
-          "query-input": "required name=search_term_string"
-        }
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": faqs.map(f => ({
-          "@type": "Question",
-          "name": f.q,
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": f.a
-          }
-        }))
-      }
-    ]
+    ogImage: SYSTEM_CONFIG.logo
   });
 
 
