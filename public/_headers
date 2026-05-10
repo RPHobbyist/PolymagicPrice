@@ -35,3 +35,25 @@
 
 /sitemap.xml
   Cache-Control: public, max-age=86400
+
+# Edge Blocking Layer
+/.git/*
+  X-Robots-Tag: noindex
+
+/.github/*
+  X-Robots-Tag: noindex
+
+/.gitlab/*
+  X-Robots-Tag: noindex
+
+/.vscode/*
+  X-Robots-Tag: noindex
+
+/actuator/*
+  X-Robots-Tag: noindex
+
+/profiler/*
+  X-Robots-Tag: noindex
+
+/docker-compose*
+  X-Robots-Tag: noindex
