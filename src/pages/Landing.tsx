@@ -195,7 +195,7 @@ export default function Landing() {
 
           {/* Header Action - Modern & High Contrast */}
           <div className="flex items-center gap-6">
-            <a href={SYSTEM_CONFIG.githubUrl} target="_blank" rel="noopener noreferrer" className="hidden sm:inline-flex text-slate-500 hover:text-slate-900 transition-colors">
+            <a href={SYSTEM_CONFIG.githubUrl} target="_blank" rel="noopener noreferrer" aria-label="Visit our GitHub repository" className="hidden sm:inline-flex text-slate-500 hover:text-slate-900 transition-colors">
               <Github className="w-6 h-6" />
             </a>
             <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-600/10 transition-all duration-200 hover:-translate-y-0.5 font-bold px-5 h-10 text-sm border-none">
@@ -206,8 +206,9 @@ export default function Landing() {
           </div>
         </div>
       </header>
-
-      {/* HERO SECTION - Immersive 3D Split Layout */}
+      
+      <main>
+        {/* HERO SECTION - Immersive 3D Split Layout */}
       <section className="relative pt-12 pb-12 md:pt-16 md:pb-16 max-w-7xl mx-auto px-6 lg:px-8 overflow-hidden">
         {/* Animated Background Mesh */}
         <div className="absolute inset-0 -z-10 opacity-40 mesh-gradient animate-pulse-soft" />
@@ -370,7 +371,7 @@ export default function Landing() {
                 Integrates offline with Ollama on your local machine. Redacts PII, prevents code extraction, and generates operational pricing reports securely.
               </p>
               <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
-                Learn More <ArrowRight className="w-3 h-3" />
+                Read AI Documentation <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
 
@@ -485,6 +486,8 @@ export default function Landing() {
 
         </div>
       </section>
+
+      </main>
 
       {/* OPTIMIZED SLIM FOOTER */}
       <footer className="bg-slate-100 border-t border-slate-200/80 pt-12 pb-8 font-sans text-sm text-slate-500">
