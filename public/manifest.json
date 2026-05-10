@@ -1,7 +1,7 @@
 {
   "name": "PolymagicPrice — 3D Printing Price Calculator",
   "short_name": "PolymagicPrice",
-  "description": "Free, open-source 3D printing price calculator for FDM and Resin (SLA/DLP). Calculate costs, generate quotes, manage inventory. By Rp Hobbyist.",
+  "description": "Free, open-source 3D printing price calculator for FDM and Resin (SLA/DLP). Calculate costs, generate quotes, manage inventory. By RP Hobbyist.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",

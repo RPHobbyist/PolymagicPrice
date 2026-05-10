@@ -25,10 +25,10 @@
   <!-- Primary Meta Tags -->
   <title>PolymagicPrice: Free 3D Print Price Calculator & Manager</title>
   <meta name="description"
-    content="Calculate exact 3D printing costs for FDM and Resin. PolymagicPrice is a privacy-first tool for hobbyists and print farms to track material, electricity, and labor." />
+    content="Free 3D printing price calculator for FDM & Resin (SLA/DLP). Upload G-code for instant cost breakdowns — material, electricity, labor & markup. 100% private, open-source. By RP Hobbyist." />
   <meta name="keywords"
-    content="3D printing price calculator, 3D printing cost estimator, FDM calculator, resin printing cost, SLA cost calculator, DLP printing price, 3D print quote generator, filament cost calculator, G-code price estimator, 3D printing business tool, open source 3D printing, free 3D print calculator, print cost per gram, 3D printing markup calculator, PolymagicPrice, Rp Hobbyist" />
-  <meta name="author" content="Rp Hobbyist" />
+    content="3D printing price calculator, 3D printing cost estimator, FDM calculator, resin printing cost, SLA cost calculator, DLP printing price, 3D print quote generator, filament cost calculator, G-code price estimator, 3D printing business tool, open source 3D printing, free 3D print calculator, print cost per gram, 3D printing markup calculator, PolymagicPrice, RP Hobbyist" />
+  <meta name="author" content="RP Hobbyist" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#6366f1" />
   <meta name="application-name" content="PolymagicPrice" />
@@ -40,6 +40,7 @@
 
   <!-- Canonical & Identity -->
   <link rel="canonical" href="https://polymagicprice.rphobbyist.com/" />
+  <link rel="home" href="https://www.rphobbyist.com" />
   <link rel="icon" type="image/webp" href="/logo.webp" />
   <link rel="apple-touch-icon" href="/logo.webp" />
   <link rel="manifest" href="/manifest.json" />
@@ -54,7 +55,7 @@
   <meta property="og:description"
     content="Quit losing money on hidden 3D printing costs. PolymagicPrice is an industrial-grade, local-first 3D printing cost calculator. 100% secure, offline-capable, and free forever." />
   <meta property="og:image" content="https://polymagicprice.rphobbyist.com/logo.webp" />
-  <meta property="og:image:alt" content="PolymagicPrice — 3D Printing Price Calculator by Rp Hobbyist" />
+  <meta property="og:image:alt" content="PolymagicPrice — 3D Printing Price Calculator by RP Hobbyist" />
   <meta property="og:image:width" content="1024" />
   <meta property="og:image:height" content="1024" />
 
@@ -108,12 +109,12 @@
       },
       "author": {
         "@type": "Person",
-        "name": "Rp Hobbyist",
+        "name": "RP Hobbyist",
         "url": "https://www.rphobbyist.com"
       },
       "publisher": {
         "@type": "Person",
-        "name": "Rp Hobbyist",
+        "name": "RP Hobbyist",
         "url": "https://www.rphobbyist.com"
       },
       "description": "PolymagicPrice is a free, open-source 3D printing price calculator for FDM filament and Resin (SLA/DLP) printing. Upload G-code files to auto-calculate material costs, electricity, labor, and generate professional quotes with markup. Built for 3D printing businesses and hobbyists.",
@@ -275,8 +276,27 @@
       "description": "Free open-source 3D printing price calculator for FDM and Resin printing",
       "publisher": {
         "@type": "Person",
-        "name": "Rp Hobbyist",
+        "name": "RP Hobbyist",
         "url": "https://www.rphobbyist.com"
+      }
+    }
+  </script>
+
+  <!-- Structured Data: Organization for Brand Authority Signal -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "RP Hobbyist",
+      "url": "https://www.rphobbyist.com",
+      "sameAs": [
+        "https://www.printables.com/@RPHobbyist",
+        "https://github.com/RPHobbyist"
+      ],
+      "subOrganization": {
+        "@type": "WebApplication",
+        "name": "PolymagicPrice",
+        "url": "https://polymagicprice.rphobbyist.com"
       }
     }
   </script>
@@ -291,7 +311,7 @@
           "@type": "ListItem",
           "position": 1,
           "name": "Cost Calculator",
-          "item": "https://polymagicprice.rphobbyist.com/calculator"
+          "item": "https://polymagicprice.rphobbyist.com/cost-calculator"
         },
         {
           "@type": "ListItem",
@@ -303,7 +323,7 @@
           "@type": "ListItem",
           "position": 3,
           "name": "Order Manager",
-          "item": "https://polymagicprice.rphobbyist.com/manage-orders"
+          "item": "https://polymagicprice.rphobbyist.com/order-manager"
         },
         {
           "@type": "ListItem",
@@ -394,7 +414,23 @@
       style="max-width:800px;margin:40px auto;padding:20px;font-family:Arial,system-ui,sans-serif;text-align:center;">
       <h1>PolymagicPrice — Free 3D Printing Price Calculator</h1>
       <p>PolymagicPrice is a free, open-source 3D printing price calculator for FDM filament and Resin (SLA/DLP)
-        printing by <a href="https://www.rphobbyist.com">Rp Hobbyist</a>.</p>
+        printing by <a href="https://www.rphobbyist.com">RP Hobbyist</a>. Upload G-code, 3MF, or CXDLPV4 files
+        for instant cost breakdowns — material, electricity, labor, machine depreciation &amp; custom markup.
+        100% private, offline-capable, and open-source.</p>
+
+      <h2>Navigate PolymagicPrice</h2>
+      <nav style="text-align:center;margin:20px 0;">
+        <ul style="list-style:none;padding:0;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;">
+          <li><a href="/cost-calculator">Cost Calculator</a></li>
+          <li><a href="/print-manager">Print Manager</a></li>
+          <li><a href="/order-manager">Order Manager</a></li>
+          <li><a href="/capacity-planner">Capacity Planner</a></li>
+          <li><a href="/billing-analysis">Billing &amp; Analysis</a></li>
+          <li><a href="/tool-guide">Tool Guide &amp; FAQ</a></li>
+          <li><a href="/settings">Settings</a></li>
+        </ul>
+      </nav>
+
       <h2>Features</h2>
       <ul style="text-align:left;display:inline-block;">
         <li>FDM Filament &amp; Resin (SLA/DLP) Cost Calculators</li>
@@ -471,9 +507,15 @@
           Planner forecasts across all machines.</p>
       </div>
 
+      <h2>About RP Hobbyist</h2>
+      <p>PolymagicPrice is built by <a href="https://www.rphobbyist.com">RP Hobbyist</a> — a maker, 3D printing
+        enthusiast, and open-source advocate. Find more projects, tutorials, and 3D printing resources at
+        <a href="https://www.rphobbyist.com">rphobbyist.com</a>.</p>
+
       <p>This application requires JavaScript to run. Please enable JavaScript in your browser.</p>
-      <p><a href="https://github.com/RPHobbyist/PolymagicPrice">View Source Code on GitHub</a> | <a
-          href="https://www.rphobbyist.com">Visit Rp Hobbyist</a></p>
+      <p><a href="https://github.com/RPHobbyist/PolymagicPrice">View Source Code on GitHub</a> |
+        <a href="https://www.rphobbyist.com">Visit RP Hobbyist</a> |
+        <a href="https://www.printables.com/@RPHobbyist">Printables Profile</a></p>
     </div>
   </noscript>
 </body>
