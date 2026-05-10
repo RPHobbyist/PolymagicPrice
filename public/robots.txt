@@ -6,6 +6,9 @@ Allow: /
 Disallow: /private/
 Disallow: /tmp/
 Disallow: /dist/
+Disallow: /.*
+Disallow: /node_modules/
+Disallow: /cgi-bin/
 
 # Sitemap location
 Sitemap: https://polymagicprice.rphobbyist.com/sitemap.xml
