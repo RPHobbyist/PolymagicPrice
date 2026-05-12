@@ -505,7 +505,7 @@ export default function Landing() {
             className="block relative group rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300"
           >
             <img 
-              src="https://img.youtube.com/vi/PvxaYkOh6-M/maxresdefault.jpg" 
+              src="https://img.youtube.com/vi/PvxaYkOh6-M/hqdefault.jpg" 
               alt="PolymagicPrice v2.0 Launch Trailer - 3D Print Farm Command Center" 
               className="w-full aspect-video object-cover group-hover:scale-[1.02] transition-transform duration-500"
             />
