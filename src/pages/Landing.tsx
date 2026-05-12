@@ -33,7 +33,8 @@ import {
   Calculator,
   Map,
   Globe,
-  Mail
+  Mail,
+  Cpu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
@@ -88,11 +89,11 @@ const faqs = [
 export default function Landing() {
   // 1. Inject SEO Metadata & AEO Structured Data
   useDocumentSEO({
-    title: "PolymagicPrice: Free 3D Print Price Calculator & Manager",
-    description: "Calculate exact 3D printing costs for FDM and Resin. PolymagicPrice is a privacy-first tool for hobbyists and print farms to track material, electricity, and labor.",
+    title: "PolymagicPrice: Run Your 3D Print Farm with Local AI — Free & Open Source",
+    description: "Run your 3D print farm with Local AI. PolymagicPrice is the free, open-source command center for pricing, production management, fleet monitoring, and business analytics. 100% offline. No cloud.",
     canonical: "/",
-    ogTitle: "PolymagicPrice: Free 3D Print Price Calculator & Manager",
-    ogDescription: "Calculate exact 3D printing costs for FDM and Resin. Standardize your 3D printing workflow with an industrial-grade, local-first estimator.",
+    ogTitle: "PolymagicPrice: Run Your 3D Print Farm with Local AI — Free & Open Source",
+    ogDescription: "The all-in-one command center for 3D print farms. Price jobs accurately, manage production across your fleet, and get AI-powered insights — all running locally. No cloud. No subscriptions.",
     ogImage: SYSTEM_CONFIG.logo
   });
 
@@ -145,7 +146,7 @@ export default function Landing() {
             </a>
             <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-600/10 transition-all duration-200 hover:-translate-y-0.5 font-bold px-5 h-10 text-sm border-none">
               <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer">
-                Launch Calculator
+                Launch Command Center
               </Link>
             </Button>
           </div>
@@ -182,8 +183,8 @@ export default function Landing() {
               className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-[1.15]"
               variants={itemVariants}
             >
-              The Ultimate Free <br />
-              <span className="text-emerald-600">3D Print Price Calculator</span>
+              Run Your 3D Print Farm <br />
+              <span className="text-emerald-600">with Local AI</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -191,7 +192,7 @@ export default function Landing() {
               className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal max-w-xl"
               variants={itemVariants}
             >
-              The professional 3D print quotation tool for makers. Calculate accurate FDM & Resin costs instantly using our 3D printing cost estimator. Secure, private, and open source.
+              The all-in-one command center for 3D print farms. Price jobs accurately, manage production across your fleet, and get AI-powered insights — all running locally on your machine. No cloud. No subscriptions. Free forever.
             </motion.p>
 
             {/* CTAs */}
@@ -204,7 +205,7 @@ export default function Landing() {
                 <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer">
                   <span className="absolute inset-0 bg-white/10 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-700" />
                   <Play className="w-4 h-4 mr-2 fill-current" />
-                  Launch Free 3D Print Cost Calculator
+                  Launch Your Command Center — Free
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="h-11 px-6 bg-white border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm transition-all duration-200 hover:border-emerald-200">
@@ -216,15 +217,18 @@ export default function Landing() {
             </motion.div>
             
             {/* Trust Badges */}
-            <motion.div className="pt-4 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[10px] text-emerald-700 font-bold uppercase" variants={itemVariants}>
-              <span className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors cursor-default">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> 100% Client-Side
+            <motion.div className="pt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-xl" variants={itemVariants}>
+              <span className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50/60 text-[11px] font-bold text-emerald-700 uppercase tracking-wide whitespace-nowrap">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Client-Side
               </span>
-              <span className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors cursor-default">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Secure Local Sandbox
+              <span className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50/60 text-[11px] font-bold text-emerald-700 uppercase tracking-wide whitespace-nowrap">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Local Sandbox
               </span>
-              <span className="flex items-center gap-1.5 hover:text-emerald-500 transition-colors cursor-default">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> AGPLv3 Open Source
+              <span className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50/60 text-[11px] font-bold text-emerald-700 uppercase tracking-wide whitespace-nowrap">
+                <Cpu className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Local AI
+              </span>
+              <span className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50/60 text-[11px] font-bold text-emerald-700 uppercase tracking-wide whitespace-nowrap">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Open Source
               </span>
             </motion.div>
           </div>
@@ -249,10 +253,10 @@ export default function Landing() {
           {/* Section Header */}
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-3 leading-snug">
-              Professional 3D Print Quotation Tool & <br /> Farm Management Software
+              One Tool. Your Entire Operation.
             </h2>
             <p className="text-slate-600 text-sm leading-relaxed">
-              PolymagicPrice is a comprehensive 3D printing cost estimator. Features include production precision, print farm automation, and offline AI analysis.
+              From precision pricing to production management — PolymagicPrice replaces spreadsheets, guesswork, and fragmented tools with a single AI-powered command center for your 3D print farm.
             </p>
           </div>
 
@@ -450,7 +454,7 @@ export default function Landing() {
                 />
               </div>
               <p className="text-slate-500 text-sm leading-relaxed max-w-sm font-normal">
-                Empowering makers with industrial-grade precision. PolymagicPrice is a secure, local-first suite for 3D printing cost estimation and workshop management—100% private and open source.
+                The AI-powered command center for 3D print farms. PolymagicPrice handles pricing, production, fleet management, and business analytics — all running locally on your machine. 100% private and open source.
               </p>
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-600/80 uppercase tracking-wider">
                 <ShieldCheck className="w-4 h-4" />
