@@ -34,7 +34,14 @@ import {
   Map,
   Globe,
   Mail,
-  Cpu
+  Cpu,
+  Settings,
+  FileUp,
+  TrendingUp,
+  MessageSquare,
+  Zap,
+  X as XIcon,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
@@ -133,9 +140,11 @@ export default function Landing() {
           </Link>
 
           {/* Nav Links - Slate Gray, Spacious */}
-          <nav className="hidden md:flex items-center gap-12 text-base font-bold text-slate-600">
+          <nav className="hidden md:flex items-center gap-10 text-sm font-bold text-slate-600">
             <button onClick={() => handleScroll("features")} className="hover:text-slate-900 transition-all">Features</button>
-            <button onClick={() => handleScroll("privacy")} className="hover:text-slate-900 transition-all">Privacy First</button>
+            <button onClick={() => handleScroll("how-it-works")} className="hover:text-slate-900 transition-all">How It Works</button>
+            <button onClick={() => handleScroll("local-ai")} className="hover:text-slate-900 transition-all">Local AI</button>
+            <button onClick={() => handleScroll("privacy")} className="hover:text-slate-900 transition-all">Privacy</button>
             <button onClick={() => handleScroll("faq")} className="hover:text-slate-900 transition-all">FAQ</button>
           </nav>
 
@@ -340,7 +349,232 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* HOW IT WORKS SECTION - 3-Step Visual Guide */}
+      <section id="how-it-works" className="py-20 border-t border-slate-200 bg-slate-50">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-3 leading-snug">
+              Up and Running in 3 Steps
+            </h2>
+            <p className="text-slate-600 text-sm leading-relaxed">
+              No complicated setup. No accounts. Configure your workshop, drop a file, and start managing your print farm.
+            </p>
+          </div>
 
+          <motion.div 
+            className="grid md:grid-cols-3 gap-8"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+          >
+            {/* Step 1 */}
+            <motion.div className="text-center space-y-4" variants={itemVariants}>
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 mx-auto shadow-sm">
+                <Settings className="w-7 h-7" />
+              </div>
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Step 1</div>
+              <h3 className="text-lg font-bold text-slate-900">Configure Your Workshop</h3>
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
+                Add your printers, materials, electricity rate, and labor costs. PolymagicPrice learns your shop's unique economics.
+              </p>
+            </motion.div>
+
+            {/* Step 2 */}
+            <motion.div className="text-center space-y-4" variants={itemVariants}>
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 mx-auto shadow-sm">
+                <FileUp className="w-7 h-7" />
+              </div>
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Step 2</div>
+              <h3 className="text-lg font-bold text-slate-900">Drop a File, Get a Price</h3>
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
+                Drag your G-code, 3MF, or CXDLPV4 file into the calculator. Instant cost breakdown with a professional PDF quote.
+              </p>
+            </motion.div>
+
+            {/* Step 3 */}
+            <motion.div className="text-center space-y-4" variants={itemVariants}>
+              <div className="w-14 h-14 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700 mx-auto shadow-sm">
+                <TrendingUp className="w-7 h-7" />
+              </div>
+              <div className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Step 3</div>
+              <h3 className="text-lg font-bold text-slate-900">Manage & Grow</h3>
+              <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
+                Track production on the Kanban board, analyze profits, and let Local AI surface insights you'd never find in a spreadsheet.
+              </p>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* LOCAL AI SPOTLIGHT SECTION */}
+      <section id="local-ai" className="py-20 border-t border-slate-200 bg-white relative overflow-hidden">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <motion.div 
+            className="grid lg:grid-cols-2 gap-12 items-center"
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+          >
+            {/* Left: Text Content */}
+            <motion.div className="space-y-6" variants={itemVariants}>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                <Cpu className="w-3.5 h-3.5" /> Powered by Ollama
+              </div>
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 leading-snug">
+                Your AI. Your Data. <br />Your Machine.
+              </h2>
+              <p className="text-slate-600 text-sm leading-relaxed max-w-lg">
+                PolymagicPrice integrates with Ollama to give you an AI assistant that runs entirely on your hardware. No API keys. No cloud. No data leaks. Just intelligent answers from your own production data.
+              </p>
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wider">Ask it anything:</p>
+                <div className="space-y-2">
+                  {[
+                    "What's my average profit margin this month?",
+                    "Which material has the highest failure rate?",
+                    "Am I losing money on resin prints?"
+                  ].map((query, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-slate-600">
+                      <MessageSquare className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                      <span className="italic">"{query}"</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Right: AI Chat Preview Card */}
+            <motion.div 
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm space-y-4"
+              variants={itemVariants}
+            >
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-200">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <Cpu className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-slate-900">PolymagicPrice AI</div>
+                  <div className="text-[10px] text-emerald-600 font-medium">Running locally via Ollama</div>
+                </div>
+                <div className="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              
+              {/* User message */}
+              <div className="flex justify-end">
+                <div className="bg-emerald-600 text-white text-xs px-4 py-2.5 rounded-xl rounded-tr-sm max-w-[280px] leading-relaxed">
+                  Which material is my most profitable?
+                </div>
+              </div>
+              
+              {/* AI response */}
+              <div className="flex justify-start">
+                <div className="bg-white border border-slate-200 text-xs text-slate-700 px-4 py-3 rounded-xl rounded-tl-sm max-w-[320px] leading-relaxed shadow-sm">
+                  Based on your last 30 quotes, <span className="font-bold text-emerald-700">PETG</span> delivers the highest margin at <span className="font-bold text-emerald-700">42.3%</span> average profit. PLA follows at 38.1%. Your resin prints average 28.7% — consider raising markup by 5-10%.
+                </div>
+              </div>
+
+              {/* Input area mock */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                <div className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-400">
+                  Ask about your shop data...
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
+                  <ArrowRight className="w-4 h-4 text-white" />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* YOUTUBE VIDEO SECTION */}
+      <section className="py-16 border-t border-slate-200 bg-slate-50">
+        <div className="max-w-4xl mx-auto px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-2">
+              See PolymagicPrice in Action
+            </h2>
+            <p className="text-slate-600 text-sm">Watch the v2.0 launch trailer</p>
+          </div>
+          <a 
+            href="https://www.youtube.com/watch?v=PvxaYkOh6-M" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="block relative group rounded-2xl overflow-hidden shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300"
+          >
+            <img 
+              src="https://img.youtube.com/vi/PvxaYkOh6-M/maxresdefault.jpg" 
+              alt="PolymagicPrice v2.0 Launch Trailer - 3D Print Farm Command Center" 
+              className="w-full aspect-video object-cover group-hover:scale-[1.02] transition-transform duration-500"
+            />
+            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-white/95 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                <Play className="w-7 h-7 text-emerald-600 fill-emerald-600 ml-1" />
+              </div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      {/* WHY CHOOSE POLYMAGICPRICE - Comparison Table */}
+      <section className="py-20 border-t border-slate-200 bg-white">
+        <div className="max-w-4xl mx-auto px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-3">
+              Why Print Farm Operators Choose PolymagicPrice
+            </h2>
+            <p className="text-slate-600 text-sm">Not just another calculator — a complete command center.</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-200">
+                  <th className="text-left py-4 px-4 text-slate-500 font-medium text-xs uppercase tracking-wider">Feature</th>
+                  <th className="py-4 px-4 text-slate-400 font-medium text-xs uppercase tracking-wider text-center">Simple Calculators</th>
+                  <th className="py-4 px-4 text-slate-400 font-medium text-xs uppercase tracking-wider text-center">Cloud Print Mgmt</th>
+                  <th className="py-4 px-4 text-emerald-700 font-bold text-xs uppercase tracking-wider text-center bg-emerald-50/50 rounded-t-lg">PolymagicPrice</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ["6-Factor Cost Stacking", false, "partial", true],
+                  ["Local AI Insights", false, false, true],
+                  ["Production Kanban Board", false, true, true],
+                  ["Works 100% Offline", "partial", false, true],
+                  ["IoT Printer Integration", false, true, true],
+                  ["Data Privacy", "partial", false, true],
+                  ["Open Source", false, false, true],
+                  ["Price", "free-ish", "$15-50/mo", "free"],
+                ].map(([feature, simple, cloud, pmp], i) => (
+                  <tr key={i} className={`border-b border-slate-100 ${i % 2 === 0 ? 'bg-slate-50/30' : ''}`}>
+                    <td className="py-3.5 px-4 font-medium text-slate-700">{feature as string}</td>
+                    <td className="py-3.5 px-4 text-center">
+                      {simple === true ? <Check className="w-4 h-4 text-emerald-500 mx-auto" /> 
+                        : simple === "partial" ? <span className="text-xs text-amber-500 font-medium">Partial</span>
+                        : simple === "free-ish" ? <span className="text-xs text-slate-400">Free-ish</span>
+                        : <XIcon className="w-4 h-4 text-slate-300 mx-auto" />}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      {cloud === true ? <Check className="w-4 h-4 text-emerald-500 mx-auto" /> 
+                        : cloud === "partial" ? <span className="text-xs text-amber-500 font-medium">Partial</span>
+                        : cloud === "$15-50/mo" ? <span className="text-xs text-red-400 font-medium">$15–50/mo</span>
+                        : <XIcon className="w-4 h-4 text-slate-300 mx-auto" />}
+                    </td>
+                    <td className="py-3.5 px-4 text-center bg-emerald-50/30">
+                      {pmp === true ? <Check className="w-5 h-5 text-emerald-600 mx-auto" /> 
+                        : pmp === "free" ? <span className="text-sm font-bold text-emerald-700">Free Forever</span>
+                        : <XIcon className="w-4 h-4 text-slate-300 mx-auto" />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       {/* PRIVACY TRUST SECTION - Clean White Card */}
       <section id="privacy" className="py-20 border-t border-slate-200 bg-white relative overflow-hidden">
