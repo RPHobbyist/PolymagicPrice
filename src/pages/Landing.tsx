@@ -154,12 +154,7 @@ export default function Landing() {
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": SYSTEM_CONFIG.appName,
-        "url": SYSTEM_CONFIG.baseUrl,
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": `${SYSTEM_CONFIG.baseUrl}/search?q={search_term_string}`,
-          "query-input": "required name=search_term_string"
-        }
+        "url": SYSTEM_CONFIG.baseUrl
       },
       {
         "@context": "https://schema.org",
