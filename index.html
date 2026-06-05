@@ -202,6 +202,110 @@
       ]
     }
   </script>
+
+  <!-- Structured Data: FAQPage for Rich FAQ Results & AI Overviews -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does PolymagicPrice calculate 3D printing costs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "PolymagicPrice uses an industrial cost-stacking algorithm: Material Cost (by grams/milliliters) + Electricity Cost (Printer Wattage × Print Hours × Local kWh Rate) + Machine Depreciation (Hourly wear rate × Print Hours) + Labor Cost (Operator prep hours × Hourly rate) + Overhead. Upload a G-code file for auto-fill or enter values manually."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is my data private and secure? Does PolymagicPrice upload to the cloud?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, it is 100% safe. PolymagicPrice is built on a strict Local-First, Privacy-Absolute architecture. All G-code parses, inventory records, CRM clients, financial statements, and calculations are executed client-side inside your browser or desktop app. Zero telemetry, zero servers, and zero cloud trackers. Your data never leaves your machine."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I import G-code, 3MF, or resin files directly?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Drag and drop your .gcode, .3mf, or .cxdlpv4 slice files. The built-in parser automatically extracts print time, filament weight, resin volume, printer model, and material type, instantly filling the calculator."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is PolymagicPrice free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. PolymagicPrice is 100% free and open-source licensed under the GNU AGPLv3. There are no paywalls, no monthly subscriptions, and no feature limits. You can use it in your browser, download the desktop build for Windows, macOS, and Linux, or self-host it on your own network."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much should I charge for 3D prints?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Total Price = (Material + Electricity + Machine Wear + Labor + Overhead) × (1 + Markup%). Typical markup for 3D printing services is 20–50%. Simple parts: 20–30%. Custom or artisan work: 40–50% or higher."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does PolymagicPrice support multiple currencies?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Configure your local currency (USD, EUR, GBP, INR, etc.) in settings along with local electricity rates and labor costs, ensuring accurate pricing regardless of your region."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What file formats does PolymagicPrice support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": ".gcode (Cura, PrusaSlicer, OrcaSlicer, BambuStudio), .3mf (3D Manufacturing Format with embedded metadata), and .cxdlpv4 (ChiTuBox resin slicer format)."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is resin printing more expensive than FDM?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. FDM filament costs $15–$50/kg, while resin costs $35–$150+ per liter, plus consumables like IPA wash solution, nitrile gloves, and FEP film replacements. PolymagicPrice handles both with dedicated calculators."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I calculate electricity costs for 3D printing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Formula: (Printer Wattage / 1000) × Print Hours × Electricity Rate per kWh. Most FDM printers consume 100–150W. PolymagicPrice calculates this automatically when you enter your local kWh rate."
+          }
+        }
+      ]
+    }
+  </script>
+
+  <!-- Structured Data: BreadcrumbList for Site Hierarchy -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "RP Hobbyist",
+          "item": "https://www.rphobbyist.com"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "PolymagicPrice",
+          "item": "https://polymagicprice.rphobbyist.com/"
+        }
+      ]
+    }
+  </script>
 </head>
 
 <body>

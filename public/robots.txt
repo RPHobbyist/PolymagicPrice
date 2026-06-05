@@ -1,9 +1,26 @@
 # PolymagicPrice Robots.txt
 # Standard instructions for web crawlers
 
+# Explicitly allow Google search and AI features
+User-agent: Googlebot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# Default: allow all crawlers
 User-agent: *
 Allow: /
 Disallow: /cgi-bin/
+Disallow: /admin
+Disallow: /login
+Disallow: /profile
 
 # Sitemap location
 Sitemap: https://polymagicprice.rphobbyist.com/sitemap.xml

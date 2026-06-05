@@ -388,8 +388,32 @@ export async function onRequest(context) {
       });
     }
 
+    // ── Bot-aware BreadcrumbList injection for sub-pages ──
+    // Appends a BreadcrumbList JSON-LD script to <head> for every mapped sub-page
+    // so Google understands the site hierarchy. Homepage breadcrumb is in index.html.
+    if (isBotRequest && config && lookupPath !== '/') {
+      // Derive a clean page name from the seoMap title (strip " — ..." suffix)
+      const pageName = config.title.split('\u2014')[0].trim();
+      const breadcrumbJsonLd = JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "RP Hobbyist", "item": `${PARENT}` },
+          { "@type": "ListItem", "position": 2, "name": "PolymagicPrice", "item": `${SITE}/` },
+          { "@type": "ListItem", "position": 3, "name": pageName, "item": canonicalUrl }
+        ]
+      });
+
+      rewriter.on('head', {
+        element(e) {
+          e.append(`<script type="application/ld+json">${breadcrumbJsonLd}</script>`, { html: true });
+        }
+      });
+    }
+
     response = rewriter.transform(response);
   }
 
   return response;
 }
+
