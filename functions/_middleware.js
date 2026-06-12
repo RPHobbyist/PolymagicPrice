@@ -317,8 +317,43 @@ export async function onRequest(context) {
     return new Response('Not Found', { status: 404 });
   }
 
+  // 3.5 Markdown Negotiation for AI Agents (RFC compliant)
+  const acceptHeader = context.request.headers.get('Accept') || '';
+  if (acceptHeader.includes('text/markdown')) {
+    let mdPath = path;
+    if (mdPath.endsWith('/')) mdPath = mdPath.slice(0, -1);
+    if (mdPath === '') mdPath = '/index'; // Map root to index.md
+    
+    const rewriteUrl = new URL(context.request.url);
+    rewriteUrl.pathname = `/markdown${mdPath}.md`;
+    
+    const mdResponse = await context.env.ASSETS.fetch(rewriteUrl);
+    if (mdResponse.ok) {
+        const mdHeaders = new Headers(mdResponse.headers);
+        mdHeaders.set('Content-Type', 'text/markdown; charset=utf-8');
+        mdHeaders.set('X-Content-Type-Options', 'nosniff');
+        mdHeaders.set('X-Frame-Options', 'DENY');
+        return new Response(mdResponse.body, {
+            status: mdResponse.status,
+            statusText: mdResponse.statusText,
+            headers: mdHeaders
+        });
+    }
+  }
+
   // Pass through to destination
   let response = await context.next();
+
+  // 3.6 Inject Sitemap Link Header for AI Discoverability
+  if (path === '/' || path === '') {
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set('Link', '</sitemap.xml>; rel="sitemap"');
+    response = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders
+    });
+  }
 
   // 4. Intercept and transform HTML responses for SEO dynamic hydration
   const contentType = response.headers.get('content-type') || '';

@@ -17,6 +17,9 @@
   # Permissions Policy (feature policy)
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
 
+/
+  Link: </sitemap.xml>; rel="sitemap"
+
 # Cache static assets aggressively (fonts, images, JS/CSS bundles)
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
