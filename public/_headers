@@ -18,7 +18,7 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
 
 /
-  Link: </sitemap.xml>; rel="sitemap"
+  Link: </sitemap.xml>; rel="sitemap", </markdown/tool-guide.md>; rel="service-doc"
 
 # Cache static assets aggressively (fonts, images, JS/CSS bundles)
 /assets/*

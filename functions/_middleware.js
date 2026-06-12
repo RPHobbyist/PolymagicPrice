@@ -347,7 +347,7 @@ export async function onRequest(context) {
   // 3.6 Inject Sitemap Link Header for AI Discoverability
   if (path === '/' || path === '') {
     const newHeaders = new Headers(response.headers);
-    newHeaders.set('Link', '</sitemap.xml>; rel="sitemap"');
+    newHeaders.set('Link', '</sitemap.xml>; rel="sitemap", </markdown/tool-guide.md>; rel="service-doc"');
     response = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
