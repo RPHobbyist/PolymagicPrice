@@ -132,11 +132,11 @@ const faqs = [
 export default function Landing() {
   // 1. Inject SEO Metadata & AEO Structured Data
   useDocumentSEO({
-    title: "PolymagicPrice: Run Your 3D Print Farm with Local AI — Free & Open Source",
-    description: "Run your 3D print farm with Local AI. PolymagicPrice is the free, open-source command center for pricing, production management, fleet monitoring, and business analytics. 100% offline. No cloud.",
+    title: "Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice",
+    description: "Free 3D printing price calculator for FDM & Resin. Calculate 3D print costs, generate professional quotes, and manage your print farm with local AI. Upload G-code for instant pricing. Open-source, offline, no cloud.",
     canonical: "/",
-    ogTitle: "PolymagicPrice: Run Your 3D Print Farm with Local AI — Free & Open Source",
-    ogDescription: "The all-in-one command center for 3D print farms. Price jobs accurately, manage production across your fleet, and get AI-powered insights — all running locally. No cloud. No subscriptions.",
+    ogTitle: "Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice",
+    ogDescription: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, get instant price breakdowns, and generate professional PDF quotes. Free, open-source, 100% offline.",
     ogImage: SYSTEM_CONFIG.logo,
     jsonLd: [
       {

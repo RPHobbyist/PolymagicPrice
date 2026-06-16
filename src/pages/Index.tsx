@@ -190,11 +190,11 @@ const Index = memo(() => {
   }, [location.state, handleIncomingGcode]);
 
   useDocumentSEO({
-    title: "Cost Calculator — Free 3D Printing Price Calculator & Quotation Engine",
-    description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, auto-calculate material costs, electricity, labor, and generate professional quotes.",
+    title: "3D Printing Price Calculator — Free Quote & Cost Estimator",
+    description: "Free 3D print price calculator for FDM filament and Resin SLA/DLP. Upload G-code, 3MF, or CXDLPV4 files to auto-calculate material costs, electricity, labor, and machine depreciation. Generate professional PDF quotes instantly. No cloud, 100% offline.",
     canonical: "/cost-calculator",
-    ogTitle: "Free 3D Printing Price Calculator | FDM & Resin Cost Estimator",
-    ogDescription: "Calculate exact 3D printing costs for FDM and Resin. Upload G-code, auto-fill parameters, and generate professional PDF quotes.",
+    ogTitle: "3D Printing Price Calculator — Free Quote & Cost Estimator | PolymagicPrice",
+    ogDescription: "Free 3D printing quote calculator. Upload G-code for instant cost breakdowns covering material, electricity, labor, and overhead. Generate professional PDF quotes for your 3D print farm.",
     ogImage: SYSTEM_CONFIG.logo
   });
 

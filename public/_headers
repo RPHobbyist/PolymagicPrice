@@ -27,6 +27,9 @@
 /*.png
   Cache-Control: public, max-age=2592000
 
+/*.webp
+  Cache-Control: public, max-age=2592000
+
 /*.ico
   Cache-Control: public, max-age=2592000
 
