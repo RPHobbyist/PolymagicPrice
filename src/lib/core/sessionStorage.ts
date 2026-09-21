@@ -50,6 +50,118 @@ function safeParse<T>(key: string, fallback: T): T {
     }
 }
 
+/** Announced whenever a write is refused, so the UI can tell the shop what happened. */
+export const STORAGE_FAILED_EVENT = "session_storage_failed";
+
+export interface StorageFailure {
+    /** Which collection could not be written. */
+    key: string;
+    /** True when the browser refused for lack of room rather than for some other reason. */
+    full: boolean;
+    /** Something a shop owner can act on, not the browser's wording. */
+    message: string;
+}
+
+/** A write that was refused. Carries a message worth showing, unlike the browser's own. */
+export class StorageWriteError extends Error {
+    readonly failure: StorageFailure;
+    constructor(failure: StorageFailure) {
+        super(failure.message);
+        this.name = "StorageWriteError";
+        this.failure = failure;
+    }
+}
+
+/**
+ * Every browser spells a full quota differently: DOMException code 22, code 1014 on Firefox, and
+ * name variants on Safari. A refusal with something already stored is the reliable signal.
+ */
+const isQuotaError = (err: unknown): boolean => {
+    if (!(err instanceof Error)) return false;
+    const name = err.name;
+    const code = (err as DOMException).code;
+    return (
+        name === "QuotaExceededError" ||
+        name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+        code === 22 ||
+        code === 1014
+    );
+};
+
+/**
+ * The single place this module writes to storage.
+ *
+ * Reads have gone through `safeParse` for a long time; writes went straight to
+ * `localStorage.setItem` in sixty-one places with nothing around them. That mattered most on the
+ * one path that writes from a React effect — the kanban board persists on every job change — where
+ * a throw is caught by the root error boundary and replaces the whole application with the crash
+ * screen. Reloading re-ran the same effect against the same oversized data and crashed again, so a
+ * full quota locked a shop out of its own app permanently.
+ *
+ * Quotes and production jobs both carry base64 thumbnails inside the same ~5 MB origin quota, so
+ * running out of room is an ordinary Tuesday for a busy shop, not an exotic failure.
+ *
+ * Throws `StorageWriteError` so the call sites that already show a toast keep working and say
+ * something useful, and announces the failure on the window so the app can react even when a
+ * caller swallows the error. Use `tryWriteStore` where a failure must not propagate.
+ */
+function writeStore(key: string, value: string): void {
+    try {
+        localStorage.setItem(key, value);
+    } catch (err: unknown) {
+        const full = isQuotaError(err);
+        const failure: StorageFailure = {
+            key,
+            full,
+            message: full
+                ? "Your browser storage is full, so this change was not saved. Export a backup from Database Manager, then remove old quotes or completed jobs to free up room."
+                : "This change could not be saved to browser storage. If you are browsing privately or have site data blocked, the app cannot keep your data on this device.",
+        };
+
+        console.error(`[Storage] Write to "${key}" was refused.`, err);
+        try {
+            window.dispatchEvent(new CustomEvent<StorageFailure>(STORAGE_FAILED_EVENT, { detail: failure }));
+        } catch {
+            // No window (tests, SSR): the throw below is the whole report.
+        }
+
+        throw new StorageWriteError(failure);
+    }
+}
+
+/**
+ * A write whose failure must never reach React — the effect-driven persistence paths.
+ * Returns false when the write was refused; the failure has already been announced.
+ */
+function tryWriteStore(key: string, value: string): boolean {
+    try {
+        writeStore(key, value);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Whether this browser will let the app keep data at all.
+ *
+ * Reading `localStorage` throws outright where site data is blocked, in some private-browsing
+ * modes and under certain enterprise policies. `initializeDefaults` runs before React mounts, so
+ * such a throw used to leave the user staring at a blank page with nothing rendered and nothing
+ * logged. Everything this app does is local-first, so it is worth saying plainly that it cannot
+ * work here rather than appearing to be broken.
+ */
+export const isStorageAvailable = (): boolean => {
+    try {
+        const probe = "__polymagic_probe__";
+        localStorage.setItem(probe, "1");
+        localStorage.removeItem(probe);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 const defaultMaterials: Material[] = [
     { id: "fdm-pla", name: "PLA", cost_per_unit: 25, unit: "kg", print_type: "FDM" },
     { id: "fdm-pla-plus", name: "PLA+", cost_per_unit: 28, unit: "kg", print_type: "FDM" },
@@ -267,7 +379,12 @@ const decryptReview = (r: CustomerReview): CustomerReview => ({
 
 const encryptProductionJob = (j: ProductionJob): ProductionJob => ({
     ...j,
-    quote: encryptQuote(j.quote)
+    // The board never renders a preview image, yet every job carried a full base64 copy of its
+    // quote's thumbnail — a second copy of the largest field in the app, inside the same ~5 MB
+    // origin quota that the quotes themselves are competing for. Dropping it on the way to
+    // storage is the cheapest space the app can recover, and nothing reads it back: production
+    // only ever writes individual fields (status, failedUnits, actualPrintTime) to a quote.
+    quote: encryptQuote({ ...j.quote, thumbnail: undefined })
 });
 
 const decryptProductionJob = (j: ProductionJob): ProductionJob => ({
@@ -322,35 +439,48 @@ export const getSpecsByMachineName = (name: string): Partial<Machine> | null => 
     return null;
 };
 
-export const initializeDefaults = () => {
+/**
+ * Seeds a fresh install and tops up an existing one.
+ *
+ * Returns false when storage is unavailable, so the entry point can say so instead of letting a
+ * throw escape before React has mounted anything.
+ */
+export const initializeDefaults = (): boolean => {
+    if (!isStorageAvailable()) {
+        console.error("[Storage] Browser storage is unavailable; the app cannot keep data on this device.");
+        return false;
+    }
+
     if (!localStorage.getItem(STORAGE_KEYS.INITIALIZED)) {
-        localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(defaultMaterials));
-        localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(defaultMachines));
-        localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify(defaultConstants));
-        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(null));
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(DEFAULT_AI_SETTINGS));
-        localStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify({
+        writeStore(STORAGE_KEYS.QUOTES, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.MATERIALS, JSON.stringify(defaultMaterials));
+        writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(defaultMachines));
+        writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(defaultConstants));
+        writeStore(STORAGE_KEYS.CUSTOMERS, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.REVIEWS, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.GCODES, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.COMPANY, JSON.stringify(null));
+        writeStore(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(DEFAULT_AI_SETTINGS));
+        writeStore(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify({
             port: 50505,
             enabled: false
         }));
-        localStorage.setItem(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.PRODUCTION_SETTINGS, JSON.stringify({
+        writeStore(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify([]));
+        writeStore(STORAGE_KEYS.PRODUCTION_SETTINGS, JSON.stringify({
             efficiency: 85,
             turnoverMinutes: 15,
             workHoursPerDay: 8,
             enabledMachineIds: []
         }));
-        localStorage.setItem(STORAGE_KEYS.INITIALIZED, "true");
+        writeStore(STORAGE_KEYS.INITIALIZED, "true");
     } else {
         syncLatestDefaultMachines();
         syncLatestDefaultConstants();
     }
+
+    return true;
 };
 
 /**
@@ -370,7 +500,7 @@ export const syncLatestDefaultConstants = (): boolean => {
     if (missing.length === 0) return false;
 
     console.log(`[Storage] Adding ${missing.length} new system constant(s).`);
-    localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify([...current, ...missing]));
+    writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify([...current, ...missing]));
     return true;
 };
 
@@ -388,7 +518,7 @@ export const syncLatestDefaultMachines = () => {
     if (missingMachines.length > 0) {
         console.log(`[Storage] Hydrating with ${missingMachines.length} new models.`);
         const nextMachines = [...currentMachines, ...missingMachines];
-        localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(nextMachines.map(encryptMachine)));
+        writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(nextMachines.map(encryptMachine)));
         return true;
     }
     return false;
@@ -460,14 +590,14 @@ export const saveQuote = (quote: QuoteData): QuoteData => {
         quotes.unshift(newQuote);
     }
 
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
     return newQuote;
 };
 
 export const deleteQuote = (id: string): void => {
     const quotes = getQuotes().filter(q => q.id !== id);
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
 
@@ -475,7 +605,7 @@ export const updateQuoteNotes = (id: string, notes: string): void => {
     const quotes = getQuotes().map(q =>
         q.id === id ? { ...q, notes: sanitize(notes) } : q
     );
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
 /**
@@ -531,7 +661,7 @@ export const getCarbonSettings = (): CarbonSettings => ({
 
 export const saveCarbonSettings = (settings: Partial<CarbonSettings>): CarbonSettings => {
     const next = { ...getCarbonSettings(), ...settings };
-    localStorage.setItem(STORAGE_KEYS.CARBON_SETTINGS, JSON.stringify(next));
+    writeStore(STORAGE_KEYS.CARBON_SETTINGS, JSON.stringify(next));
     return next;
 };
 
@@ -573,7 +703,7 @@ export const recalculateCarbonHistory = (
         return { ...quote, carbon };
     });
 
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(next.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(next.map(encryptQuote)));
     notifyQuotesUpdated();
     console.log(`[Carbon] Recalculated ${updated} footprint(s), left ${untouched} untouched (scope: ${scope}).`);
 
@@ -643,7 +773,7 @@ export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
         return q;
     });
     
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
 export const updateQuoteStatus = (id: string, status: QuoteStatus): void => {
@@ -662,7 +792,7 @@ export const updateQuoteStatus = (id: string, status: QuoteStatus): void => {
         return q;
     });
     
-    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
+    writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
 
@@ -676,7 +806,7 @@ export const updateMachineRuntime = (id: string, hours: number): void => {
         }
         return m;
     });
-    localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
+    writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
     notifyMachinesUpdated();
 };
 
@@ -706,7 +836,7 @@ export const saveMaterial = (material: Omit<Material, "id"> & { id?: string }): 
         } as Material;
         materials.push(newMaterial);
     }
-    localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
+    writeStore(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
     return sanitizedMaterial.id
         ? materials.find(m => m.id === sanitizedMaterial.id)!
         : materials[materials.length - 1];
@@ -725,13 +855,13 @@ export const deleteMaterial = (id: string, force: boolean = false): { success: b
     }
 
     const materials = getMaterials().filter(m => m.id !== id);
-    localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
+    writeStore(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
 
     // Cleanup orphaned spools
     const spools = getSpools();
     const filteredSpools = spools.filter(s => s.materialId !== id);
     if (spools.length !== filteredSpools.length) {
-        localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(filteredSpools.map(encryptSpool)));
+        writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(filteredSpools.map(encryptSpool)));
     }
 
     return { success: true };
@@ -776,7 +906,7 @@ export const saveMachine = (machine: Omit<Machine, "id"> & { id?: string }): Mac
         machines.push(newMachine);
         result = newMachine;
     }
-    localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
+    writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
     notifyMachinesUpdated();
     return result;
 };
@@ -791,7 +921,7 @@ export const deleteMachine = (id: string, force: boolean = false): { success: bo
     }
 
     const machines = getMachines().filter(m => m.id !== id);
-    localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
+    writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
     notifyMachinesUpdated();
 
     // Cleanup production settings
@@ -807,7 +937,7 @@ export const deleteMachine = (id: string, force: boolean = false): { success: bo
 
             if (settings.enabledMachineIds && Array.isArray(settings.enabledMachineIds)) {
                 settings.enabledMachineIds = settings.enabledMachineIds.filter((mId: string) => mId !== id);
-                localStorage.setItem(STORAGE_KEYS.PRODUCTION_SETTINGS, wrapSecret(JSON.stringify(settings)));
+                writeStore(STORAGE_KEYS.PRODUCTION_SETTINGS, wrapSecret(JSON.stringify(settings)));
             }
         }
     } catch (err) {
@@ -841,7 +971,7 @@ export const getConstants = (): CostConstant[] => {
 
     // Persist migration once to avoid re-checking every time
     if (needsMigration) {
-        localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify(migrated));
+        writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(migrated));
     }
 
     return migrated;
@@ -881,7 +1011,7 @@ export const saveConstant = (constant: Omit<CostConstant, "id"> & { id?: string 
         } as CostConstant;
         constants.push(newConstant);
     }
-    localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify(constants));
+    writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(constants));
     return sanitizedConstant.id
         ? constants.find(c => c.id === sanitizedConstant.id)!
         : constants[constants.length - 1];
@@ -889,7 +1019,7 @@ export const saveConstant = (constant: Omit<CostConstant, "id"> & { id?: string 
 
 export const deleteConstant = (id: string): void => {
     const constants = getConstants().filter(c => c.id !== id);
-    localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify(constants));
+    writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(constants));
 };
 
 // Reset all session data
@@ -957,13 +1087,13 @@ export const saveCustomer = (customer: Omit<Customer, "id" | "createdAt"> & { id
         customers.unshift(newCustomer);
         result = newCustomer;
     }
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
+    writeStore(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
     return result;
 };
 
 export const deleteCustomer = (id: string): void => {
     const customers = getCustomers().filter(c => c.id !== id);
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
+    writeStore(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
 };
 
 export const getCustomer = (id: string): Customer | undefined => {
@@ -1019,7 +1149,7 @@ export const saveEmployee = (employee: Omit<Employee, "id" | "createdAt"> & { id
         };
         employees.unshift(newEmployee);
     }
-    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees.map(encryptEmployee)));
+    writeStore(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees.map(encryptEmployee)));
     return sanitizedEmployee.id
         ? employees.find(e => e.id === sanitizedEmployee.id)!
         : employees[0];
@@ -1027,7 +1157,7 @@ export const saveEmployee = (employee: Omit<Employee, "id" | "createdAt"> & { id
 
 export const deleteEmployee = (id: string): void => {
     const employees = getEmployees().filter(e => e.id !== id);
-    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees.map(encryptEmployee)));
+    writeStore(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees.map(encryptEmployee)));
 };
 
 export const getEmployee = (id: string): Employee | undefined => {
@@ -1062,7 +1192,7 @@ export const saveReview = (review: Omit<CustomerReview, "id" | "createdAt"> & { 
         } as CustomerReview;
         reviews.unshift(newReview);
     }
-    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews.map(encryptReview)));
+    writeStore(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews.map(encryptReview)));
 
     // Update customer's average rating
     updateCustomerRating(review.customerId);
@@ -1084,7 +1214,7 @@ export const deleteReview = (id: string): void => {
     const reviews = getReviews();
     const review = reviews.find(r => r.id === id);
     const filtered = reviews.filter(r => r.id !== id);
-    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(filtered.map(encryptReview)));
+    writeStore(STORAGE_KEYS.REVIEWS, JSON.stringify(filtered.map(encryptReview)));
 
     if (review) {
         updateCustomerRating(review.customerId);
@@ -1105,7 +1235,7 @@ const updateCustomerRating = (customerId: string): void => {
     if (index !== -1) {
         customers[index].averageRating = average;
         customers[index].reviewCount = count;
-        localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
+        writeStore(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.map(encryptCustomer)));
     }
 };
 
@@ -1137,7 +1267,7 @@ export const saveSpool = (spool: Omit<MaterialSpool, "id"> & { id?: string }): M
         };
         spools.push(newSpool);
     }
-    localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
+    writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
     updateMaterialStock(sanitizedSpool.materialId);
     return sanitizedSpool.id ? spools.find(s => s.id === sanitizedSpool.id)! : spools[spools.length - 1];
 };
@@ -1146,7 +1276,7 @@ export const deleteSpool = (id: string): void => {
     const spools = getSpools();
     const spool = spools.find(s => s.id === id);
     const filtered = spools.filter(s => s.id !== id);
-    localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(filtered.map(encryptSpool)));
+    writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(filtered.map(encryptSpool)));
 
     if (spool) {
         updateMaterialStock(spool.materialId);
@@ -1198,7 +1328,7 @@ export const deductFromSpool = (spoolId: string, amount: number): number => {
 
     spools[index].currentWeight = newWeight;
 
-    localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
+    writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
     updateMaterialStock(spools[index].materialId);
     return applied;
 };
@@ -1247,7 +1377,7 @@ const updateMaterialStock = (materialId: string): void => {
     const index = materials.findIndex(m => m.id === materialId);
     if (index !== -1) {
         materials[index].totalInStock = stock;
-        localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
+        writeStore(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
     }
 };
 
@@ -1279,7 +1409,7 @@ export const saveGcode = (gcode: Omit<StoredGcode, "id"> & { id?: string }): Sto
         } as StoredGcode;
         gcodes.push(newGcode);
     }
-    localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
+    writeStore(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
     return sanitizedGcode.id
         ? gcodes.find(g => g.id === sanitizedGcode.id)!
         : gcodes[gcodes.length - 1];
@@ -1305,14 +1435,14 @@ export const updateGcodeMetadata = (filePath: string, actualTime: number): void 
         const newValue = (current * 0.8) + (actualTime * 0.2);
         
         gcodes[index].printTime = Math.min(10000, Math.max(0, Math.round(newValue * 100) / 100));
-        localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
+        writeStore(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
         console.log(`[ClosedLoop] Updated G-code metadata for ${filePath}: ${current}h -> ${gcodes[index].printTime}h`);
     }
 };
 
 export const deleteGcode = (id: string): void => {
     const gcodes = getGcodes().filter(g => g.id !== id);
-    localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
+    writeStore(STORAGE_KEYS.GCODES, JSON.stringify(gcodes.map(encryptGcode)));
 };
 
 
@@ -1321,8 +1451,15 @@ export const getProductionJobs = (): ProductionJob[] => {
     return raw.map(decryptProductionJob);
 };
 
-export const saveProductionJobs = (jobs: ProductionJob[]): void => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify(jobs.map(encryptProductionJob)));
+/**
+ * Persists the production board. Written from a React effect on every job change, so a refusal
+ * must be reported rather than thrown: an exception here reaches the root error boundary and takes
+ * the whole app down, and does so again on the next load, which is a permanent lockout.
+ *
+ * Returns false when the write was refused; the failure has already been announced on the window.
+ */
+export const saveProductionJobs = (jobs: ProductionJob[]): boolean => {
+    return tryWriteStore(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify(jobs.map(encryptProductionJob)));
 };
 
 export const getProductionSettings = (): ProductionSettings => {
@@ -1338,16 +1475,22 @@ export const getProductionSettings = (): ProductionSettings => {
 
     try {
         const decrypted = unwrapSecret(raw);
-        return JSON.parse(decrypted);
+        const parsed = JSON.parse(decrypted);
+        // Merge rather than return the parsed value. The fallback only covered a throw, so a
+        // stored "null" or a record written by an older version came back missing `efficiency`
+        // and `workHoursPerDay`, and every consumer read those straight off it.
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
+        return { ...fallback, ...parsed };
     } catch (err) {
         console.warn("[Storage] Failed to decrypt production settings, using defaults.", err);
         return fallback;
     }
 };
 
-export const saveProductionSettings = (settings: ProductionSettings): void => {
+/** Also written from an effect — see saveProductionJobs for why this one cannot throw either. */
+export const saveProductionSettings = (settings: ProductionSettings): boolean => {
     const encrypted = wrapSecret(JSON.stringify(settings));
-    localStorage.setItem(STORAGE_KEYS.PRODUCTION_SETTINGS, encrypted);
+    return tryWriteStore(STORAGE_KEYS.PRODUCTION_SETTINGS, encrypted);
 };
 
 /**
@@ -1369,7 +1512,7 @@ export const performMachineMaintenance = (machineId: string): void => {
     if (index !== -1) {
         machines[index].lastMaintenanceHours = machines[index].totalRuntimeHours || 0;
         machines[index].lastMaintenanceDate = new Date().toISOString();
-        localStorage.setItem(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
+        writeStore(STORAGE_KEYS.MACHINES, JSON.stringify(machines.map(encryptMachine)));
         notifyMachinesUpdated();
     }
 };
@@ -1394,7 +1537,7 @@ export const saveCompanySettings = (settings: CompanySettings): void => {
         taxId: settings.taxId ? sanitize(settings.taxId) : settings.taxId,
         footerText: settings.footerText ? sanitize(settings.footerText) : settings.footerText,
     };
-    localStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(encryptCompanySettings(sanitizedSettings)));
+    writeStore(STORAGE_KEYS.COMPANY, JSON.stringify(encryptCompanySettings(sanitizedSettings)));
 };
 
 
@@ -1609,7 +1752,7 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
         const written: string[] = [];
         try {
             for (const [key, value] of Object.entries(commitMap)) {
-                localStorage.setItem(key, value);
+                writeStore(key, value);
                 written.push(key);
             }
         } catch (writeErr: unknown) {
@@ -1716,7 +1859,7 @@ export const getAISettings = (): AISettings => {
 export const saveAISettings = (settings: AISettings) => {
     const normalized = normalizeAISettings(settings);
     const encrypted = wrapSecret(JSON.stringify(normalized));
-    localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, encrypted);
+    writeStore(STORAGE_KEYS.AI_SETTINGS, encrypted);
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event(AI_SETTINGS_EVENT));
     }
@@ -1737,7 +1880,7 @@ export const appendAIAudit = (entry: Omit<AIAuditEntry, "timestamp">): void => {
         const entries = getAIAudit();
         entries.push({ ...entry, timestamp: new Date().toISOString() });
         const trimmed = entries.slice(-MAX_AI_AUDIT_ENTRIES);
-        localStorage.setItem(STORAGE_KEYS.AI_AUDIT, wrapSecret(JSON.stringify(trimmed)));
+        writeStore(STORAGE_KEYS.AI_AUDIT, wrapSecret(JSON.stringify(trimmed)));
     } catch (err) {
         console.warn("[AI Audit] Could not record entry:", err);
     }
@@ -1781,7 +1924,7 @@ export const getAIChat = (): AIChatMessageRecord[] => {
 export const saveAIChat = (messages: AIChatMessageRecord[]): void => {
     try {
         const trimmed = messages.slice(-MAX_AI_CHAT_MESSAGES);
-        localStorage.setItem(STORAGE_KEYS.AI_CHAT, wrapSecret(JSON.stringify(trimmed)));
+        writeStore(STORAGE_KEYS.AI_CHAT, wrapSecret(JSON.stringify(trimmed)));
     } catch (err) {
         console.warn("[AI Chat] Could not persist transcript:", err);
     }
@@ -1820,7 +1963,7 @@ export const saveBridgeSettings = (settings: BridgeSettings): void => {
         port: isPortForbidden(settings.port) ? 50505 : settings.port
     };
     const encrypted = wrapSecret(JSON.stringify(sanitized));
-    localStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, encrypted);
+    writeStore(STORAGE_KEYS.BRIDGE_SETTINGS, encrypted);
 };
 
 
@@ -1846,7 +1989,7 @@ export const saveNotification = (notification: Omit<Notification, "id" | "timest
         status: 'NEW'
     };
     notifications.unshift(newNotification);
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.slice(0, 100).map(encryptNotification)));
+    writeStore(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.slice(0, 100).map(encryptNotification)));
     return newNotification;
 };
 
@@ -1854,16 +1997,16 @@ export const updateNotificationStatus = (id: string, status: NotificationStatus)
     const notifications = getNotifications().map(n => 
         n.id === id ? { ...n, status } : n
     );
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.map(encryptNotification)));
+    writeStore(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.map(encryptNotification)));
 };
 
 export const deleteNotification = (id: string): void => {
     const notifications = getNotifications().filter(n => n.id !== id);
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.map(encryptNotification)));
+    writeStore(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.map(encryptNotification)));
 };
 
 export const clearAllNotifications = (): void => {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+    writeStore(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
 };
 
 

@@ -22,17 +22,39 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { StorageUnavailable } from "./components/StorageUnavailable";
 
 import { initializeDefaults } from "./lib/core/sessionStorage";
 
 // Disable right-click context menu globally
 document.addEventListener('contextmenu', (event) => event.preventDefault());
 
-// Initialize system storage with factory defaults
-initializeDefaults();
+/**
+ * Seed storage, then mount.
+ *
+ * This call used to sit bare, above `createRoot`, and its first act is to touch `localStorage`.
+ * Where a browser refuses that outright — site data blocked, some private-browsing modes, certain
+ * enterprise policies — it threw before React existed, and the user was left looking at a blank
+ * white page: no error screen, because the boundary below had not mounted yet.
+ *
+ * Everything this app does is local-first, so if it cannot keep data on the device it should say
+ * so in words rather than appear broken.
+ */
+const root = createRoot(document.getElementById("root")!);
 
-createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-);
+let storageReady = false;
+try {
+  storageReady = initializeDefaults();
+} catch (err) {
+  console.error("[Startup] Could not initialise local storage.", err);
+}
+
+if (storageReady) {
+  root.render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+} else {
+  root.render(<StorageUnavailable />);
+}

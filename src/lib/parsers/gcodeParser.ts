@@ -259,27 +259,51 @@ export function parseGcode(content: string): GcodeData {
   // ... base64 data ...
   // ; thumbnail end
 
-  // Try to find the largest thumbnail
+  /*
+   * Pick the best thumbnail that is still small enough to keep.
+   *
+   * This used to take the largest one on offer. Slicers commonly embed several, and the biggest
+   * is often 600x600 — a few hundred kilobytes of base64 that is then stored on the quote, inside
+   * the same ~5 MB origin quota as every other quote. The preview is displayed at a few hundred
+   * pixels at most, so a 300x300 image looks identical and costs an order of magnitude less.
+   *
+   * The rule: the largest thumbnail that fits within the budget; if every one is oversized, the
+   * smallest available, so a preview still appears.
+   */
+  const THUMBNAIL_PIXEL_BUDGET = 300 * 300;
+
   const thumbBeginRegex = /;\s*thumbnail(?:_JPG)?\s+begin\s+(\d+)[xX](\d+)\s+(\d+)/gi;
   let match;
-  let maxPixels = 0;
+  let bestPixels = 0;
+  let smallestPixels = Number.POSITIVE_INFINITY;
   let bestThumbStart = -1;
+  let smallestThumbStart = -1;
   let bestThumbType = 'png'; // default to png
+  let smallestThumbType = 'png';
 
   while ((match = thumbBeginRegex.exec(content)) !== null) {
     const width = parseInt(match[1]);
     const height = parseInt(match[2]);
     const pixels = width * height;
+    const type = match[0].toLowerCase().includes('jpg') ? 'jpg' : 'png';
 
-    if (pixels > maxPixels) {
-      maxPixels = pixels;
+    if (pixels <= THUMBNAIL_PIXEL_BUDGET && pixels > bestPixels) {
+      bestPixels = pixels;
       bestThumbStart = match.index;
-      if (match[0].toLowerCase().includes('jpg')) {
-        bestThumbType = 'jpg';
-      } else {
-        bestThumbType = 'png';
-      }
+      bestThumbType = type;
     }
+
+    if (pixels < smallestPixels) {
+      smallestPixels = pixels;
+      smallestThumbStart = match.index;
+      smallestThumbType = type;
+    }
+  }
+
+  // Every candidate was oversized: keep the least expensive one rather than none at all.
+  if (bestThumbStart === -1 && smallestThumbStart !== -1) {
+    bestThumbStart = smallestThumbStart;
+    bestThumbType = smallestThumbType;
   }
 
   if (bestThumbStart !== -1) {

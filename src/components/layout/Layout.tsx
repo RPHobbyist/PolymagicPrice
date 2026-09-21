@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { Footer } from "@/components/layout/Footer";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -75,7 +76,12 @@ const Layout = () => {
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50/50">
                     <main className="flex-1 w-full overflow-y-auto scrollbar-none relative flex flex-col">
                         <div className="flex-1 flex flex-col">
-                            <Outlet />
+                            {/* Keeps a page-level crash inside the page: the sidebar and every
+                                other screen stay usable instead of the root boundary blanking
+                                the whole app. */}
+                            <RouteErrorBoundary>
+                                <Outlet />
+                            </RouteErrorBoundary>
                         </div>
                         
                         {/* Standalone Bot-Shape AI Assistant Button.
