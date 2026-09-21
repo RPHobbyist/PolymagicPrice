@@ -11,6 +11,8 @@ import {
     saveQuote,
     saveProductionJobs,
     saveProductionSettings,
+    getAllCustomerStats,
+    getCustomerStats,
     isStorageAvailable,
     StorageWriteError,
     STORAGE_FAILED_EVENT,
@@ -127,5 +129,46 @@ describe("a working store", () => {
 
     it("saves a production board and says so", () => {
         expect(saveProductionJobs([aJob()])).toBe(true);
+    });
+});
+
+describe("customer statistics", () => {
+    beforeEach(() => {
+        localStorage.clear();
+        saveQuote({ ...aQuote(), id: "q-1", customerId: "cust-a", totalPrice: 100, createdAt: "2026-01-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-2", customerId: "cust-a", totalPrice: 50, createdAt: "2026-03-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-3", customerId: "cust-b", totalPrice: 25, createdAt: "2026-02-01T00:00:00.000Z" });
+    });
+
+    it("reads the quote book once for the whole customer list", () => {
+        const getItem = vi.spyOn(globalThis.localStorage, "getItem");
+        const all = getAllCustomerStats();
+        const quoteReads = getItem.mock.calls.filter(([key]) => key === "session_quotes").length;
+        getItem.mockRestore();
+
+        // One read for three customers' worth of quotes. Per-customer calls made this grow with
+        // the size of the customer list, over the whole quote book each time.
+        expect(quoteReads).toBe(1);
+        expect(Object.keys(all).sort()).toEqual(["cust-a", "cust-b"]);
+    });
+
+    it("gives the same answer as asking one customer at a time", () => {
+        const all = getAllCustomerStats();
+
+        for (const customerId of ["cust-a", "cust-b"]) {
+            const one = getCustomerStats(customerId);
+            expect(all[customerId].totalSpent).toBe(one.totalSpent);
+            expect(all[customerId].orderCount).toBe(one.orderCount);
+            expect(all[customerId].lastOrderDate).toBe(one.lastOrderDate);
+        }
+
+        expect(all["cust-a"].totalSpent).toBe(150);
+        expect(all["cust-a"].orderCount).toBe(2);
+        expect(all["cust-a"].lastOrderDate).toBe("2026-03-01T00:00:00.000Z");
+    });
+
+    it("has nothing to say about a customer who has never ordered", () => {
+        expect(getAllCustomerStats()["cust-nobody"]).toBeUndefined();
+        expect(getCustomerStats("cust-nobody").orderCount).toBe(0);
     });
 });

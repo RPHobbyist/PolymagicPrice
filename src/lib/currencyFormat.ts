@@ -78,6 +78,32 @@ export function readCurrencyPrefs(): { currency: Currency; conversionRate: numbe
 export function makeFormatters(currency: Currency, conversionRate: number): ContextFormatters {
     const locale = resolveLocale(currency.locale);
 
+    /*
+     * Build each formatter once and keep it.
+     *
+     * `Intl.NumberFormat` is expensive to construct — it resolves locale data every time — and
+     * these were being constructed inside the functions, so a quote table paid for one per money
+     * cell per render. The two-decimal case covers money and the default `number()` call; other
+     * precisions are cached on first use, since `number()` takes a `decimals` argument.
+     */
+    const twoDecimals = new Intl.NumberFormat(locale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+    const byPrecision = new Map<number, Intl.NumberFormat>([[2, twoDecimals]]);
+    const formatterFor = (decimals: number): Intl.NumberFormat => {
+        let formatter = byPrecision.get(decimals);
+        if (!formatter) {
+            formatter = new Intl.NumberFormat(locale, {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+            byPrecision.set(decimals, formatter);
+        }
+        return formatter;
+    };
+
     const money = (amount: number): string => {
         if (amount === undefined || amount === null || isNaN(amount) || !isFinite(amount)) {
             return `${currency.symbol} --`;
@@ -86,22 +112,14 @@ export function makeFormatters(currency: Currency, conversionRate: number): Cont
         const converted = amount * conversionRate;
         if (isNaN(converted) || !isFinite(converted)) return `${currency.symbol} --`;
 
-        const formatted = new Intl.NumberFormat(locale, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }).format(converted);
-
-        return `${currency.symbol}${formatted}`;
+        return `${currency.symbol}${twoDecimals.format(converted)}`;
     };
 
     const number = (value: number, decimals: number = 2): string => {
         if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
             return "--";
         }
-        return new Intl.NumberFormat(locale, {
-            minimumFractionDigits: decimals,
-            maximumFractionDigits: decimals
-        }).format(value);
+        return formatterFor(decimals).format(value);
     };
 
     return {

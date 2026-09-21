@@ -1100,22 +1100,59 @@ export const getCustomer = (id: string): Customer | undefined => {
     return getCustomers().find(c => c.id === id);
 };
 
-export const getCustomerStats = (customerId: string) => {
-    const quotes = getQuotes();
-    const customerQuotes = quotes.filter(q => q.customerId === customerId);
+export interface CustomerStats {
+    totalSpent: number;
+    orderCount: number;
+    lastOrderDate: string | null;
+    quotes: QuoteData[];
+}
 
+/** Summarises one customer's quotes. Kept separate so both entry points below agree exactly. */
+const summariseCustomerQuotes = (customerQuotes: QuoteData[]): CustomerStats => {
     const totalSpent = customerQuotes.reduce((sum, q) => sum + (q.totalPrice || 0), 0);
-    const orderCount = customerQuotes.length;
     const lastOrderDate = customerQuotes.length > 0
-        ? customerQuotes.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0].createdAt
+        ? [...customerQuotes].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0].createdAt
         : null;
 
     return {
         totalSpent,
-        orderCount,
-        lastOrderDate,
+        orderCount: customerQuotes.length,
+        lastOrderDate: lastOrderDate ?? null,
         quotes: customerQuotes
     };
+};
+
+export const getCustomerStats = (customerId: string): CustomerStats => {
+    const customerQuotes = getQuotes().filter(q => q.customerId === customerId);
+    return summariseCustomerQuotes(customerQuotes);
+};
+
+/**
+ * Stats for every customer from one pass over the quote book.
+ *
+ * The CRM list called `getCustomerStats` once per customer, and each of those calls re-read,
+ * re-parsed and re-decrypted the entire quote book. Opening that tab with a hundred customers and
+ * a few hundred thumbnail-carrying quotes therefore meant a hundred full passes over several
+ * megabytes of JSON — the work is quadratic in a place where one pass does.
+ */
+export const getAllCustomerStats = (): Record<string, CustomerStats> => {
+    const byCustomer = new Map<string, QuoteData[]>();
+
+    for (const quote of getQuotes()) {
+        if (!quote.customerId) continue;
+        const bucket = byCustomer.get(quote.customerId);
+        if (bucket) {
+            bucket.push(quote);
+        } else {
+            byCustomer.set(quote.customerId, [quote]);
+        }
+    }
+
+    const stats: Record<string, CustomerStats> = {};
+    byCustomer.forEach((quotes, customerId) => {
+        stats[customerId] = summariseCustomerQuotes(quotes);
+    });
+    return stats;
 };
 
 

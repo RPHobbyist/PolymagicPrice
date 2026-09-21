@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { createContext, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 import {
     getQuotes,
@@ -126,8 +126,12 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
     }, [analyzeSystem, location.pathname]);
 
+    // Memoized for the same reason as every other provider here: a new object on each render
+    // re-renders every consumer even though `analyzeSystem` itself is stable.
+    const value = useMemo(() => ({ analyzeSystem }), [analyzeSystem]);
+
     return (
-        <IntelligenceContext.Provider value={{ analyzeSystem }}>
+        <IntelligenceContext.Provider value={value}>
             {children}
         </IntelligenceContext.Provider>
     );

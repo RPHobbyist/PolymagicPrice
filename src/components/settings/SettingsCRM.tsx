@@ -42,10 +42,13 @@ const useAllCustomerStats = (customers: Customer[]) => {
     const [stats, setStats] = useState<Record<string, CustomerStats>>({});
 
     useEffect(() => {
-        const newStats: Record<string, CustomerStats> = {};
-        import("@/lib/core/sessionStorage").then(({ getCustomerStats }) => {
+        // One pass over the quote book for the whole list. This used to call getCustomerStats per
+        // customer, and every one of those calls re-read and re-decrypted every quote on file.
+        import("@/lib/core/sessionStorage").then(({ getAllCustomerStats }) => {
+            const all = getAllCustomerStats();
+            const newStats: Record<string, CustomerStats> = {};
             customers.forEach(c => {
-                newStats[c.id] = getCustomerStats(c.id);
+                newStats[c.id] = all[c.id] ?? { totalSpent: 0, orderCount: 0 };
             });
             setStats(newStats);
         });

@@ -3,7 +3,7 @@
  * Copyright (C) 2025 Rp Hobbyist
  */
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
 
 interface UIContextType {
     showFeedback: boolean;
@@ -20,18 +20,23 @@ export const UIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [showFeedback, setShowFeedback] = useState(false);
     const [showWhatsNew, setShowWhatsNew] = useState(false);
 
-    const openFeedback = () => setShowFeedback(true);
-    const openWhatsNew = () => setShowWhatsNew(true);
+    const openFeedback = useCallback(() => setShowFeedback(true), []);
+    const openWhatsNew = useCallback(() => setShowWhatsNew(true), []);
+
+    // A fresh object here re-rendered every consumer of this context on each render of the
+    // provider — and this one wraps the whole app. Every other provider in the codebase already
+    // memoizes its value.
+    const value = useMemo(() => ({
+        showFeedback,
+        setShowFeedback,
+        showWhatsNew,
+        setShowWhatsNew,
+        openFeedback,
+        openWhatsNew
+    }), [showFeedback, showWhatsNew, openFeedback, openWhatsNew]);
 
     return (
-        <UIContext.Provider value={{ 
-            showFeedback, 
-            setShowFeedback, 
-            showWhatsNew, 
-            setShowWhatsNew,
-            openFeedback,
-            openWhatsNew
-        }}>
+        <UIContext.Provider value={value}>
             {children}
         </UIContext.Provider>
     );

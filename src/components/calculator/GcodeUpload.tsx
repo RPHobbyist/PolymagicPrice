@@ -28,6 +28,34 @@ interface GcodeUploadProps {
   onDataExtracted: (data: GcodeData) => void;
 }
 
+/*
+ * Slicers write their summary — print time, filament used, printer model, thumbnails — either at
+ * the top of the file (Cura, Bambu Studio) or at the bottom (PrusaSlicer, OrcaSlicer). The
+ * millions of movement commands in between carry nothing this parser reads.
+ *
+ * Reading the whole file with `file.text()` put up to 100 MB into a single JavaScript string and
+ * then ran about twenty regexes across all of it on the main thread, freezing the UI for seconds
+ * on a large plate. Reading the two ends keeps the same results for a fraction of the work — the
+ * approach `resinFileParser` already takes with its own header slice.
+ */
+const GCODE_HEAD_BYTES = 2 * 1024 * 1024; // 2 MB
+const GCODE_TAIL_BYTES = 1 * 1024 * 1024; // 1 MB
+
+async function readGcodeMetadataRegions(file: File): Promise<string> {
+  if (file.size <= GCODE_HEAD_BYTES + GCODE_TAIL_BYTES) {
+    return file.text();
+  }
+
+  const [head, tail] = await Promise.all([
+    file.slice(0, GCODE_HEAD_BYTES).text(),
+    file.slice(file.size - GCODE_TAIL_BYTES).text(),
+  ]);
+
+  // The newlines keep a truncated line in the middle from joining two real ones into a match
+  // that exists in neither region.
+  return `${head}\n\n${tail}`;
+}
+
 const GcodeUpload = ({ onDataExtracted }: GcodeUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,9 +99,8 @@ const GcodeUpload = ({ onDataExtracted }: GcodeUploadProps) => {
         data = await parse3mf(file);
       } else {
         // Parse G-code file
-        const content = await file.text();
         const { parseGcode } = await import("@/lib/parsers/gcodeParser");
-        data = parseGcode(content);
+        data = parseGcode(await readGcodeMetadataRegions(file));
       }
 
       if (data.printTimeHours === 0 && data.filamentWeightGrams === 0) {

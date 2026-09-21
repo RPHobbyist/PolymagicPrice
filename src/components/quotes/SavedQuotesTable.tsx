@@ -31,7 +31,7 @@ import { PrintJobDialog } from "@/components/print-management/PrintJobDialog";
 import { QuoteData } from "@/types/quote";
 import { getOrderId } from "@/lib/utils/order-utils";
 import { summariseQuote } from "@/lib/quoteCalculations";
-import { safeCell } from "@/lib/excelExport";
+import { safeCell } from "@/lib/excel/safeCell";
 import { BambuDevice, PrinterConnection, PrintOptions } from "@/types/printer";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";

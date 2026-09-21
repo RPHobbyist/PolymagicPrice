@@ -33,7 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { saveAs } from "file-saver";
 import { saveQuote } from "@/lib/core/sessionStorage";
-import { safeCell } from "@/lib/excelExport";
+import { safeCell } from "@/lib/excel/safeCell";
 import { QuoteData } from "@/types/quote";
 
 interface BatchQuoteManagerProps {

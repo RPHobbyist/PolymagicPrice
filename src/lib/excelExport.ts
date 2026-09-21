@@ -3,25 +3,21 @@
  * Copyright (C) 2025 Rp Hobbyist
  */
 
-import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { Customer, QuoteData } from '@/types/quote';
 
-/**
- * SECURITY FIX (L1): Prevents Excel formula injection (CSV/DDE attack).
- * Prefixes cells starting with dangerous characters with a single quote.
- */
-export function safeCell(value: string | undefined | null): string {
-    if (!value) return '';
-    const s = String(value);
-    if (/^[=+\-@\t\r]/.test(s)) {
-        return `'${s}`;
-    }
-    return s;
-}
+// Re-exported for the call sites that already import it from here. The implementation lives in
+// its own module so that importing the guard does not drag ExcelJS in with it.
+import { safeCell } from '@/lib/excel/safeCell';
+export { safeCell };
 
 /**
- * Export a professional customer report to Excel
+ * Export a professional customer report to Excel.
+ *
+ * ExcelJS is loaded when a report is actually requested, matching every other export path in the
+ * app (QuoteSummary, SavedQuotesTable, BatchQuoteManager, QuoteDetailsDialog). It used to be a
+ * top-level import here, which put 920 KB into the chunk of every component that touched this
+ * module.
  */
 export async function exportCustomerToExcel(
     customer: Customer, 
@@ -46,6 +42,7 @@ export async function exportCustomerToExcel(
         }).format(amount);
         return `${currencySymbol}${formatted}`;
     };
+    const ExcelJS = (await import('exceljs')).default;
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(`${customer.name.slice(0, 20)} Report`);
 
