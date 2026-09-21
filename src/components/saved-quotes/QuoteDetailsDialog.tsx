@@ -36,6 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { printQuotePDF } from "@/lib/pdfGenerator";
+import { summariseQuote } from "@/lib/quoteCalculations";
+import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 import { saveAs } from "file-saver";
 import {
     Select,
@@ -54,7 +56,7 @@ interface QuoteDetailsDialogProps {
 }
 
 export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuote }: QuoteDetailsDialogProps) => {
-    const { formatPrice, currency } = useCurrency();
+    const { formatPrice, currency, conversionRate } = useCurrency();
     const { jobs, addJob, moveJob } = useProduction();
     const [isEditMode, setIsEditMode] = useState(false);
     const [editData, setEditData] = useState<Partial<QuoteData>>({});
@@ -85,23 +87,21 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
     const handleSave = useCallback(() => {
         if (!quote?.id || !onUpdateQuote) return;
 
-        // Calculate new totals based on overrides
-        const subtotal = (editData.materialCost || 0) +
-            (editData.machineTimeCost || 0) +
-            (editData.electricityCost || 0) +
-            (editData.laborCost || 0) +
-            (editData.overheadCost || 0) +
-            (editData.paintingCost || 0) +
-            (quote.parameters?.consumablesTotal || 0);
-
-        const totalPrice = subtotal + (editData.markup || 0);
+        // Recalculate through the shared helper so an edit uses exactly the same formula as
+        // the calculator, the invoice and the quotes table. The previous inline version added
+        // the PER-UNIT consumables figure to quantity-inclusive costs, so saving with no
+        // changes shifted the total by consumablesTotal * (quantity - 1).
+        const { subtotal, total: totalPrice, quantity } = summariseQuote({
+            ...quote,
+            ...editData,
+        } as QuoteData);
 
         onUpdateQuote(quote.id, {
             ...editData,
             subtotal,
             totalPrice,
             // Automatically update unit price based on quantity
-            unitPrice: totalPrice / (quote.quantity || 1)
+            unitPrice: totalPrice / quantity
         });
 
         setIsEditMode(false);
@@ -111,12 +111,12 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
     const handlePDF = useCallback(() => {
         if (!quote) return;
         try {
-            printQuotePDF(quote, currency.symbol);
+            printQuotePDF(quote, currency.symbol, conversionRate);
             toast.success("PDF opened for printing");
         } catch {
             toast.error("Failed to generate PDF. Check popups.");
         }
-    }, [quote, currency.symbol]);
+    }, [quote, currency.symbol, conversionRate]);
 
     const handleExportExcel = useCallback(async () => {
         if (!quote) return;
@@ -470,14 +470,31 @@ Status: ${quote.status}
 
                                 <CostDetailRow label="Subtotal" value={isEditMode ? ((editData.materialCost || 0) + (editData.machineTimeCost || 0) + (editData.electricityCost || 0) + (editData.laborCost || 0) + (editData.overheadCost || 0) + (editData.paintingCost || 0) + (quote.parameters?.consumablesTotal || 0)) : quote.subtotal} highlight formatPrice={formatPrice} />
                                 
-                                <EditableCostRow 
-                                    label="Profit Markup" 
-                                    value={quote.markup} 
+                                <EditableCostRow
+                                    label="Profit Markup"
+                                    value={quote.markup}
                                     editValue={editData.markup}
                                     isEditMode={isEditMode}
                                     onChange={(val) => setEditData({ ...editData, markup: val })}
-                                    formatPrice={formatPrice} 
+                                    formatPrice={formatPrice}
                                 />
+
+                                {/* Carbon is not money: it sits below the totals, is never editable
+                                    here, and is absent entirely when it could not be computed. */}
+                                {quote.carbon && (
+                                    <div className="flex justify-between items-center py-2 -mx-4 px-4">
+                                        <span className="text-muted-foreground">
+                                            Carbon Footprint
+                                            <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500">
+                                                {quote.carbon.grade === "MEASURED" ? "Measured"
+                                                    : quote.carbon.grade === "ACTUAL" ? "Actual" : "Estimate"}
+                                            </span>
+                                        </span>
+                                        <span className="font-medium text-foreground tabular-nums">
+                                            {formatCarbon(quote.carbon.kg)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-slate-900 rounded-xl p-5 shadow-sm border border-slate-800">

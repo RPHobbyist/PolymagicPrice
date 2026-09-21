@@ -11,6 +11,7 @@
 import { useState, useEffect, memo } from "react";
 import { motion } from "framer-motion";
 import { Settings, Zap, Thermometer } from "lucide-react";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface Realistic3DPrinterProps {
   weight?: number;
@@ -188,7 +189,9 @@ const TelemetryUI = memo(({ isCompact, progress, tempNozzle, tempBed, printHours
   tempBed: number;
   printHours: number;
   finalPrice: number;
-}) => (
+}) => {
+  const { formatPrice } = useCurrency();
+  return (
   <div className={`${isCompact ? 'mx-4 mb-4 p-4' : 'mx-10 mb-10 p-7'} bg-white/60 border border-white/80 rounded-[2.8rem] backdrop-blur-3xl relative overflow-hidden group/interface shadow-lg`}>
     <div className="absolute -top-10 -right-10 w-32 h-32 bg-emerald-500/5" />
     <div className="relative z-10 flex flex-col gap-5">
@@ -267,14 +270,15 @@ const TelemetryUI = memo(({ isCompact, progress, tempNozzle, tempBed, printHours
               </div>
               <div className="group/price relative">
                   <div className="relative px-5 py-2.5 bg-emerald-600 text-white rounded-2xl font-black text-sm hover:scale-105 transition-transform shadow-md">
-                      ${finalPrice.toFixed(2)}
+                      {formatPrice(finalPrice)}
                   </div>
               </div>
           </div>
       </div>
     </div>
   </div>
-));
+  );
+});
 
 export const Realistic3DPrinter = memo(({ 
   weight = 120, 

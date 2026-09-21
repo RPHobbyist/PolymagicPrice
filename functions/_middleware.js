@@ -51,8 +51,11 @@ function wrap(title, body) {
 // ── Static Content Map for Bot Rendering ──────────────────────────────────
 const staticContentMap = {
   '/': wrap(
-    '<h1>PolymagicPrice &mdash; Run Your 3D Print Farm with Local AI</h1>',
-    `<p>PolymagicPrice is the free, open-source command center for 3D print farms by <a href="${PARENT}">RP Hobbyist</a>. Price jobs accurately with FDM &amp; Resin cost calculators, manage production with a visual Kanban board, monitor your printer fleet, and get AI-powered insights &mdash; all running locally on your machine. Upload G-code, 3MF, or CXDLPV4 files for instant cost breakdowns. 100% private, offline-capable, and open source.</p>
+    '<h1>Free 3D Printing Price Calculator for FDM &amp; Resin</h1>',
+    `<p>PolymagicPrice is a free, open-source <strong>3D printing price calculator</strong> and print-farm command center by <a href="${PARENT}">RP Hobbyist</a>. Upload a G-code, 3MF or CXDLPV4 file and get an instant, itemised cost breakdown &mdash; material, electricity, machine depreciation, labor and markup &mdash; then export a professional PDF quote. It also manages production with a visual Kanban board, monitors your printer fleet, and gives AI-powered pricing insights via local Ollama. 100% private, offline-capable, and open source.</p>
+
+<h2>Free 3D printing cost calculator</h2>
+<p>Price FDM filament jobs by weight and Resin (SLA/DLP) jobs by volume with a professional 6-factor formula: <strong>Price = (Material + Electricity + Machine depreciation + Labor + Consumables + Overhead) &times; (1 + Markup%)</strong>. See <a href="/guides/how-to-calculate-3d-printing-cost">how to calculate 3D printing cost</a>, compare <a href="/guides/fdm-vs-resin-printing-cost">FDM vs resin costs</a>, or open the <a href="/cost-calculator">cost calculator</a>.</p>
 
 <h2>Core Features</h2>
 <ul>
@@ -98,26 +101,58 @@ const staticContentMap = {
 
   '/cost-calculator': wrap(
     '<h1>3D Printing Cost Calculator &mdash; Free FDM &amp; Resin Price Estimator</h1>',
-    `<p>Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP) printing. PolymagicPrice uses a professional 6-factor cost-stacking algorithm that accounts for material, electricity, machine depreciation, labor, overhead, and markup.</p>
+    `<p>Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP) printing. PolymagicPrice uses a professional 6-factor cost-stacking formula that accounts for material, electricity, machine depreciation, labor, overhead, and markup &mdash; the same method used to price parts in a commercial 3D printing service.</p>
 
-<h2>How the Calculator Works</h2>
-<ol>
-  <li><strong>Upload Your File</strong> &mdash; Drag and drop G-code, 3MF, or CXDLPV4 files. The parser auto-extracts print time, material weight, resin volume, printer model, and material type.</li>
-  <li><strong>Review Cost Breakdown</strong> &mdash; See granular costs for material, electricity (Printer Wattage &divide; 1000 &times; Hours &times; kWh Rate), machine depreciation, labor, and consumables.</li>
-  <li><strong>Set Markup &amp; Generate Quote</strong> &mdash; Adjust profit margin (20&ndash;50% industry standard) and export a professional PDF quotation.</li>
-</ol>
+<h2>The 3D printing cost formula</h2>
+<p><strong>Unit cost = Material + Electricity + Machine depreciation + Labor + Consumables</strong><br>
+<strong>Price = (Unit cost + Overhead) &times; (1 + Markup%)</strong></p>
+<ul>
+  <li><strong>Material</strong> &mdash; grams &times; filament price per gram (FDM), or millilitres &times; resin price per ml (resin). Add a waste/purge allowance of 2&ndash;5%.</li>
+  <li><strong>Electricity</strong> &mdash; (Printer watts &divide; 1000) &times; print hours &times; your kWh rate.</li>
+  <li><strong>Machine depreciation</strong> &mdash; (printer price + expected maintenance) &divide; expected lifetime hours, &times; print hours.</li>
+  <li><strong>Labor</strong> &mdash; setup, slicing, removal and post-processing time &times; your hourly rate.</li>
+  <li><strong>Consumables</strong> &mdash; nozzles and glue for FDM; FEP film, IPA wash and gloves for resin.</li>
+  <li><strong>Overhead &amp; markup</strong> &mdash; add 10&ndash;20% overhead for failed prints and admin, then 20&ndash;50% markup for profit.</li>
+</ul>
 
-<h2>Supported File Formats</h2>
+<h2>Worked example &mdash; FDM PLA part</h2>
+<p>22 g PLA at $22/kg = <strong>$0.48</strong> material. 3.5 h on a 120 W printer at $0.15/kWh = <strong>$0.06</strong> electricity. Printer depreciation at $0.04/h = <strong>$0.14</strong>. 10 minutes labor at $18/h = <strong>$3.00</strong>. Unit cost &asymp; <strong>$3.68</strong>; with 15% overhead and 40% markup the price is about <strong>$5.93</strong>.</p>
+
+<h2>Worked example &mdash; Resin miniature</h2>
+<p>18 ml resin at $45/L = <strong>$0.81</strong> material. 4 h on a 60 W printer at $0.15/kWh = <strong>$0.04</strong> electricity. FEP + IPA + gloves amortised = <strong>$0.35</strong>. 15 minutes labor (wash, cure, support removal) at $18/h = <strong>$4.50</strong>. Unit cost &asymp; <strong>$5.70</strong>; with overhead and markup, about <strong>$9.20</strong>.</p>
+
+<h2>FDM vs Resin cost at a glance</h2>
+<table>
+  <thead><tr><th>Factor</th><th>FDM (filament)</th><th>Resin (SLA/DLP)</th></tr></thead>
+  <tbody>
+    <tr><td>Material price</td><td>$15&ndash;$50 / kg</td><td>$35&ndash;$150+ / litre</td></tr>
+    <tr><td>Typical part material cost</td><td>$0.20&ndash;$2</td><td>$0.50&ndash;$4</td></tr>
+    <tr><td>Consumables</td><td>Nozzles, glue, bed sheets</td><td>FEP film, IPA, gloves, filters</td></tr>
+    <tr><td>Post-processing labor</td><td>Low (support removal)</td><td>High (wash + cure + supports)</td></tr>
+    <tr><td>Failure allowance</td><td>5&ndash;10%</td><td>10&ndash;20%</td></tr>
+  </tbody>
+</table>
+
+<h2>Supported file formats</h2>
 <ul>
   <li><strong>.gcode</strong> &mdash; Cura, PrusaSlicer, OrcaSlicer, BambuStudio</li>
   <li><strong>.3mf</strong> &mdash; 3D Manufacturing Format with embedded metadata</li>
   <li><strong>.cxdlpv4</strong> &mdash; ChiTuBox resin slicer format</li>
 </ul>
 
-<h2>FDM vs Resin Cost Comparison</h2>
-<p>FDM filament costs $15&ndash;$50/kg. Resin costs $35&ndash;$150+/liter plus consumables like IPA, gloves, and FEP film. PolymagicPrice handles both with dedicated calculators.</p>
+<h2>Frequently asked questions</h2>
+<h3>How do I calculate the cost of a 3D print?</h3>
+<p>Add material, electricity, machine depreciation, labor and consumables for the unit cost, then add overhead and multiply by (1 + markup%). Upload a sliced file and PolymagicPrice fills in print time and weight for you.</p>
+<h3>How much does it cost to 3D print something?</h3>
+<p>Most hobby FDM parts cost $0.50&ndash;$5 in material and machine time; the final quoted price is usually $5&ndash;$30 once labor, overhead and markup are included. Resin parts cost more to finish because of wash and cure work.</p>
+<h3>Is this 3D printing price calculator free?</h3>
+<p>Yes. PolymagicPrice is free and open-source (AGPLv3), runs entirely in your browser, and never uploads your files.</p>
 
-<p><a href="/tool-guide">Read the full documentation</a> or <a href="${PARENT}/blogs/how-much-should-i-charge-for-3d-prints-the-ultimate-pricing-calculator/">learn pricing strategy</a>.</p>`
+<p>Learn more: <a href="/guides/how-to-calculate-3d-printing-cost">How to calculate 3D printing cost</a> &middot;
+   <a href="/guides/fdm-vs-resin-printing-cost">FDM vs resin cost comparison</a> &middot;
+   <a href="/guides/filament-cost-per-gram">Filament cost per gram</a> &middot;
+   <a href="/tool-guide">Full documentation</a> &middot;
+   <a href="${PARENT}/blogs/how-much-should-i-charge-for-3d-prints-the-ultimate-pricing-calculator/">Pricing strategy guide</a></p>`
   ),
 
   '/print-manager': wrap(
@@ -223,18 +258,193 @@ const staticContentMap = {
 </ul>
 
 <p><a href="/cost-calculator">Start calculating</a> once your workshop is configured.</p>`
+  ),
+
+  '/guides/how-to-calculate-3d-printing-cost': wrap(
+    '<h1>How to Calculate 3D Printing Cost: Formula, Examples &amp; Free Calculator</h1>',
+    `<p>The cost of a 3D print is the sum of six things: the material it uses, the electricity it draws, the wear it puts on the printer, your labor, shop overhead, and the profit margin you add on top. This guide shows the formula, walks through worked FDM and resin examples, and links to a free calculator that does the maths for you.</p>
+
+<h2>The 3D printing cost formula</h2>
+<p><strong>Unit cost = Material + Electricity + Machine depreciation + Labor + Consumables</strong><br>
+<strong>Final price = (Unit cost + Overhead) &times; (1 + Markup%)</strong></p>
+
+<h3>1. Material cost</h3>
+<p>FDM: grams of filament &times; (spool price &divide; spool weight in grams). A $22, 1&nbsp;kg spool costs $0.022/g, so a 22&nbsp;g part uses about $0.48 of plastic. Resin: millilitres &times; (bottle price &divide; bottle volume in ml). Add 2&ndash;5% for purge, skirts and supports.</p>
+
+<h3>2. Electricity cost</h3>
+<p>(Printer wattage &divide; 1000) &times; print hours &times; electricity rate per kWh. A 120&nbsp;W printer running 3.5&nbsp;h at $0.15/kWh costs about $0.06. Electricity is almost always the smallest line item.</p>
+
+<h3>3. Machine depreciation</h3>
+<p>(Printer price + lifetime maintenance) &divide; expected lifetime hours. A $400 printer expected to last 6,000 productive hours wears at about $0.07/h, so a 3.5&nbsp;h print carries roughly $0.25 of machine cost. This is the number most hobbyists forget.</p>
+
+<h3>4. Labor</h3>
+<p>Time spent slicing, starting the print, removing it and post-processing &times; your hourly rate. Even 10 minutes at $18/h adds $3.00 &mdash; usually the largest single cost for small parts.</p>
+
+<h3>5. Consumables</h3>
+<p>FDM: nozzles, bed adhesive, build sheets. Resin: FEP film, IPA wash, gloves, paper filters. Amortise these across the prints they serve &mdash; typically $0.10&ndash;$0.50 per print.</p>
+
+<h3>6. Overhead and markup</h3>
+<p>Add 10&ndash;20% overhead for failed prints, packaging and admin, then multiply by 1.2&ndash;1.5 for markup. Simple parts sit near 20&ndash;30%; custom or design work 40&ndash;50%+.</p>
+
+<h2>Worked example: FDM PLA part</h2>
+<table>
+  <thead><tr><th>Cost line</th><th>Calculation</th><th>Amount</th></tr></thead>
+  <tbody>
+    <tr><td>Material</td><td>22 g &times; $0.022/g</td><td>$0.48</td></tr>
+    <tr><td>Electricity</td><td>0.12 kW &times; 3.5 h &times; $0.15</td><td>$0.06</td></tr>
+    <tr><td>Machine depreciation</td><td>3.5 h &times; $0.07/h</td><td>$0.25</td></tr>
+    <tr><td>Labor</td><td>10 min &times; $18/h</td><td>$3.00</td></tr>
+    <tr><td>Consumables</td><td>amortised</td><td>$0.15</td></tr>
+    <tr><td><strong>Unit cost</strong></td><td></td><td><strong>$3.94</strong></td></tr>
+    <tr><td>+ 15% overhead, &times; 1.40 markup</td><td>($3.94 &times; 1.15) &times; 1.40</td><td><strong>$6.34</strong></td></tr>
+  </tbody>
+</table>
+
+<h2>Worked example: resin miniature</h2>
+<table>
+  <thead><tr><th>Cost line</th><th>Calculation</th><th>Amount</th></tr></thead>
+  <tbody>
+    <tr><td>Material</td><td>18 ml &times; $0.045/ml</td><td>$0.81</td></tr>
+    <tr><td>Electricity</td><td>0.06 kW &times; 4 h &times; $0.15</td><td>$0.04</td></tr>
+    <tr><td>Machine depreciation</td><td>4 h &times; $0.05/h</td><td>$0.20</td></tr>
+    <tr><td>Labor (wash, cure, supports)</td><td>15 min &times; $18/h</td><td>$4.50</td></tr>
+    <tr><td>Consumables (FEP, IPA, gloves)</td><td>amortised</td><td>$0.35</td></tr>
+    <tr><td><strong>Unit cost</strong></td><td></td><td><strong>$5.90</strong></td></tr>
+    <tr><td>+ 15% overhead, &times; 1.40 markup</td><td>($5.90 &times; 1.15) &times; 1.40</td><td><strong>$9.50</strong></td></tr>
+  </tbody>
+</table>
+
+<h2>Common mistakes</h2>
+<ul>
+  <li>Pricing only the plastic and ignoring labor &mdash; labor is usually the biggest cost.</li>
+  <li>Forgetting machine depreciation, so the printer never pays for its own replacement.</li>
+  <li>No failure allowance &mdash; one failed 10&nbsp;h print wipes out the margin on several good ones.</li>
+  <li>Using the spool's stated weight instead of net filament weight (a 1&nbsp;kg spool of plastic plus the reel weighs more).</li>
+</ul>
+
+<h2>Frequently asked questions</h2>
+<h3>What is the formula to calculate 3D printing cost?</h3>
+<p>(Material + Electricity + Machine depreciation + Labor + Consumables + Overhead) &times; (1 + Markup%).</p>
+<h3>How much does it cost to 3D print something?</h3>
+<p>Hobby FDM parts typically cost $0.50&ndash;$5 in material and machine time and are quoted at $5&ndash;$30 after labor and markup. Resin parts cost more to finish.</p>
+<h3>How much should I charge for 3D printing?</h3>
+<p>Cost plus 20&ndash;50% markup. Use the lower end for simple repeat parts and the higher end for custom or design-heavy work.</p>
+
+<p>Use the free <a href="/cost-calculator">3D printing cost calculator</a>, compare <a href="/guides/fdm-vs-resin-printing-cost">FDM vs resin costs</a>, or learn <a href="/guides/filament-cost-per-gram">filament cost per gram</a>.</p>`
+  ),
+
+  '/guides/fdm-vs-resin-printing-cost': wrap(
+    '<h1>FDM vs Resin 3D Printing Cost: Full Price Comparison</h1>',
+    `<p>FDM and resin printing are priced differently. FDM material is sold by weight and needs little finishing; resin is sold by volume, costs more per part, and adds significant wash-and-cure labor and consumables. This guide compares every cost line and works through real cost-per-part numbers.</p>
+
+<h2>Cost comparison table</h2>
+<table>
+  <thead><tr><th>Cost factor</th><th>FDM (filament)</th><th>Resin (SLA/DLP/LCD)</th></tr></thead>
+  <tbody>
+    <tr><td>Material price</td><td>$15&ndash;$50 per kg</td><td>$35&ndash;$150+ per litre</td></tr>
+    <tr><td>Material per typical part</td><td>$0.20&ndash;$2.00</td><td>$0.50&ndash;$4.00</td></tr>
+    <tr><td>Printer price</td><td>$200&ndash;$1,200</td><td>$150&ndash;$600 (plus wash/cure station)</td></tr>
+    <tr><td>Power draw</td><td>100&ndash;150 W</td><td>40&ndash;80 W</td></tr>
+    <tr><td>Consumables</td><td>Nozzles, glue, build sheets ($0.05&ndash;$0.20/print)</td><td>FEP film, IPA, gloves, filters ($0.20&ndash;$0.60/print)</td></tr>
+    <tr><td>Post-processing labor</td><td>Low &mdash; remove supports</td><td>High &mdash; wash, cure, remove dense supports</td></tr>
+    <tr><td>Failure allowance</td><td>5&ndash;10%</td><td>10&ndash;20%</td></tr>
+  </tbody>
+</table>
+
+<h2>Where the money actually goes</h2>
+<p><strong>Material:</strong> per gram, PLA is around $0.02 and a standard resin around $0.04&ndash;$0.05 per ml. Resin parts are usually smaller, so material cost is often comparable &mdash; the gap is in everything else.</p>
+<p><strong>Electricity:</strong> negligible for both (a few cents per print). Resin printers draw less power.</p>
+<p><strong>Consumables:</strong> resin's biggest hidden cost. FEP film ($5&ndash;$15) lasts ~20&ndash;40 prints, plus IPA (about 1&nbsp;L per few litres of resin), nitrile gloves and filters every print.</p>
+<p><strong>Labor:</strong> the decisive factor. An FDM part needs a minute of support removal; a resin part needs draining, an IPA bath, drying, UV curing and removal of dense supports &mdash; 10&ndash;20 minutes that dominate the unit cost.</p>
+
+<h2>Cost-per-part example</h2>
+<p>A palm-sized bracket in PLA: ~$0.60 material, ~$0.30 machine + power, ~$3.00 labor &rarr; <strong>~$3.90 unit cost</strong>.</p>
+<p>The same object in resin: ~$1.10 material, ~$0.25 machine + power, ~$0.40 consumables, ~$4.50 labor &rarr; <strong>~$6.25 unit cost</strong>.</p>
+<p>Resin runs roughly 40&ndash;70% more per part at hobby scale, almost entirely because of finishing labor and consumables.</p>
+
+<h2>When each is cheaper</h2>
+<ul>
+  <li><strong>FDM is cheaper</strong> for functional parts, larger objects, prototypes, and anything where surface finish is not critical.</li>
+  <li><strong>Resin is worth the premium</strong> for miniatures, jewellery, dental/medical models and highly detailed display pieces &mdash; FDM simply cannot hit the same detail.</li>
+</ul>
+
+<h2>Frequently asked questions</h2>
+<h3>Is resin printing more expensive than FDM?</h3>
+<p>Yes. Material is only slightly more per part, but consumables and wash/cure labor push the finished cost 40&ndash;70% higher at hobby scale.</p>
+<h3>How much does resin cost per print?</h3>
+<p>Most small resin prints use $0.50&ndash;$4 of resin plus $0.20&ndash;$0.60 of consumables; finished cost after labor and markup is typically $8&ndash;$25.</p>
+<h3>Is PLA the cheapest filament?</h3>
+<p>PLA and basic PETG are the cheapest common filaments at $15&ndash;$25/kg. Engineering filaments (nylon, PC, CF blends) run $40&ndash;$80/kg.</p>
+
+<p>Price either technology with the free <a href="/cost-calculator">3D printing cost calculator</a>, or read <a href="/guides/how-to-calculate-3d-printing-cost">how to calculate 3D printing cost</a>.</p>`
+  ),
+
+  '/guides/filament-cost-per-gram': wrap(
+    '<h1>Filament Cost Per Gram: How to Price PLA, PETG &amp; ABS 3D Prints</h1>',
+    `<p>Filament cost per gram is the foundation of every FDM price estimate. It is simply the spool price divided by the spool's net filament weight in grams. Multiply that by the grams a print uses (from your slicer) and you have the material cost.</p>
+
+<h2>The formula</h2>
+<p><strong>Cost per gram = Spool price &divide; Spool weight (g)</strong><br>
+<strong>Print material cost = Cost per gram &times; Grams used &times; (1 + waste allowance)</strong></p>
+<p>A $24 spool holding 1,000&nbsp;g of filament costs $0.024/g. A print that the slicer says uses 45&nbsp;g costs 45 &times; $0.024 = $1.08, or about $1.13 with a 5% waste allowance for purge and supports.</p>
+
+<h2>Reference table (typical retail prices)</h2>
+<table>
+  <thead><tr><th>Material</th><th>Spool price (1 kg)</th><th>Cost per gram</th><th>Cost of a 30 g print</th></tr></thead>
+  <tbody>
+    <tr><td>PLA</td><td>$18&ndash;$25</td><td>$0.018&ndash;$0.025</td><td>$0.54&ndash;$0.75</td></tr>
+    <tr><td>PETG</td><td>$20&ndash;$28</td><td>$0.020&ndash;$0.028</td><td>$0.60&ndash;$0.84</td></tr>
+    <tr><td>ABS / ASA</td><td>$20&ndash;$30</td><td>$0.020&ndash;$0.030</td><td>$0.60&ndash;$0.90</td></tr>
+    <tr><td>TPU (flexible)</td><td>$30&ndash;$45</td><td>$0.030&ndash;$0.045</td><td>$0.90&ndash;$1.35</td></tr>
+    <tr><td>Nylon (PA)</td><td>$40&ndash;$70</td><td>$0.040&ndash;$0.070</td><td>$1.20&ndash;$2.10</td></tr>
+    <tr><td>CF-filled</td><td>$50&ndash;$90</td><td>$0.050&ndash;$0.090</td><td>$1.50&ndash;$2.70</td></tr>
+  </tbody>
+</table>
+
+<h2>Getting the weight right</h2>
+<ul>
+  <li><strong>Use net filament weight, not spool weight.</strong> A "1 kg" spool weighs ~1.2&ndash;1.35&nbsp;kg with the reel. Divide by 1,000&nbsp;g, not the number on the scale.</li>
+  <li><strong>Take grams from the slicer,</strong> which reports filament used for the model plus supports, skirt/brim and purge.</li>
+  <li><strong>Add a waste allowance</strong> of 2&ndash;5% for multi-colour purging, failed first layers and priming.</li>
+  <li><strong>Account for partial spools</strong> &mdash; if you paid $24 but only 900&nbsp;g is usable, your real cost per gram is $0.0267.</li>
+</ul>
+
+<h2>From cost per gram to a full price</h2>
+<p>Material is one of six cost lines. Once you have it, add electricity, machine depreciation, labor, consumables and overhead, then apply markup. See <a href="/guides/how-to-calculate-3d-printing-cost">how to calculate 3D printing cost</a> for the full method.</p>
+
+<h2>Frequently asked questions</h2>
+<h3>How do I calculate filament cost per gram?</h3>
+<p>Divide the spool price by the net filament weight in grams. $25 &divide; 1,000&nbsp;g = $0.025 per gram.</p>
+<h3>How much filament does a print use?</h3>
+<p>Your slicer reports it after slicing (grams and metres). Small parts use 5&ndash;30&nbsp;g; a large functional part can use 200&ndash;500&nbsp;g.</p>
+<h3>What is the cheapest 3D printer filament?</h3>
+<p>PLA is the cheapest and easiest to print, usually $18&ndash;$25 per kg. Basic PETG is a little more but more durable.</p>
+
+<p>Turn grams into a full quote with the free <a href="/cost-calculator">3D printing cost calculator</a>, or compare <a href="/guides/fdm-vs-resin-printing-cost">FDM vs resin costs</a>.</p>`
   )
 };
 
 // ── SEO Configuration Map ─────────────────────────────────────────────────
 const seoMap = {
   '/': {
-    title: "PolymagicPrice: Run Your 3D Print Farm with Local AI \u2014 Free & Open Source",
-    description: "Run your 3D print farm with Local AI. PolymagicPrice is the free, open-source command center for pricing, production management, fleet monitoring, and business analytics. 100% offline. No cloud."
+    title: "3D Printing Price Calculator \u2014 Free FDM & Resin Cost & Quote Tool",
+    description: "Free 3D printing price calculator for FDM filament and Resin (SLA/DLP). Upload G-code, 3MF or CXDLPV4 files to calculate material, electricity, labor and machine costs, then generate professional PDF quotes. Open-source, offline, no cloud."
   },
   '/cost-calculator': {
-    title: "Cost Calculator \u2014 Free 3D Printing Price Calculator & Quotation Engine",
-    description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, auto-calculate material costs, electricity, labor, and generate professional quotes."
+    title: "3D Printing Cost Calculator \u2014 Free FDM & Resin Price Estimator",
+    description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload a G-code file to auto-fill print time and weight, see a full material + electricity + labor + machine breakdown, and export a professional quote. Free and 100% offline."
+  },
+  '/guides/how-to-calculate-3d-printing-cost': {
+    title: "How to Calculate 3D Printing Cost \u2014 Formula, Examples & Calculator",
+    description: "Learn the exact formula to calculate 3D printing cost: material + electricity + machine depreciation + labor + overhead + markup. Includes worked FDM and resin examples, a cost table, and a free calculator."
+  },
+  '/guides/fdm-vs-resin-printing-cost': {
+    title: "FDM vs Resin 3D Printing Cost \u2014 Full Price Comparison",
+    description: "A detailed cost comparison of FDM and resin (SLA/DLP) 3D printing: material price per kg vs per litre, consumables, electricity, failure rates and real cost-per-part examples. See which is cheaper for your parts."
+  },
+  '/guides/filament-cost-per-gram': {
+    title: "Filament Cost Per Gram \u2014 Price PLA, PETG & ABS 3D Prints",
+    description: "How to work out filament cost per gram from spool price and weight, a reference table for common PLA, PETG, ABS and TPU spools, and how to turn grams of filament into an accurate per-print material cost."
   },
   '/print-manager': {
     title: "Print Manager \u2014 3D Machine Dashboard & Job Tracking",
@@ -265,6 +475,128 @@ const seoMap = {
     description: "Comprehensive documentation for PolymagicPrice. Learn about the 6-factor pricing formula, 3D print fleet management, Bambu Lab IoT integration, and offline Local AI setup."
   }
 };
+
+// ── Per-page Structured Data (bot-injected into <head>) ───────────────────
+// Keyed by clean path. Each entry is an array of JSON-LD objects that match the
+// visible content of that route, so Google can build rich results (FAQ, article).
+const faq = (q, a) => ({ "@type": "Question", "name": q, "acceptedAnswer": { "@type": "Answer", "text": a } });
+
+const pageSchemaMap = {
+  '/cost-calculator': [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "PolymagicPrice 3D Printing Cost Calculator",
+      "url": `${SITE}/cost-calculator`,
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "description": "Free 3D printing cost calculator for FDM and resin. Upload a G-code, 3MF or CXDLPV4 file to auto-calculate material, electricity, machine and labor costs and generate a professional quote."
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        faq("How do I calculate the cost of a 3D print?", "Add material, electricity, machine depreciation, labor and consumables for the unit cost, then add overhead and multiply by (1 + markup%). Upload a sliced file and PolymagicPrice fills in print time and weight for you."),
+        faq("How much does it cost to 3D print something?", "Most hobby FDM parts cost $0.50-$5 in material and machine time; the final quoted price is usually $5-$30 once labor, overhead and markup are included. Resin parts cost more to finish because of wash and cure work."),
+        faq("Is this 3D printing price calculator free?", "Yes. PolymagicPrice is free and open-source (AGPLv3), runs entirely in your browser, and never uploads your files.")
+      ]
+    }
+  ],
+  '/guides/how-to-calculate-3d-printing-cost': [
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "How to Calculate 3D Printing Cost: Formula, Examples & Free Calculator",
+      "author": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "publisher": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "mainEntityOfPage": `${SITE}/guides/how-to-calculate-3d-printing-cost`,
+      "datePublished": "2026-09-06",
+      "dateModified": "2026-09-06"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        faq("What is the formula to calculate 3D printing cost?", "(Material + Electricity + Machine depreciation + Labor + Consumables + Overhead) x (1 + Markup%)."),
+        faq("How much does it cost to 3D print something?", "Hobby FDM parts typically cost $0.50-$5 in material and machine time and are quoted at $5-$30 after labor and markup. Resin parts cost more to finish."),
+        faq("How much should I charge for 3D printing?", "Cost plus 20-50% markup. Use the lower end for simple repeat parts and the higher end for custom or design-heavy work.")
+      ]
+    }
+  ],
+  '/guides/fdm-vs-resin-printing-cost': [
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "FDM vs Resin 3D Printing Cost: Full Price Comparison",
+      "author": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "publisher": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "mainEntityOfPage": `${SITE}/guides/fdm-vs-resin-printing-cost`,
+      "datePublished": "2026-09-06",
+      "dateModified": "2026-09-06"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        faq("Is resin printing more expensive than FDM?", "Yes. Material is only slightly more per part, but consumables and wash/cure labor push the finished cost 40-70% higher at hobby scale."),
+        faq("How much does resin cost per print?", "Most small resin prints use $0.50-$4 of resin plus $0.20-$0.60 of consumables; finished cost after labor and markup is typically $8-$25."),
+        faq("Is PLA the cheapest filament?", "PLA and basic PETG are the cheapest common filaments at $15-$25/kg. Engineering filaments (nylon, PC, CF blends) run $40-$80/kg.")
+      ]
+    }
+  ],
+  '/guides/filament-cost-per-gram': [
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Filament Cost Per Gram: How to Price PLA, PETG & ABS 3D Prints",
+      "author": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "publisher": { "@type": "Person", "name": "RP Hobbyist", "url": PARENT },
+      "mainEntityOfPage": `${SITE}/guides/filament-cost-per-gram`,
+      "datePublished": "2026-09-06",
+      "dateModified": "2026-09-06"
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        faq("How do I calculate filament cost per gram?", "Divide the spool price by the net filament weight in grams. $25 / 1,000 g = $0.025 per gram."),
+        faq("How much filament does a print use?", "Your slicer reports it after slicing (grams and metres). Small parts use 5-30 g; a large functional part can use 200-500 g."),
+        faq("What is the cheapest 3D printer filament?", "PLA is the cheapest and easiest to print, usually $18-$25 per kg. Basic PETG is a little more but more durable.")
+      ]
+    }
+  ]
+};
+
+// ── Known client-side routes ─────────────────────────────────────────────
+// Any HTML request whose path is not one of these (and is not a static file)
+// is served the SPA shell with a real 404 status, so Google does not log it as
+// a "soft 404". The React NotFound view still renders for the user.
+const KNOWN_ROUTES = new Set([
+  '/',
+  '/index.html',
+  '/cost-calculator',
+  '/settings',
+  '/billing-analysis',
+  '/order-manager',
+  '/print-manager',
+  '/capacity-planner',
+  '/database-manager',
+  '/notification',
+  '/tool-guide',
+  '/guides/how-to-calculate-3d-printing-cost',
+  '/guides/fdm-vs-resin-printing-cost',
+  '/guides/filament-cost-per-gram',
+  // Legacy aliases kept as client-side redirects in App.tsx
+  '/calculator',
+  '/manage-orders',
+  '/system-database',
+  '/notifications',
+  '/saved-quotes',
+  '/order-management',
+  '/machine-manager',
+  '/database'
+]);
 
 // ── Main Middleware ───────────────────────────────────────────────────────
 export async function onRequest(context) {
@@ -369,6 +701,7 @@ export async function onRequest(context) {
     const canonicalUrl = `${SITE}${lookupPath === '/' ? '/' : lookupPath}`;
     const userAgent = context.request.headers.get('user-agent') || '';
     const isBotRequest = isSearchBot(userAgent);
+    const isKnownRoute = KNOWN_ROUTES.has(lookupPath);
 
     // Build a single HTMLRewriter for all transformations in one pass
     const rewriter = new HTMLRewriter();
@@ -411,6 +744,13 @@ export async function onRequest(context) {
         });
     }
 
+    // ── Unknown route: mark noindex so a stray crawl never indexes the shell ──
+    if (!isKnownRoute) {
+      rewriter.on('meta[name="robots"]', {
+        element(e) { e.setAttribute('content', 'noindex, follow'); }
+      });
+    }
+
     // ── Bot-aware dynamic rendering ──
     // Injects static HTML into #root so search engines can index page content
     // without waiting for client-side React hydration. This is Google-approved
@@ -446,7 +786,30 @@ export async function onRequest(context) {
       });
     }
 
+    // ── Bot-aware per-page structured data (FAQ / Article / WebApplication) ──
+    // Appends route-specific JSON-LD so calculator and guide pages are eligible
+    // for rich results instead of relying only on the app-wide schema in index.html.
+    if (isBotRequest && pageSchemaMap[lookupPath]) {
+      const blocks = pageSchemaMap[lookupPath]
+        .map(obj => `<script type="application/ld+json">${JSON.stringify(obj)}</script>`)
+        .join('');
+      rewriter.on('head', {
+        element(e) { e.append(blocks, { html: true }); }
+      });
+    }
+
     response = rewriter.transform(response);
+
+    // ── Real 404 for unknown routes (kills Search Console "soft 404") ──
+    // The body is still the SPA shell, so React Router renders the NotFound view;
+    // only the HTTP status changes.
+    if (!isKnownRoute && response.status === 200) {
+      response = new Response(response.body, {
+        status: 404,
+        statusText: 'Not Found',
+        headers: response.headers
+      });
+    }
   }
 
   return response;

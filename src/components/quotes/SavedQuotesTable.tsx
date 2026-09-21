@@ -30,6 +30,8 @@ import { Trash2, Edit, Eye, Database, AlertTriangle, Printer, FileSpreadsheet, S
 import { PrintJobDialog } from "@/components/print-management/PrintJobDialog";
 import { QuoteData } from "@/types/quote";
 import { getOrderId } from "@/lib/utils/order-utils";
+import { summariseQuote } from "@/lib/quoteCalculations";
+import { safeCell } from "@/lib/excelExport";
 import { BambuDevice, PrinterConnection, PrintOptions } from "@/types/printer";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
@@ -166,30 +168,42 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
       { header: "Subtotal", key: "subtotal", width: 15 },
       { header: "Markup", key: "markup", width: 15 },
       { header: "Total Price", key: "totalPrice", width: 15 },
+      // Not money, so it sits after the totals with its unit in the header and no currency symbol.
+      { header: "Carbon (kgCO2e)", key: "carbonKg", width: 16 },
+      { header: "Carbon Basis", key: "carbonGrade", width: 14 },
       { header: "Notes", key: "notes", width: 30 },
       { header: "Date", key: "createdAt", width: 20 },
     ];
 
     quotes.forEach((quote, index) => {
+      // Shared breakdown so the exported consumables/subtotal columns are on the same basis
+      // (quantity-inclusive) as the cost columns beside them.
+      const totals = summariseQuote(quote);
+
       worksheet.addRow({
         sno: index + 1,
         orderId: getOrderId(quote.id),
-        projectName: quote.projectName,
-        clientName: quote.clientName || "",
+        // Guard against Excel formula injection from user-entered text.
+        projectName: safeCell(quote.projectName),
+        clientName: safeCell(quote.clientName || ""),
         printType: quote.printType,
-        printColour: quote.printColour,
-        materialName: quote.parameters?.materialName || "-",
-        machineName: quote.parameters?.machineName || "-",
+        printColour: safeCell(quote.printColour),
+        materialName: safeCell(quote.parameters?.materialName || "-"),
+        machineName: safeCell(quote.parameters?.machineName || "-"),
         materialCost: formatPrice(quote.materialCost),
         machineTimeCost: formatPrice(quote.machineTimeCost),
         electricityCost: formatPrice(quote.electricityCost),
         laborCost: formatPrice(quote.laborCost),
-        consumablesCost: quote.parameters?.consumablesTotal ? formatPrice(quote.parameters.consumablesTotal) : formatPrice(0),
+        consumablesCost: formatPrice(totals.consumablesTotal),
         overheadCost: formatPrice(quote.overheadCost),
-        subtotal: formatPrice(quote.subtotal),
-        markup: formatPrice(quote.markup),
-        totalPrice: formatPrice(quote.totalPrice),
-        notes: quote.notes || "",
+        subtotal: formatPrice(totals.subtotal),
+        markup: formatPrice(totals.markup),
+        totalPrice: formatPrice(totals.total),
+        carbonKg: totals.carbonKg !== undefined ? Number(totals.carbonKg.toFixed(3)) : "",
+        carbonGrade: totals.carbonGrade
+          ? totals.carbonGrade.charAt(0) + totals.carbonGrade.slice(1).toLowerCase()
+          : "",
+        notes: safeCell(quote.notes || ""),
         createdAt: quote.createdAt ? new Date(quote.createdAt).toLocaleString() : "",
       });
     });

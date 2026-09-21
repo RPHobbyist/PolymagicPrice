@@ -19,7 +19,7 @@
 import { useState, useCallback, useEffect, ReactNode } from 'react';
 import { QuoteData } from '@/types/quote';
 import { BatchQuoteContext, BatchQuoteContextType } from '@/contexts/BatchQuoteContext';
-import { getQuotes } from '@/lib/core/sessionStorage';
+import { getQuotes, generateShortQuoteId } from '@/lib/core/sessionStorage';
 
 const STORAGE_KEY = 'batch_quote_items';
 
@@ -69,16 +69,27 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             // Enforce a $100M ceiling on any cumulative batch value to prevent numerical noise/UI-breakage
             const CLAMP = 100000000;
             
+            // IMPORTANT: every stored *Cost field is ALREADY multiplied by the item's quantity
+            // (see calculateFDMQuote/calculateResinQuote). Multiplying by qty again here made
+            // each component qty-times too large while grandTotal — which sums the already
+            // multiplied totalPrice — stayed correct, so the batch never reconciled.
+            const num = (value: number | undefined) => (Number.isFinite(value) ? (value as number) : 0);
+
             return {
                 totalItems: Math.min(acc.totalItems + 1, 1000000),
                 totalQuantity: Math.min(acc.totalQuantity + qty, 10000000),
-                totalMaterialCost: Math.min(acc.totalMaterialCost + item.materialCost * qty, CLAMP),
-                totalMachineTimeCost: Math.min(acc.totalMachineTimeCost + item.machineTimeCost * qty, CLAMP),
-                totalElectricityCost: Math.min(acc.totalElectricityCost + item.electricityCost * qty, CLAMP),
-                totalLaborCost: Math.min(acc.totalLaborCost + item.laborCost * qty, CLAMP),
-                totalOverheadCost: Math.min(acc.totalOverheadCost + item.overheadCost * qty, CLAMP),
-                totalMarkup: Math.min(acc.totalMarkup + item.markup * qty, CLAMP),
-                grandTotal: Math.min(acc.grandTotal + item.totalPrice, CLAMP),
+                totalMaterialCost: Math.min(acc.totalMaterialCost + num(item.materialCost), CLAMP),
+                totalMachineTimeCost: Math.min(acc.totalMachineTimeCost + num(item.machineTimeCost), CLAMP),
+                totalElectricityCost: Math.min(acc.totalElectricityCost + num(item.electricityCost), CLAMP),
+                totalLaborCost: Math.min(acc.totalLaborCost + num(item.laborCost), CLAMP),
+                totalOverheadCost: Math.min(acc.totalOverheadCost + num(item.overheadCost), CLAMP),
+                totalPaintingCost: Math.min(acc.totalPaintingCost + num(item.paintingCost), CLAMP),
+                totalConsumablesCost: Math.min(
+                    acc.totalConsumablesCost + num(item.parameters?.consumablesTotal as number | undefined) * qty,
+                    CLAMP
+                ),
+                totalMarkup: Math.min(acc.totalMarkup + num(item.markup), CLAMP),
+                grandTotal: Math.min(acc.grandTotal + num(item.totalPrice), CLAMP),
             };
         },
         {
@@ -89,6 +100,8 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             totalElectricityCost: 0,
             totalLaborCost: 0,
             totalOverheadCost: 0,
+            totalPaintingCost: 0,
+            totalConsumablesCost: 0,
             totalMarkup: 0,
             grandTotal: 0,
         }
@@ -103,12 +116,10 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         const mergedProjectNames = batchItems.map(i => i.projectName).join(' and ');
         const masterWeight = projectName || mergedProjectNames;
         
-        // Get existing quotes to determine overall count
-        const existingQuotes = getQuotes();
-        
-        // Generate a random segment similar to normal quotes (e.g. 5F6D)
-        const randomSegment = crypto.randomUUID().split('-')[1].toUpperCase();
-        const masterId = `${randomSegment}${existingQuotes.length + 1}`;
+        // Use the shared generator, which checks the candidate id against existing quotes.
+        // The old `<4 hex><quotes.length + 1>` scheme reused numbers after any deletion, and a
+        // collision made saveQuote overwrite the older quote instead of adding a new one.
+        const masterId = generateShortQuoteId(getQuotes());
 
         const masterQuote: QuoteData = {
             id: masterId,
@@ -122,7 +133,16 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             laborCost: batchTotals.totalLaborCost,
             overheadCost: batchTotals.totalOverheadCost,
             markup: batchTotals.totalMarkup,
-            subtotal: batchTotals.totalMaterialCost + batchTotals.totalMachineTimeCost + batchTotals.totalElectricityCost + batchTotals.totalLaborCost + batchTotals.totalOverheadCost,
+            paintingCost: batchTotals.totalPaintingCost,
+            // Painting and consumables were missing here, so the master quote's subtotal
+            // did not account for costs that were already inside each item's total.
+            subtotal: batchTotals.totalMaterialCost
+                + batchTotals.totalMachineTimeCost
+                + batchTotals.totalElectricityCost
+                + batchTotals.totalLaborCost
+                + batchTotals.totalPaintingCost
+                + batchTotals.totalConsumablesCost
+                + batchTotals.totalOverheadCost,
             totalPrice: batchTotals.grandTotal,
             quantity: 1, // The batch itself is 1 order
             unitPrice: batchTotals.grandTotal,

@@ -79,6 +79,7 @@ export interface QuoteData {
     waste?: number;
   };
   thumbnail?: string; // Base64 or URL thumbnail preview
+  carbon?: QuoteCarbon; // Frozen footprint; absent when it could not be computed
   revisions?: QuoteRevision[]; // New: Snapshot history of past versions
   reprintCount?: number; // Tracks how many times a print was failed and requeued
   isBatch?: boolean; // NEW: Indicates this is a consolidated batch of multiple quotes
@@ -108,6 +109,60 @@ export interface Employee {
   createdAt: string;
 }
 
+/** How a stored footprint was arrived at — the worst of its three inputs wins. */
+export type CarbonGrade = 'ESTIMATE' | 'ACTUAL' | 'MEASURED';
+
+/**
+ * Shop-wide carbon choices that are not numbers a constant can hold.
+ *
+ * The grid factor itself lives in the constants table beside the electricity rate; this holds the
+ * things that have no home there — which region was picked, how waste is assumed to be disposed of,
+ * and when history was last restated.
+ */
+export interface CarbonSettings {
+  /** Preset id from the factor library, or "custom" when the shop typed its own figure. */
+  regionId?: string;
+  /** Whether the shop has confirmed a region, so the app stops saying it is on the world average. */
+  regionConfirmed?: boolean;
+  defaultEolPath?: 'landfill' | 'incineration' | 'recycling';
+  lastRecalculatedAt?: string;
+}
+
+/**
+ * A job's frozen footprint, stored on the quote exactly as `electricityCost` is.
+ *
+ * Freezing rather than recomputing keeps history stable when a factor is edited later, and keeps
+ * the dashboard, the assistant, the reports and the invoice reading one number. Kept small on
+ * purpose: quotes already carry base64 thumbnails inside the same ~5 MB origin quota.
+ */
+export interface QuoteCarbon {
+  kg: number;            // whole job, kgCO2e
+  energyKg: number;
+  materialKg: number;
+  wasteKg: number;
+  kWh: number;
+  /** Mass that shipped: parts only, without failed units or supports where the slicer said so.
+   *  Stored because intensity (kgCO₂e per kg) is needed in places that cannot look up a material. */
+  deliveredKg: number;
+  gridGPerKWh: number;   // the grid factor used
+  efKgPerKg: number;     // the material factor used
+  wattsUsed: number;
+  /** Provenance per input; the badge shows the weakest of the three. */
+  src: {
+    time: 'estimate' | 'actual';
+    mass: 'estimate' | 'actual';
+    watts: 'measured' | 'library' | 'nameplate';
+    ef: 'spool' | 'material' | 'preset' | 'library';
+  };
+  grade: CarbonGrade;
+  /**
+   * Why a figure is weaker than it looks: missing slicer feature data, no machine on the quote, or
+   * `aggregate` — a batch master, whose totals are real sums but whose per-unit fields below are
+   * taken from one child and are only indicative when the batch mixes materials or machines.
+   */
+  flags?: ('no-feature-data' | 'no-machine' | 'no-density' | 'aggregate')[];
+}
+
 export interface QuoteParameters {
   materialName?: string;
   machineName?: string;
@@ -131,6 +186,12 @@ export interface Material {
   totalInStock?: number;
   lowStockThreshold?: number;
   description?: string;
+  // --- Carbon (all optional; resolved from the factor library when absent) ---
+  co2PerKg?: number;        // cradle-to-gate kgCO2e per kg of filament or resin
+  co2Source?: string;       // where that figure came from, shown in the method panel and exports
+  densityGCm3?: number;     // resin volume → mass
+  carbonFraction?: number;  // mass fraction of carbon, for the incineration route (C × 44/12)
+  eolPath?: 'landfill' | 'incineration' | 'recycling';
 }
 
 export interface Machine {
@@ -155,6 +216,16 @@ export interface Machine {
   isCloudEnabled?: boolean;
   buildVolume?: string; // e.g. "256 x 256 x 256 mm"
   certFingerprint?: string; // SHA-256 fingerprint for LAN certificate validation (TOFU)
+  /**
+   * Measured average draw while printing, in watts.
+   *
+   * Deliberately separate from `power_consumption_watts`, which is a nameplate/PSU rating that
+   * pricing depends on — an Ender 3 is stored at 350 W but averages 75-125 W in use. Only ever
+   * written by a human reading a plug meter.
+   */
+  measuredWatts?: number;
+  /** Standby draw; used for shop-level overhead only, never inside a job's footprint. */
+  idleWatts?: number;
 }
 
 export interface CostConstant {
@@ -256,6 +327,13 @@ export interface QuoteStats {
   totalOverheadCost: number; // New: Total spent on overhead
   avgMargin: number; // New: Weighted average margin %
   statusDistribution: Record<string, number>; // New: Count of quotes per status
+  // --- Carbon. Optional on purpose: existing callers and test fixtures build this object
+  // literally, and required fields would break them. Readers use `?? 0`.
+  totalCarbonKg?: number;      // jobs that actually ran — never quotes that were only priced
+  carbonPerPart?: number;
+  carbonPerKg?: number;        // intensity against delivered mass
+  carbonEnergyShare?: number;  // 0-1, energy's share of the total
+  quotedNotPrintedKg?: number; // pipeline only, reported separately
 }
 
 // Customer Review/Rating System
@@ -281,6 +359,9 @@ export interface MaterialSpool {
   purchaseCost?: number;
   location?: string;       // e.g., "Shelf A1"
   notes?: string;
+  /** The strongest material anchor available: the factor of the product actually bought. */
+  co2PerKg?: number;
+  co2Source?: string;
 }
 
 // Capacity Planning
@@ -323,6 +404,13 @@ export interface CompanySettings {
   taxId?: string;
   logoUrl?: string; // Optional logo buffer/base64
   footerText?: string;
+  /**
+   * Whether an invoice shows the job's estimated footprint.
+   *
+   * Off by default: a customer-facing document is the one place a shop could accidentally publish
+   * a figure it has not reviewed, so showing it has to be a deliberate act.
+   */
+  showCarbonOnInvoice?: boolean;
 }
 
 // Stored G-code Files
@@ -354,7 +442,33 @@ export interface BridgeSettings {
 
 export interface AISettings {
     enabled: boolean;
+    /** Local AI stays on this machine: loopback hosts only. */
+    host: 'localhost' | '127.0.0.1';
     port: number;
     model: string;
     contextLength: number;
+    /** 0 = deterministic. Analytics answers want a low value. */
+    temperature: number;
+    requestTimeoutMs: number;
+    /** Redact emails/phones/card numbers out of AI answers before display. */
+    redactPII: boolean;
+    /** Keep the chat transcript across reloads (stored locally, obfuscated). */
+    persistChat: boolean;
+    /** Optional shop-specific instructions appended after the built-in rules. */
+    customInstructions?: string;
+}
+
+export type AIAuditEvent = 'PROPOSED' | 'EXECUTED' | 'REJECTED' | 'BLOCKED' | 'REDACTED';
+
+export interface AIAuditEntry {
+    timestamp: string;
+    event: AIAuditEvent;
+    command: string;
+    detail: string;
+}
+
+export interface AIChatMessageRecord {
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
 }

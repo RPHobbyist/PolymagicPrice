@@ -56,8 +56,10 @@ export default defineConfig(({ mode }) => ({
     esbuildOptions: {
       drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
-    // Enable source maps for production to improve Lighthouse scores and debuggability
-    sourcemap: true,
+    // No production source maps. Previously `true`, which shipped `//# sourceMappingURL`
+    // comments and multi-MB `.map` files; Search Console was picking those up and listing
+    // `assets/index-*.js` URLs as indexed "pages". Disabling also shrinks the deploy.
+    sourcemap: false,
     // Target modern browsers to avoid legacy polyfills (saves ~12KB)
     target: "es2022",
     // Optimize module preloading

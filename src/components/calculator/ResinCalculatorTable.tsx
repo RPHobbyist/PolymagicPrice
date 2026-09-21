@@ -38,6 +38,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import * as sessionStore from "@/lib/core/sessionStorage";
+import { pick } from "@/lib/utils";
 
 interface ResinCalculatorProps {
   onCalculate: (data: QuoteData) => void;
@@ -98,7 +99,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
   const calculationId = useMemo(() => crypto.randomUUID(), []);
 
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
-  const { currency } = useCurrency();
+  const { currency, formatPrice } = useCurrency();
   const { gcodes, saveGcode } = useStoredGcodes();
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -162,7 +163,9 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       printColour: prev.printColour,
     }));
 
-    setThumbnail(undefined); // Reset thumbnail for resin or handle if available
+    // The resin parsers do render a preview (RGB565 -> canvas), so use it when present
+    // instead of unconditionally discarding it.
+    setThumbnail(data.thumbnail);
   }, [machines]);
 
   // Handle pre-fill data from library navigation or revision
@@ -182,16 +185,20 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         ...prev,
         id: targetId || prev.id,
         projectName: preFillData.projectName || preFillData.name || prev.projectName,
-        printTime: String(preFillData.printTime || prev.printTime || ""),
-        resinVolume: String(preFillData.resinVolume || prev.resinVolume || ""),
-        materialId: preFillData.materialId || preFillData.materialId || prev.materialId,
-        machineId: preFillData.machineId || preFillData.machineId || prev.machineId,
-        washingTime: String(preFillData.washingTime || prev.washingTime || ""),
-        curingTime: String(preFillData.curingTime || prev.curingTime || ""),
-        laborHours: String(preFillData.laborHours || prev.laborHours || ""),
-        overheadPercentage: String(preFillData.overheadPercentage || prev.overheadPercentage || ""),
-        markupPercentage: String(preFillData.markupPercentage || prev.markupPercentage || "20"),
-        quantity: String(preFillData.quantity || prev.quantity || "1"),
+        // `pick` preserves a deliberate 0; `||` silently swapped it for the default and
+        // re-priced the quote on every revision.
+        printTime: pick(preFillData.printTime, prev.printTime, ""),
+        resinVolume: pick(preFillData.resinVolume, prev.resinVolume, ""),
+        materialId: preFillData.materialId || prev.materialId,
+        machineId: preFillData.machineId || prev.machineId,
+        washingTime: pick(preFillData.washingTime, prev.washingTime, ""),
+        curingTime: pick(preFillData.curingTime, prev.curingTime, ""),
+        // Previously omitted entirely, so the IPA charge silently dropped to 0 on revision.
+        isopropylCost: pick(preFillData.isopropylCost, prev.isopropylCost, ""),
+        laborHours: pick(preFillData.laborHours, prev.laborHours, ""),
+        overheadPercentage: pick(preFillData.overheadPercentage, prev.overheadPercentage, ""),
+        markupPercentage: pick(preFillData.markupPercentage, prev.markupPercentage, "20"),
+        quantity: pick(preFillData.quantity, prev.quantity, "1"),
         priority: preFillData.priority || prev.priority,
         dueDate: preFillData.dueDate || prev.dueDate,
         customerId: preFillData.customerId || prev.customerId,
@@ -202,9 +209,13 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         status: preFillData.status || prev.status,
         failedUnits: preFillData.failedUnits !== undefined ? String(preFillData.failedUnits) : prev.failedUnits,
         // Painting mapping
-        paintingTime: String(preFillData.paintingTime || prev.paintingTime || ""),
-        paintingLayers: String(preFillData.paintingLayers || prev.paintingLayers || ""),
-        surfaceAreaCm2: String(preFillData.surfaceAreaCm2 || prev.surfaceAreaCm2 || "")
+        printColour: preFillData.printColour || prev.printColour,
+        paintingTime: pick(preFillData.paintingTime, prev.paintingTime, ""),
+        paintingLayers: pick(preFillData.paintingLayers, prev.paintingLayers, ""),
+        paintingLayers2: pick(preFillData.paintingLayers2, prev.paintingLayers2, ""),
+        selectedPaintId: preFillData.selectedPaintId || prev.selectedPaintId,
+        selectedPaintId2: preFillData.selectedPaintId2 || prev.selectedPaintId2,
+        surfaceAreaCm2: pick(preFillData.surfaceAreaCm2, prev.surfaceAreaCm2, "")
       }));
 
       setThumbnail(preFillData.thumbnail);
@@ -217,9 +228,9 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       const totalValue = constants
         .filter(c => selectedIds.includes(c.id))
         .reduce((sum, c) => sum + c.value, 0);
-      toast.info(`Selected ${selectedIds.length} consumables (Total: ${currency.symbol}${totalValue.toFixed(2)})`);
+      toast.info(`Selected ${selectedIds.length} consumables (Total: ${formatPrice(totalValue)})`);
     }
-  }, [constants, updateField, currency]);
+  }, [constants, updateField, formatPrice]);
 
   const handleSavedGcodeSelect = useCallback((fileId: string) => {
     const file = gcodes.find(f => f.id === fileId);
@@ -323,6 +334,9 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       machine: selectedMachine,
       electricityRate: electricityRate,
       laborRate: laborRate,
+      // Carbon: the shop's grid factor, plus the bottle in use when one is selected.
+      gridGPerKWh: getConstantValue("grid_intensity"),
+      spool: selectedSpoolId ? sessionStore.getSpools().find(s => s.id === selectedSpoolId) : undefined,
       consumables: selectedConsumables,
       paintConsumable: selectedPaint, // Pass the full object
       paintConsumable2: selectedPaint2, // Pass secondary paint
@@ -339,15 +353,15 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
     materials.map(m => ({
       id: m.id,
       label: m.name,
-      sublabel: `${currency.symbol}${m.cost_per_unit}/${m.unit}`,
-    })), [materials, currency]);
+      sublabel: `${formatPrice(m.cost_per_unit)}/${m.unit}`,
+    })), [materials, formatPrice]);
 
   const machineOptions = useMemo(() =>
     machines.map(m => ({
       id: m.id,
       label: m.name,
-      sublabel: `${currency.symbol}${m.hourly_cost}/hr`,
-    })), [machines, currency]);
+      sublabel: `${formatPrice(m.hourly_cost)}/hr`,
+    })), [machines, formatPrice]);
 
   const consumableItems = useMemo(() =>
     constants.map(c => ({
@@ -728,7 +742,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
                       return {
                         id: c.id,
                         label: c.name,
-                        sublabel: currency ? `${c.value} ${c.unit ? `(${c.unit.replace('$', currency.symbol)})` : ''}${usageRate}` : `${c.value}`
+                        sublabel: currency ? `${formatPrice(c.value)} ${c.unit ? `(${c.unit.startsWith('/') ? currency.symbol + c.unit : c.unit})` : ''}${usageRate}` : `${c.value}`
                       };
                     })]}
               />
@@ -767,7 +781,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
                       return {
                         id: c.id,
                         label: c.name,
-                        sublabel: currency ? `${c.value} ${c.unit ? `(${c.unit.replace('$', currency.symbol)})` : ''}${usageRate}` : `${c.value}`
+                        sublabel: currency ? `${formatPrice(c.value)} ${c.unit ? `(${c.unit.startsWith('/') ? currency.symbol + c.unit : c.unit})` : ''}${usageRate}` : `${c.value}`
                       };
                     })
                 ]}

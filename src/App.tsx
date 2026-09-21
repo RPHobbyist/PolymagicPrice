@@ -36,6 +36,7 @@ const Landing = lazy(() => import("./pages/Landing"));
 const Index = lazy(() => import("./pages/Index"));
 const Settings = lazy(() => import("./pages/Settings"));
 const BillingAnalysis = lazy(() => import("./pages/BillingAnalysis"));
+const CarbonFootprint = lazy(() => import("./pages/CarbonFootprint"));
 const OrderManager = lazy(() => import("./pages/OrderManager"));
 const PrintManager = lazy(() => import("./pages/PrintManager"));
 const CapacityPlanner = lazy(() => import("./pages/CapacityPlanner"));
@@ -43,6 +44,11 @@ const DatabaseManager = lazy(() => import("./pages/DatabaseManager"));
 const Notification = lazy(() => import("./pages/Notification"));
 const ToolGuide = lazy(() => import("./pages/ToolGuide"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+// SEO content guides (standalone, outside the app Layout)
+const GuideHowToCalculateCost = lazy(() => import("./pages/guides/HowToCalculate3DPrintingCost"));
+const GuideFdmVsResinCost = lazy(() => import("./pages/guides/FdmVsResinCost"));
+const GuideFilamentCostPerGram = lazy(() => import("./pages/guides/FilamentCostPerGram"));
 
 // Loading fallback component with better FCP and visual appeal
 const PageLoader = () => (
@@ -105,10 +111,16 @@ const App = () => {
                           {/* Standalone Landing Page outside Layout */}
                           <Route path="/" element={<Landing />} />
 
+                          {/* Standalone SEO content guides outside Layout */}
+                          <Route path="/guides/how-to-calculate-3d-printing-cost" element={<GuideHowToCalculateCost />} />
+                          <Route path="/guides/fdm-vs-resin-printing-cost" element={<GuideFdmVsResinCost />} />
+                          <Route path="/guides/filament-cost-per-gram" element={<GuideFilamentCostPerGram />} />
+
                           <Route element={<Layout />}>
                             <Route path="/cost-calculator" element={<Index />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/billing-analysis" element={<BillingAnalysis />} />
+                            <Route path="/carbon-footprint" element={<CarbonFootprint />} />
                             <Route path="/order-manager" element={<OrderManager />} />
                             <Route path="/print-manager" element={<PrintManager />} />
                             <Route path="/capacity-planner" element={<CapacityPlanner />} />

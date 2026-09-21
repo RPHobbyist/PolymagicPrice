@@ -18,7 +18,7 @@
 
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { 
   ShieldCheck, 
   ArrowRight, 
@@ -39,7 +39,6 @@ import {
   FileUp,
   TrendingUp,
   MessageSquare,
-  Zap,
   X as XIcon,
   Check,
   FileText
@@ -52,7 +51,9 @@ import { Realistic3DPrinter } from "@/components/shared/Realistic3DPrinter";
 
 
 
-const containerVariants = {
+// Typed as Variants so `ease` is checked against framer-motion's Easing union instead of
+// being widened to `string` (which failed every `variants={...}` assignment below).
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -63,7 +64,7 @@ const containerVariants = {
   }
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
@@ -138,23 +139,18 @@ export default function Landing() {
     ogTitle: "Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice",
     ogDescription: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, get instant price breakdowns, and generate professional PDF quotes. Free, open-source, 100% offline.",
     ogImage: SYSTEM_CONFIG.logo,
+    // Organization + WebSite schema already ship statically in index.html — only
+    // emit page-specific schema here to avoid duplicate/conflicting JSON-LD.
     jsonLd: [
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": SYSTEM_CONFIG.vendor,
-        "url": SYSTEM_CONFIG.vendorLink,
-        "logo": `${SYSTEM_CONFIG.baseUrl}${SYSTEM_CONFIG.logo}`,
-        "sameAs": [
-          SYSTEM_CONFIG.githubUrl,
-          SYSTEM_CONFIG.youtubeUrl
-        ]
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": SYSTEM_CONFIG.appName,
-        "url": SYSTEM_CONFIG.baseUrl
+        "@type": "WebApplication",
+        "name": "PolymagicPrice — 3D Printing Price Calculator",
+        "url": `${SYSTEM_CONFIG.baseUrl}/cost-calculator`,
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Windows, macOS, Linux",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": "Free 3D printing price calculator for FDM filament and Resin (SLA/DLP). Upload G-code to auto-calculate material, electricity, labour and machine costs and generate professional quotes."
       },
       {
         "@context": "https://schema.org",
@@ -234,7 +230,7 @@ export default function Landing() {
               <Github className="w-6 h-6" />
             </a>
             <Button asChild size="sm" className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-600/10 transition-all duration-200 hover:-translate-y-0.5 font-bold px-5 h-10 text-sm border-none">
-              <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer">
+              <Link to="/cost-calculator">
                 Launch Command Center
               </Link>
             </Button>
@@ -268,20 +264,20 @@ export default function Landing() {
             </motion.div>
 
             {/* Title */}
-            <motion.h1 
+            <motion.h1
               className="text-3xl sm:text-5xl font-black tracking-tight text-slate-900 leading-[1.25]"
               variants={itemVariants}
             >
-              Run Your 3D Print Farm <br />
-              <span className="text-emerald-600">with Local AI</span>
+              Free 3D Printing Price Calculator <br />
+              <span className="text-emerald-600">for FDM &amp; Resin</span>
             </motion.h1>
 
             {/* Subtitle */}
-            <motion.p 
+            <motion.p
               className="text-base sm:text-lg text-slate-600 leading-relaxed font-normal max-w-xl"
               variants={itemVariants}
             >
-              The all-in-one command center for 3D print farms. Price jobs accurately, manage production across your fleet, and get AI-powered insights — all running locally on your machine. No cloud. No subscriptions. Free forever.
+              Upload a G-code, 3MF or CXDLPV4 file and get an instant, itemised cost breakdown — material, electricity, machine wear, labour and markup — then export a professional quote. PolymagicPrice is also a full 3D print farm command center with production, fleet and Local AI tools. Free, open-source, 100% offline.
             </motion.p>
 
             {/* CTAs */}
@@ -291,7 +287,7 @@ export default function Landing() {
                 asChild 
                 className="h-11 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-600/15 font-bold text-sm transition-all duration-200 hover:scale-[1.05] hover:rotate-1 border-none relative overflow-hidden"
               >
-                <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer">
+                <Link to="/cost-calculator">
                   <span className="absolute inset-0 bg-white/10 translate-x-[-100%] hover:translate-x-[100%] transition-transform duration-700" />
                   <Play className="w-4 h-4 mr-2 fill-current" />
                   Launch Your Command Center — Free
@@ -364,7 +360,7 @@ export default function Landing() {
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
                 Granular pricing tailored separately for FDM filament (by weight) and Resin SLA/DLP (by volume). Accounts for FEP wear, IPA wash, and gloves.
               </p>
-              <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/cost-calculator" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Open Calculator <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -375,7 +371,7 @@ export default function Landing() {
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
                 Drag and drop G-code, 3MF, or .cxdlpv4 slice files. Instantly extracts print time, filament weights, and resin volumes automatically.
               </p>
-              <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/tool-guide" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 View Documentation <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -386,7 +382,7 @@ export default function Landing() {
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
                 Track jobs across machines. Checks maintenance intervals, deducts spool materials from live stock, and tracks manufacturing scrap logs.
               </p>
-              <Link to="/print-manager" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/print-manager" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Manage Fleet <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -397,7 +393,7 @@ export default function Landing() {
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
                 Forecast delivery feasibility across your print farm fleet. Auto-detects printer build volume mismatches and physical material shortages.
               </p>
-              <Link to="/capacity-planner" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/capacity-planner" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Plan Production <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -406,9 +402,9 @@ export default function Landing() {
             <motion.div className="bg-slate-50 border border-slate-200/80 rounded-xl p-6 hover-lift hover:border-emerald-300 transition-all shadow-sm group" variants={itemVariants}>
               <h3 className="text-lg font-bold text-slate-900 mb-2 font-heading">AI-Powered Pricing Analysis</h3>
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
-                Integrates offline with Ollama on your local machine. Redacts PII, prevents code extraction, and generates operational pricing reports securely.
+                Integrates offline with Ollama on your local machine. Redacts personal details, keeps data access read-only behind your approval, and generates financial, material and machine reports from your own numbers.
               </p>
-              <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/tool-guide" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Read AI Documentation <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -419,7 +415,7 @@ export default function Landing() {
               <p className="text-sm text-slate-500 leading-relaxed mb-4">
                 Absolute privacy. Desktop files use native OS keychain encryption, while the browser uses obfuscated XOR localStorage. Zero cloud trackers.
               </p>
-              <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
+              <Link to="/tool-guide" className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider hover:text-emerald-500 transition-colors inline-flex items-center gap-1">
                 Privacy Policy <ArrowRight className="w-3 h-3" />
               </Link>
             </motion.div>
@@ -856,17 +852,32 @@ export default function Landing() {
               <h3 className="text-slate-900 font-bold text-sm uppercase tracking-tight">Resources</h3>
               <ul className="space-y-2 text-slate-500 font-medium">
                 <li>
-                  <Link to="/tool-guide" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
+                  <Link to="/tool-guide" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
                     <BookOpen className="w-4 h-4 text-slate-400" /> Documentation
                   </Link>
                 </li>
                 <li>
-                  <Link to="/cost-calculator" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
-                    <Calculator className="w-4 h-4 text-slate-400" /> Cost Calculator
+                  <Link to="/cost-calculator" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
+                    <Calculator className="w-4 h-4 text-slate-400" /> 3D Printing Cost Calculator
                   </Link>
                 </li>
                 <li>
-                  <button 
+                  <Link to="/guides/how-to-calculate-3d-printing-cost" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-slate-400" /> How to Calculate 3D Printing Cost
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/guides/fdm-vs-resin-printing-cost" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-slate-400" /> FDM vs Resin Cost Comparison
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/guides/filament-cost-per-gram" className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-slate-400" /> Filament Cost Per Gram
+                  </Link>
+                </li>
+                <li>
+                  <button
                     onClick={() => handleScroll("blogs")}
                     className="hover:text-emerald-600 transition-colors inline-flex items-center gap-1.5"
                   >

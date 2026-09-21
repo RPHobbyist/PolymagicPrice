@@ -23,18 +23,25 @@ import { ProductionJob, JobStatus, ProductionSettings, JobPriority } from '@/typ
 import { ProductionContext, ProductionContextType } from '@/contexts/ProductionContext';
 import { useNotifications } from '@/hooks/useNotifications';
 import * as sessionStore from '@/lib/core/sessionStorage';
+// One parser for the whole app: the quote engine and the dashboard now read "1:30"
+// as 1.5 h exactly as production always did.
+import { parseTimeToHours } from '@/lib/utils/time';
+import { sumCarbonRecords } from '@/lib/carbon/carbonCalculator';
 
 
-// Robust helper to parse print time from various formats
-const parseTimeToHours = (timeStr: string | number | undefined | null): number => {
-    if (typeof timeStr === 'number') return timeStr;
-    const str = String(timeStr || '0').trim();
-    if (str.includes(':')) {
-        const [h, m] = str.split(':').map(Number);
-        return (h || 0) + ((m || 0) / 60);
-    }
-    const val = parseFloat(str);
-    return isNaN(val) ? 0 : val;
+/**
+ * The electricity rate this quote was priced with, falling back to the shop's current rate.
+ *
+ * `parameters.electricityRate` is written at calculation time. Quotes created before that
+ * snapshot existed carry nothing, and reading the missing field used to resolve to 0 — which
+ * is why every completed job recorded a power cost of exactly zero and `Machine.totalPowerCost`
+ * never accumulated for any user.
+ */
+const resolveElectricityRate = (quote: QuoteData): number => {
+    const snapshot = Number(quote.parameters?.electricityRate);
+    if (Number.isFinite(snapshot) && snapshot > 0) return snapshot;
+    const current = Number(sessionStore.getConstants().find(c => c.id === 'electricity')?.value);
+    return Number.isFinite(current) && current > 0 ? current : 0;
 };
 
 // Helper to calculate total material weight/volume for a job
@@ -180,6 +187,50 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
 
+            // [ClosedLoop] Step 0b: UNDO ACTUALS - a finished job dragged back onto the board did
+            // not happen. Only the spool was ever restored; `actualPrintTime`, `actualMaterialUsed`
+            // and the power cost stayed on the quote, so the dashboard, the reports and the
+            // assistant all kept counting a run that no longer exists.
+            const wasFinished = jobToMove.status === 'completed' || jobToMove.status === 'post_processing';
+            const backOnBoard = newStatus === 'queued' || newStatus === 'printing';
+            if (wasFinished && backOnBoard) {
+                updatedJob.actualPrintTime = undefined;
+                updatedJob.completedAt = undefined;
+                updatedJob.actualMaterialUsed = undefined;
+                updatedJob.actualPowerCost = undefined;
+                updatedJob.actualCarbon = undefined;
+
+                if (updatedJob.batchId) {
+                    // Rebuild the master's aggregate from the children that are still finished.
+                    const parent = sessionStore.getQuotes().find(q => q.id === updatedJob.batchId);
+                    if (parent) {
+                        const finished = prev.filter(j =>
+                            j.batchId === updatedJob.batchId && j.id !== updatedJob.id &&
+                            (j.status === 'completed' || j.status === 'post_processing'));
+                        const sum = (pick: (j: ProductionJob) => number) => finished.reduce((acc, j) => acc + pick(j), 0);
+
+                        const parentUpdate: Partial<QuoteData> = {
+                            actualPrintTime: sum(j => j.actualPrintTime || 0) || undefined,
+                            actualMaterialUsed: sum(j => j.actualMaterialUsed || 0) || undefined,
+                            totalPowerCost: sum(j => j.actualPowerCost || 0) || undefined,
+                            carbon: sumCarbonRecords(finished.map(j => j.actualCarbon)),
+                        };
+                        if (finished.length === 0) parentUpdate.status = 'APPROVED';
+                        sessionStore.updateQuote(parent.id, parentUpdate);
+                    }
+                } else {
+                    // Clearing the actuals is enough for the footprint too: `updateQuote` sees
+                    // carbon-relevant fields change with no figure supplied, and recomputes the
+                    // quote back to an estimate.
+                    sessionStore.updateQuote(updatedJob.quote.id, {
+                        actualPrintTime: undefined,
+                        actualMaterialUsed: undefined,
+                        totalPowerCost: undefined,
+                        status: newStatus === 'printing' ? 'PRINTING' : 'APPROVED',
+                    });
+                }
+            }
+
             // [ClosedLoop] Step 1: START PRINT - Start-Gate Maintenance & Inventory Deduction
             if (newStatus === 'printing' && jobToMove.status !== 'printing') {
                 // CLOSED LOOP: Maintenance Check (Physical Gate)
@@ -217,13 +268,16 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                         );
                         
                         if (targetSpool) {
-                            const success = sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
-                            if (success) {
+                            // Record what was ACTUALLY taken, not what was requested: stock is
+                            // clamped at zero, so a partial deduction must not be reverted in
+                            // full later (that would invent material out of nothing).
+                            const deducted = sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
+                            if (deducted > 0) {
                                 // Add to total material used for this job
                                 updatedJob.spoolId = targetSpool.id;
-                                updatedJob.inventoryDeducted = (jobToMove.inventoryDeducted || 0) + deductionAmount;
+                                updatedJob.inventoryDeducted = (jobToMove.inventoryDeducted || 0) + deducted;
                                 updatedJob.failureReason = null; // Clear failure reason now that we are re-attempting
-                                console.log(`[ClosedLoop] Deducted ${deductionAmount} for reprint/start from spool ${targetSpool.id}. Total now: ${updatedJob.inventoryDeducted}`);
+                                console.log(`[ClosedLoop] Deducted ${deducted} of ${deductionAmount} requested for reprint/start from spool ${targetSpool.id}. Total now: ${updatedJob.inventoryDeducted}`);
                             }
                         }
                     }
@@ -250,8 +304,9 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                             jobToMove.quote.printColour
                         );
                         if (targetSpool) {
-                            sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
-                            updatedJob.inventoryDeducted = deductionAmount;
+                            // Track the actual deduction so a later revert restores exactly this much.
+                            const deducted = sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
+                            updatedJob.inventoryDeducted = deducted;
                             updatedJob.spoolId = targetSpool.id;
                         }
                     }
@@ -285,7 +340,7 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                     updatedJob.completedAt = new Date().toISOString();
 
                     const powerKw = (machine.power_consumption_watts || 0) / 1000;
-                    const electricityRate = updatedJob.quote.parameters.electricityRate as number || 0;
+                    const electricityRate = resolveElectricityRate(updatedJob.quote);
                     const currentJobPowerCost = (runtimeHours || 0) * powerKw * electricityRate;
 
                     console.log(`[Maintenance] Updating ${machine.name}: +${runtimeHours.toFixed(2)}h`);
@@ -306,8 +361,8 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                     const extraDeduction = weightPerUnit * failedUnits;
                     
                     if (extraDeduction > 0) {
-                        sessionStore.deductFromSpool(updatedJob.spoolId, extraDeduction);
-                        updatedJob.inventoryDeducted = (updatedJob.inventoryDeducted || 0) + extraDeduction;
+                        const scrapDeducted = sessionStore.deductFromSpool(updatedJob.spoolId, extraDeduction);
+                        updatedJob.inventoryDeducted = (updatedJob.inventoryDeducted || 0) + scrapDeducted;
                         
                         const originalWeight = parseFloat(updatedJob.quote.parameters.filamentWeight as string || updatedJob.quote.parameters.resinVolume as string || "1");
                         const initialMaterialCost = updatedJob.quote.materialCost || 0;
@@ -323,7 +378,7 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 // ATOMIC UPDATE: Sync all actuals to storage
-                const electricityRate = updatedJob.quote.parameters.electricityRate as number || 0;
+                const electricityRate = resolveElectricityRate(updatedJob.quote);
                 const powerKw = (machine?.power_consumption_watts || 0) / 1000;
                 const jobPowerCost = (updatedJob.actualPrintTime || 0) * powerKw * electricityRate;
                 
@@ -331,13 +386,58 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                 const extraDeduction = (updatedJob.inventoryDeducted || 0) - (originalWeight * (updatedJob.quote.quantity || 1));
                 const actualMaterialUsed = (originalWeight * (updatedJob.quote.quantity || 1)) + Math.max(0, extraDeduction);
 
-                sessionStore.updateQuote(updatedJob.quote.id, {
+                // Keep each job's own contribution so a batch aggregate can be rebuilt after a revert.
+                updatedJob.actualMaterialUsed = actualMaterialUsed;
+                updatedJob.actualPowerCost = jobPowerCost;
+
+                // The footprint of what actually happened: real runtime, real material including
+                // scrap, and the machine that ran the job rather than the one it was priced
+                // against. Computed through the same function the quote editor uses, so an
+                // estimate and an actual can never be produced by two different code paths.
+                const actualCarbon = sessionStore.recomputeQuoteCarbon({
+                    ...updatedJob.quote,
                     actualPrintTime: updatedJob.actualPrintTime,
-                    totalPowerCost: jobPowerCost,
-                    materialCost: finalMaterialCost,
-                    actualMaterialUsed: actualMaterialUsed,
-                    status: newStatus === 'completed' ? 'DONE' : 'POST_PROCESSING'
+                    actualMaterialUsed,
+                    assignedMachineId: machineIdToUse || updatedJob.quote.assignedMachineId,
                 });
+                updatedJob.actualCarbon = actualCarbon;
+
+                if (updatedJob.batchId) {
+                    // Batch children carry a synthetic quote id (`<batchId>-sub-N`) that matches no
+                    // stored quote, so this write used to do nothing at all: every actual from a
+                    // batch was discarded. The figures belong to the master quote, summed over the
+                    // children as each one finishes.
+                    const parent = sessionStore.getQuotes().find(q => q.id === updatedJob.batchId);
+                    if (parent) {
+                        const siblings = prev.filter(j => j.batchId === updatedJob.batchId && j.id !== updatedJob.id);
+                        const finished = siblings.filter(j => j.status === 'completed' || j.status === 'post_processing');
+                        const sum = (pick: (j: ProductionJob) => number) => finished.reduce((acc, j) => acc + pick(j), 0);
+
+                        const parentUpdate: Partial<QuoteData> = {
+                            actualPrintTime: sum(j => j.actualPrintTime || 0) + (updatedJob.actualPrintTime || 0),
+                            actualMaterialUsed: sum(j => j.actualMaterialUsed || 0) + actualMaterialUsed,
+                            totalPowerCost: sum(j => j.actualPowerCost || 0) + jobPowerCost,
+                            // The master's footprint is the sum of its children's, not a recompute
+                            // from the master's own aggregate figures — those describe a batch, not
+                            // a print, and would put every item on one machine and one material.
+                            carbon: sumCarbonRecords([...finished.map(j => j.actualCarbon), actualCarbon]),
+                        };
+                        // The batch is only done once every child is.
+                        if (finished.length === siblings.length) {
+                            parentUpdate.status = newStatus === 'completed' ? 'DONE' : 'POST_PROCESSING';
+                        }
+                        sessionStore.updateQuote(parent.id, parentUpdate);
+                    }
+                } else {
+                    sessionStore.updateQuote(updatedJob.quote.id, {
+                        actualPrintTime: updatedJob.actualPrintTime,
+                        totalPowerCost: jobPowerCost,
+                        materialCost: finalMaterialCost,
+                        actualMaterialUsed: actualMaterialUsed,
+                        carbon: actualCarbon,
+                        status: newStatus === 'completed' ? 'DONE' : 'POST_PROCESSING'
+                    });
+                }
                 toast.success('Production completed manual success!');
             }
 
@@ -479,8 +579,8 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
             
             // Apply extra deduction if spool is known
             if (job.spoolId && scrapGramsResin > 0) {
-                sessionStore.deductFromSpool(job.spoolId, scrapGramsResin);
-                job.inventoryDeducted = (job.inventoryDeducted || 0) + scrapGramsResin;
+                const scrapDeducted = sessionStore.deductFromSpool(job.spoolId, scrapGramsResin);
+                job.inventoryDeducted = (job.inventoryDeducted || 0) + scrapDeducted;
             }
 
             // Sync with global quote status and failed units

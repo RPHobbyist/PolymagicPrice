@@ -19,6 +19,7 @@
 import SavedQuotesTable from "@/components/quotes/SavedQuotesTable";
 import { QuotesDashboard } from "@/components/dashboard/QuotesDashboard";
 import { ShopAnalysisDashboard } from "@/components/dashboard/ShopAnalysisDashboard";
+import { CarbonDashboard } from "@/components/dashboard/CarbonDashboard";
 import { CustomerInsightsDashboard } from "@/components/dashboard/CustomerInsightsDashboard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useCallback } from "react";
@@ -74,6 +75,14 @@ const BillingAnalysis = () => {
                         <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider">Shop Analysis</h2>
                     </div>
                     <ShopAnalysisDashboard stats={stats} />
+                </section>
+
+                {/* Environmental Impact */}
+                <section className="animate-fade-in stagger-2">
+                    <div className="mb-4">
+                        <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider">Environmental Impact</h2>
+                    </div>
+                    <CarbonDashboard stats={stats} />
                 </section>
 
                 {/* Customer & Growth Insights */}

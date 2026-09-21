@@ -15,56 +15,94 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ollamaClient } from "../services/ai/OllamaClient";
-import { getAISettings } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { isAIAllowed } from "@/lib/utils";
+import { useAISettings } from "./useAISettings";
 
 type AIStatus = "connected" | "disconnected" | "disabled" | "checking";
 
+/** Normal cadence, and the slower one used once the server stops answering. */
+const POLL_MS = 60_000;
+const BACKOFF_POLL_MS = 300_000;
+/** Consecutive failures before we call it disconnected out loud. */
+const FAILURE_TOLERANCE = 2;
+
 export function useAIStatus() {
     const isAllowed = isAIAllowed;
+    const settings = useAISettings();
     const [status, setStatus] = useState<AIStatus>("checking");
-    const settings = getAISettings();
+
+    // Kept in refs so a flapping connection doesn't spam toasts and doesn't
+    // rebuild the polling effect on every check.
+    const failureCountRef = useRef(0);
+    const announcedRef = useRef<AIStatus>("checking");
 
     const checkStatus = useCallback(async () => {
         if (!isAllowed || !settings.enabled) {
+            failureCountRef.current = 0;
+            announcedRef.current = "disabled";
             setStatus("disabled");
             return;
         }
 
-        try {
-            const isConnected = await ollamaClient.testConnection();
-            const newStatus = isConnected ? "connected" : "disconnected";
-            
-            setStatus(prev => {
-                // Only toast if it was previously connected and now is not
-                if (prev === "connected" && newStatus === "disconnected") {
-                    toast.error("AI Connection Lost - Check Ollama status");
-                } else if (prev !== "connected" && newStatus === "connected") {
-                    toast.success("AI Assistant Online");
-                }
-                return newStatus;
-            });
-        } catch {
-            setStatus(prev => {
-                if (prev === "connected") {
-                    toast.error("AI Connection Lost");
-                }
-                return "disconnected";
-            });
+        const isConnected = await ollamaClient.testConnection();
+
+        if (isConnected) {
+            failureCountRef.current = 0;
+            setStatus("connected");
+            if (announcedRef.current === "disconnected") {
+                toast.success("AI Assistant online");
+            }
+            announcedRef.current = "connected";
+            return;
+        }
+
+        failureCountRef.current += 1;
+        if (failureCountRef.current >= FAILURE_TOLERANCE) {
+            setStatus("disconnected");
+            if (announcedRef.current === "connected") {
+                toast.error("AI connection lost — check that Ollama is running");
+            }
+            announcedRef.current = "disconnected";
         }
     }, [settings.enabled, isAllowed]);
 
     useEffect(() => {
-        if (!isAllowed) return;
-        
-        checkStatus();
+        if (!isAllowed) {
+            setStatus("disabled");
+            return;
+        }
 
-        // Poll every 30 seconds
-        const interval = setInterval(checkStatus, 30000);
-        return () => clearInterval(interval);
+        // `cancelled` (not just clearTimeout) matters here: if `checkStatus`
+        // changes identity — e.g. settings.enabled flips — while a poll's
+        // `await checkStatus()` is already in flight, clearTimeout can't
+        // interrupt that running callback. Without this flag it would still
+        // call schedule() on its own stale closure once the await resolves,
+        // leaving a second polling loop running forever alongside the new one.
+        let cancelled = false;
+        let timer: ReturnType<typeof setTimeout>;
+
+        const schedule = () => {
+            const delay = failureCountRef.current >= FAILURE_TOLERANCE ? BACKOFF_POLL_MS : POLL_MS;
+            timer = setTimeout(async () => {
+                if (cancelled) return;
+                // Polling a hidden tab wakes the model server for nothing.
+                if (typeof document === "undefined" || document.visibilityState === "visible") {
+                    await checkStatus();
+                }
+                if (!cancelled) schedule();
+            }, delay);
+        };
+
+        checkStatus();
+        schedule();
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
     }, [checkStatus, isAllowed]);
 
     return {

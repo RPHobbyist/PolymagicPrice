@@ -26,7 +26,8 @@ import {
     Settings,
     Database,
     Bell,
-    BookOpen
+    BookOpen,
+    Leaf
 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,7 @@ const navItems = [
     { icon: Printer, label: "Print Manager", path: "/print-manager" },
     { icon: Calendar, label: "Capacity Planner", path: "/capacity-planner" },
     { icon: ReceiptIndianRupee, label: "Billing & Analysis", path: "/billing-analysis" },
+    { icon: Leaf, label: "Carbon Footprint", path: "/carbon-footprint" },
     { icon: Bell, label: "Notification", path: "/notification", isNotification: true },
     { icon: BookOpen, label: "Tool Guide", path: "/tool-guide" },
     { icon: Database, label: "Database Manager", path: "/database-manager" },

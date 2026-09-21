@@ -29,7 +29,6 @@ import { getBridgeSettings, saveBridgeSettings } from "@/lib/core/sessionStorage
 export default function SettingsBridge() {
     const [settings, setSettings] = useState(getBridgeSettings());
     const [loading, setLoading] = useState(false);
-    const [localIP, setLocalIP] = useState("localhost");
     const [lastSavedPort, setLastSavedPort] = useState(getBridgeSettings().port);
     const [apiKey, setApiKey] = useState("");
     const [copiedUrl, setCopiedUrl] = useState(false);
@@ -44,11 +43,6 @@ export default function SettingsBridge() {
         if (bridgeApi) {
             const isRunning = await (bridgeApi.status as () => Promise<boolean>)();
             setSettings(prev => ({ ...prev, enabled: isRunning }));
-            
-            if (bridgeApi.getIP) {
-                const ip = await (bridgeApi.getIP as () => Promise<string>)();
-                setLocalIP(ip);
-            }
 
             if (bridgeApi.getKey) {
                 const key = await (bridgeApi.getKey as () => Promise<string>)();
@@ -99,21 +93,26 @@ export default function SettingsBridge() {
         }
     };
 
-    const handleCopy = () => {
-        const url = `http://${localIP}:${settings.port}`;
-        navigator.clipboard.writeText(url);
-        setCopiedUrl(true);
-        toast.success("Connection URL copied to clipboard");
-        setTimeout(() => setCopiedUrl(false), 2000);
+    // The bridge server binds to 127.0.0.1 only, so this is the only address that
+    // can ever accept a connection. Advertising the LAN IP sent users down a
+    // configuration path that could never work.
+    const connectionUrl = `http://127.0.0.1:${settings.port}`;
+
+    const copyToClipboard = async (value: string, label: string, markCopied: (v: boolean) => void) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            markCopied(true);
+            toast.success(`${label} copied to clipboard`);
+            setTimeout(() => markCopied(false), 2000);
+        } catch (err) {
+            console.error("Clipboard write failed:", err);
+            toast.error(`Could not copy the ${label.toLowerCase()}. Please select and copy it manually.`);
+        }
     };
 
+    const handleCopy = () => copyToClipboard(connectionUrl, "Connection URL", setCopiedUrl);
 
-    const handleCopyKey = () => {
-        navigator.clipboard.writeText(apiKey);
-        setCopiedKey(true);
-        toast.success("API Key copied to clipboard");
-        setTimeout(() => setCopiedKey(false), 2000);
-    };
+    const handleCopyKey = () => copyToClipboard(apiKey, "API Key", setCopiedKey);
 
 
     const handlePortChange = (val: string) => {
@@ -143,15 +142,14 @@ export default function SettingsBridge() {
                 </div>
             </div>
 
-            {settings.enabled && localIP !== "localhost" && localIP !== "127.0.0.1" && localIP !== "::1" && (
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 animate-in fade-in slide-in-from-top-1">
-                    <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            {settings.enabled && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20 text-slate-700 animate-in fade-in slide-in-from-top-1">
+                    <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5 text-primary" />
                     <div className="space-y-1">
-                        <p className="text-sm font-bold">Insecure Network Connection</p>
+                        <p className="text-sm font-bold">This Device Only</p>
                         <p className="text-xs leading-relaxed opacity-90">
-                            The bridge is currently accessible at <span className="font-mono font-bold text-amber-800">{localIP}</span>. 
-                            Since it uses unencrypted HTTP, your <span className="font-bold">API Key and G-code files</span> could be intercepted by anyone on your local network. 
-                            For maximum security, use the bridge only on <span className="italic">localhost</span>.
+                            The bridge listens on <span className="font-mono font-bold">127.0.0.1</span> and is not reachable from other
+                            machines on your network. Your slicer must be running on <span className="font-bold">this computer</span>.
                         </p>
                     </div>
                 </div>
@@ -253,7 +251,7 @@ export default function SettingsBridge() {
                                     <strong className="text-slate-900 font-bold">Initialize</strong>: Enable the bridge and click <strong className="text-slate-900 font-bold">"Save Settings"</strong> to start the virtual printer service.
                                 </li>
                                 <li className="pl-1">
-                                    <strong className="text-slate-900 font-bold">Add Virtual Printer</strong>: In your slicer (OrcaSlicer, Bambu etc.), add a new printer and select <strong className="text-slate-900 font-bold">"OctoPrint"</strong> as the connection type.
+                                    <strong className="text-slate-900 font-bold">Add Virtual Printer</strong>: In your slicer (OrcaSlicer, Bambu etc.) <em>running on this same computer</em>, add a new printer and select <strong className="text-slate-900 font-bold">"OctoPrint"</strong> as the connection type.
                                 </li>
                                 <li className="pl-1">
                                     <strong className="text-slate-900 font-bold">Link Systems</strong>: Use <strong className="text-slate-900 font-bold">"Copy URL"</strong> and <strong className="text-slate-900 font-bold">"Copy Key"</strong> above. Paste the URL into the Host field and the Key into the API Key field in your slicer.

@@ -235,7 +235,7 @@ const ConstantsManager = () => {
                 <TableRow key={constant.id}>
                   <TableCell className="font-medium">{constant.name}</TableCell>
                   <TableCell>{constant.value}</TableCell>
-                  <TableCell>{constant.unit.replace(/\$/g, currency?.symbol || "$")}</TableCell>
+                  <TableCell>{constant.unit.startsWith('/') ? `${currency?.symbol || ''}${constant.unit}` : constant.unit}</TableCell>
                   <TableCell className="text-center">
                     {constant.is_visible !== false ? (
                       <Eye className="w-4 h-4 mx-auto text-slate-600" />

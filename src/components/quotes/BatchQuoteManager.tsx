@@ -33,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { saveAs } from "file-saver";
 import { saveQuote } from "@/lib/core/sessionStorage";
+import { safeCell } from "@/lib/excelExport";
 import { QuoteData } from "@/types/quote";
 
 interface BatchQuoteManagerProps {
@@ -86,11 +87,15 @@ export const BatchQuoteManager = memo(({ open, onOpenChange, onSaveQuote }: Batc
 
             batchItems.forEach(item => {
                 worksheet.addRow({
-                    projectName: item.projectName,
+                    // A leading =, +, - or @ is interpreted as a formula by Excel, so prefix
+                    // user-supplied text with a quote to keep it inert.
+                    projectName: safeCell(item.projectName),
                     type: item.printType,
                     qty: item.quantity,
-                    matCost: formatPrice(item.materialCost * item.quantity),
-                    machCost: formatPrice(item.machineTimeCost * item.quantity),
+                    // These fields already include quantity (see quoteCalculations); the extra
+                    // `* item.quantity` reported costs qty-times too high next to a correct total.
+                    matCost: formatPrice(item.materialCost),
+                    machCost: formatPrice(item.machineTimeCost),
                     total: formatPrice(item.totalPrice)
                 });
             });

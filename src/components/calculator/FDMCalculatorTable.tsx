@@ -32,8 +32,9 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { ClientSelector } from "@/components/shared/ClientSelector";
 import { Customer, Employee } from "@/types/quote";
 import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
-import { getEmployees } from "@/lib/core/sessionStorage";
+import { getEmployees, getSpools } from "@/lib/core/sessionStorage";
 import { useStoredGcodes } from "@/hooks/useStoredGcodes";
+import { pick } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -98,7 +99,7 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
   const calculationId = useMemo(() => crypto.randomUUID(), []);
 
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
-  const { currency } = useCurrency();
+  const { currency, formatPrice } = useCurrency();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const { gcodes, saveGcode } = useStoredGcodes();
 
@@ -175,32 +176,39 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         matchedMachineId = matchedMachine.id;
         toast.info(`Auto-selected machine: ${matchedMachine.name}`);
       }
+    }
 
-      if (data.filamentSettingsId) {
-        const normalizedMaterial = normalize(data.filamentSettingsId);
-        const matchedMaterial = materials.find(m => {
-          const normalizedName = normalize(m.name);
-          return normalizedName.includes(normalizedMaterial) || normalizedMaterial.includes(normalizedName);
-        });
+    // Material matching does not depend on the printer model.
+    if (data.filamentSettingsId) {
+      const normalizedMaterial = normalize(data.filamentSettingsId);
+      const matchedMaterial = materials.find(m => {
+        const normalizedName = normalize(m.name);
+        return normalizedName.includes(normalizedMaterial) || normalizedMaterial.includes(normalizedName);
+      });
 
-        if (matchedMaterial) {
-          matchedMaterialId = matchedMaterial.id;
-          toast.info(`Auto-selected material: ${matchedMaterial.name}`);
-        }
+      if (matchedMaterial) {
+        matchedMaterialId = matchedMaterial.id;
+        toast.info(`Auto-selected material: ${matchedMaterial.name}`);
       }
+    }
 
-      setFormData(prev => ({
-        ...prev,
-        projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
-        printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
-        filamentWeight: data.filamentWeightGrams > 0 ? data.filamentWeightGrams.toString() : prev.filamentWeight,
-        machineId: matchedMachineId || prev.machineId,
-        materialId: matchedMaterialId || prev.materialId,
-        printColour: (data.filamentColour && !data.filamentColour.includes(';')) ? data.filamentColour : prev.printColour,
-        filePath: data.filePath || prev.filePath,
-        surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : undefined,
-      }));
+    // Always populate what was parsed. This block used to sit inside `if (data.printerModel)`,
+    // so any slicer output without a printer-model comment filled in nothing at all while the
+    // upload component still reported "Extracted: ...".
+    setFormData(prev => ({
+      ...prev,
+      projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
+      printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
+      filamentWeight: data.filamentWeightGrams > 0 ? data.filamentWeightGrams.toString() : prev.filamentWeight,
+      machineId: matchedMachineId || prev.machineId,
+      materialId: matchedMaterialId || prev.materialId,
+      printColour: (data.filamentColour && !data.filamentColour.includes(';')) ? data.filamentColour : prev.printColour,
+      filePath: data.filePath || prev.filePath,
+      // Keep any manually entered surface area when the file does not carry one.
+      surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : prev.surfaceAreaCm2,
+    }));
 
+    if (data.thumbnail) {
       setThumbnail(data.thumbnail);
     }
   }, [machines, materials]);
@@ -223,14 +231,17 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         ...prev,
         id: targetId || prev.id,
         projectName: preFillData.projectName || preFillData.name || prev.projectName,
-        printTime: String(preFillData.printTime || prev.printTime || ""),
-        filamentWeight: String(preFillData.filamentWeight || prev.filamentWeight || ""),
-        materialId: preFillData.materialId || preFillData.materialId || prev.materialId,
-        machineId: preFillData.machineId || preFillData.machineId || prev.machineId,
-        laborHours: String(preFillData.laborHours || prev.laborHours || ""),
-        overheadPercentage: String(preFillData.overheadPercentage || prev.overheadPercentage || ""),
-        markupPercentage: String(preFillData.markupPercentage || prev.markupPercentage || "20"),
-        quantity: String(preFillData.quantity || prev.quantity || "1"),
+        // `??`/`!== undefined`, never `||`: a saved value of 0 is falsy, so `||` silently
+        // replaced a deliberate 0 (no markup, no labour, no overhead) with the default on
+        // every revision — quietly re-pricing the job.
+        printTime: pick(preFillData.printTime, prev.printTime, ""),
+        filamentWeight: pick(preFillData.filamentWeight, prev.filamentWeight, ""),
+        materialId: preFillData.materialId || prev.materialId,
+        machineId: preFillData.machineId || prev.machineId,
+        laborHours: pick(preFillData.laborHours, prev.laborHours, ""),
+        overheadPercentage: pick(preFillData.overheadPercentage, prev.overheadPercentage, ""),
+        markupPercentage: pick(preFillData.markupPercentage, prev.markupPercentage, "20"),
+        quantity: pick(preFillData.quantity, prev.quantity, "1"),
         priority: preFillData.priority || prev.priority,
         dueDate: preFillData.dueDate || prev.dueDate,
         customerId: preFillData.customerId || prev.customerId,
@@ -238,13 +249,17 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         assignedEmployeeId: preFillData.assignedEmployeeId || prev.assignedEmployeeId,
         selectedConsumableIds: preFillData.selectedConsumableIds || prev.selectedConsumableIds || [],
         filePath: preFillData.filePath || prev.filePath,
+        printColour: preFillData.printColour || prev.printColour,
         notes: preFillData.notes || prev.notes,
         status: preFillData.status || prev.status,
         failedUnits: preFillData.failedUnits !== undefined ? String(preFillData.failedUnits) : prev.failedUnits,
         // Painting mapping
-        paintingTime: String(preFillData.paintingTime || prev.paintingTime || ""),
-        paintingLayers: String(preFillData.paintingLayers || prev.paintingLayers || ""),
-        surfaceAreaCm2: String(preFillData.surfaceAreaCm2 || prev.surfaceAreaCm2 || "")
+        paintingTime: pick(preFillData.paintingTime, prev.paintingTime, ""),
+        paintingLayers: pick(preFillData.paintingLayers, prev.paintingLayers, ""),
+        paintingLayers2: pick(preFillData.paintingLayers2, prev.paintingLayers2, ""),
+        selectedPaintId: preFillData.selectedPaintId || prev.selectedPaintId,
+        selectedPaintId2: preFillData.selectedPaintId2 || prev.selectedPaintId2,
+        surfaceAreaCm2: pick(preFillData.surfaceAreaCm2, prev.surfaceAreaCm2, "")
       }));
 
       // Only run auto-matching for NEW file imports, not for database revisions
@@ -317,9 +332,9 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       const totalValue = constants
         .filter(c => selectedIds.includes(c.id))
         .reduce((sum, c) => sum + c.value, 0);
-      toast.info(`Selected ${selectedIds.length} consumables (Total: ${currency.symbol}${totalValue.toFixed(2)})`);
+      toast.info(`Selected ${selectedIds.length} consumables (Total: ${formatPrice(totalValue)})`);
     }
-  }, [constants, updateField, currency]);
+  }, [constants, updateField, formatPrice]);
 
   const calculateQuote = useCallback(() => {
     const validationError = validateFDMForm(formData);
@@ -365,6 +380,10 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       machine: selectedMachine,
       electricityRate: getConstantValue("electricity"),
       laborRate: getConstantValue("labor"),
+      // Carbon: the shop's grid factor, and the spool being drawn from — a specific spool's
+      // published figure beats any generic factor for the material.
+      gridGPerKWh: getConstantValue("grid_intensity"),
+      spool: selectedSpoolId ? getSpools().find(s => s.id === selectedSpoolId) : undefined,
       consumables: selectedConsumables,
       paintConsumable: selectedPaint,
       paintConsumable2: selectedPaint2,
@@ -381,15 +400,15 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
     materials.map(m => ({
       id: m.id,
       label: m.name,
-      sublabel: `${currency.symbol}${m.cost_per_unit}/${m.unit}`,
-    })), [materials, currency]);
+      sublabel: `${formatPrice(m.cost_per_unit)}/${m.unit}`,
+    })), [materials, formatPrice]);
 
   const machineOptions = useMemo(() =>
     machines.map(m => ({
       id: m.id,
       label: m.name,
-      sublabel: `${currency.symbol}${m.hourly_cost}/hr`,
-    })), [machines, currency]);
+      sublabel: `${formatPrice(m.hourly_cost)}/hr`,
+    })), [machines, formatPrice]);
 
   const consumableItems = useMemo(() =>
     constants.map(c => ({
@@ -723,7 +742,7 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
                       return {
                         id: c.id,
                         label: c.name,
-                        sublabel: currency ? `${c.value} ${c.unit ? `(${c.unit.replace('$', currency.symbol)})` : ''}${usageRate}` : `${c.value}`
+                        sublabel: currency ? `${formatPrice(c.value)} ${c.unit ? `(${c.unit.startsWith('/') ? currency.symbol + c.unit : c.unit})` : ''}${usageRate}` : `${c.value}`
                       };
                     })
                 ]}
@@ -760,7 +779,7 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
                       return {
                         id: c.id,
                         label: c.name,
-                        sublabel: currency ? `${c.value} ${c.unit ? `(${c.unit.replace('$', currency.symbol)})` : ''}${usageRate}` : `${c.value}`
+                        sublabel: currency ? `${formatPrice(c.value)} ${c.unit ? `(${c.unit.startsWith('/') ? currency.symbol + c.unit : c.unit})` : ''}${usageRate}` : `${c.value}`
                       };
                     })
                 ]}

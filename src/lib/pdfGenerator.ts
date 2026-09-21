@@ -20,11 +20,14 @@ import { QuoteData } from "@/types/quote";
 import { getCompanySettings, getCustomer } from "@/lib/core/sessionStorage";
 import { escapeHTML } from "./sanitization";
 import { getOrderId } from "./utils/order-utils";
+import { summariseQuote } from "./quoteCalculations";
+import { openPrintableHTML } from "./reportGenerator";
+import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 
 /**
  * Generate a professional invoice HTML template for the quote
  */
-function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
+function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionRate: number = 1): string {
   const date = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -32,12 +35,28 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
   });
 
   const safeCurrency = escapeHTML(currencySymbol);
-  const formatPrice = (value: number) => `${safeCurrency}${value.toFixed(2)}`;
+  const locale = typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US';
+  // Amounts are stored in the base currency and converted for display. The PDF used to skip
+  // the conversion, so an invoice printed base-currency numbers under the converted symbol.
+  const rate = Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1;
+  const formatPrice = (value: number) => {
+    const amount = Number.isFinite(value) ? value * rate : 0;
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+    return `${safeCurrency}${formatted}`;
+  };
+
+  // Single source of truth for the money breakdown (shared with the details dialog and
+  // saved-quotes table) so the printed lines always reconcile with the printed total.
+  const totals = summariseQuote(quote);
   const orderId = getOrderId(quote.id);
   const quoteNumber = `INV-${orderId}`;
 
   const company = getCompanySettings();
   const customer = quote.customerId ? getCustomer(quote.customerId) : null;
+  const showCarbon = !!company?.showCarbonOnInvoice;
 
   const dueDateStr = quote.dueDate
     ? new Date(quote.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -332,7 +351,7 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
   <!-- Header -->
   <div class="header">
     <div class="company-info">
-      ${company?.logoUrl ? `<img src="${company.logoUrl}" alt="Company Logo" />` : ''}
+      ${company?.logoUrl ? `<img src="${escapeHTML(company.logoUrl)}" alt="Company Logo" />` : ''}
       <h1>${safeCompanyName}</h1>
       ${safeCompanyAddress ? `<p class="company-address">${safeCompanyAddress}</p>` : ''}
       ${company?.phone ? `<p>${escapeHTML(company.phone)}</p>` : ''}
@@ -376,7 +395,7 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
       <div class="detail-row">
         <span class="label">Priority:</span>
         <span class="value">
-          <span class="priority-badge priority-${quote.priority.toLowerCase()}">${escapeHTML(quote.priority)}</span>
+          <span class="priority-badge priority-${escapeHTML(String(quote.priority).toLowerCase().replace(/[^a-z]/g, ''))}">${escapeHTML(quote.priority)}</span>
         </span>
       </div>
       ` : ''}
@@ -402,7 +421,7 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
       </div>
       <div class="project-item">
         <div class="label">Quantity</div>
-        <div class="value">${escapeHTML(quote.quantity.toString())}x</div>
+        <div class="value">${escapeHTML(String(totals.quantity))}x</div>
       </div>
     </div>
     ` : `
@@ -443,19 +462,29 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
       `).join('') : `
       <tr>
         <td>Manufacturing Cost</td>
-        <td>${formatPrice(quote.materialCost + quote.machineTimeCost + quote.electricityCost + quote.overheadCost + (quote.parameters?.consumablesTotal || 0) + (quote.paintingCost || 0))}</td>
+        <td>${formatPrice(totals.manufacturing)}</td>
       </tr>
       <tr>
         <td>Labour Charges</td>
-        <td>${formatPrice(quote.laborCost)}</td>
+        <td>${formatPrice(totals.labour)}</td>
+      </tr>
+      ${totals.painting > 0 ? `
+      <tr>
+        <td>Post-Processing &amp; Painting</td>
+        <td>${formatPrice(totals.painting)}</td>
+      </tr>
+      ` : ''}
+      <tr>
+        <td>Overhead</td>
+        <td>${formatPrice(totals.overhead)}</td>
       </tr>
       <tr class="subtotal-row">
         <td>Subtotal</td>
-        <td>${formatPrice(quote.subtotal)}</td>
+        <td>${formatPrice(totals.subtotal)}</td>
       </tr>
       <tr>
         <td>Profit Markup</td>
-        <td>+${formatPrice(quote.markup)}</td>
+        <td>+${formatPrice(totals.markup)}</td>
       </tr>
       `}
     </tbody>
@@ -465,9 +494,22 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
   <div class="total-container">
     <div class="total-bar">
       <h3>Total Amount Due</h3>
-      <div class="amount">${formatPrice(quote.totalPrice)}</div>
+      <div class="amount">${formatPrice(quote.isBatch ? quote.totalPrice : totals.total)}</div>
     </div>
   </div>
+
+  <!-- Carbon: outside the money table because it is not money, and only when the shop has
+       deliberately turned it on in Settings. States its own basis so a customer can weigh it. -->
+  ${showCarbon && totals.carbonKg !== undefined ? `
+  <div class="notes-section">
+    <h4>Estimated Carbon Footprint</h4>
+    <p>${escapeHTML(formatCarbon(totals.carbonKg))} for this order${totals.carbonPerPart !== undefined
+        ? ` (${escapeHTML(formatCarbon(totals.carbonPerPart))} per part)` : ''}.
+    Covers electricity, material and waste${totals.carbonGrade === 'ESTIMATE'
+        ? ', from planned print time and published averages' : ', from recorded print time and material'}.
+    An estimate, not a measurement, and not an environmental claim.</p>
+  </div>
+  ` : ''}
 
   <!-- Notes -->
   ${safeNotes ? `
@@ -501,23 +543,11 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string): string {
 /**
  * Open quote in a new window for printing/saving as PDF
  */
-export function printQuotePDF(quote: QuoteData, currencySymbol: string): void {
-  const html = generateQuoteHTML(quote, currencySymbol);
+export function printQuotePDF(quote: QuoteData, currencySymbol: string, conversionRate: number = 1): void {
+  const html = generateQuoteHTML(quote, currencySymbol, conversionRate);
 
-  // SECURITY FIX (H1): Use Blob URL instead of document.write to prevent
-  // parent window hijacking. Blob URLs open in a fully isolated browsing context
-  // where window.opener is null by default.
-  const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-
-  const printWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
-  if (!printWindow) {
-    URL.revokeObjectURL(blobUrl);
-    throw new Error('Could not open print window. Please allow popups.');
-  }
-
-  // Cleanup Blob URL after a delay to allow the window to load
-  setTimeout(() => {
-    URL.revokeObjectURL(blobUrl);
-  }, 10000);
+  // SECURITY FIX (H1): Blob URL instead of document.write, so the print window
+  // opens in an isolated context with a null window.opener. Shared with the
+  // shop reports via openPrintableHTML so there is one implementation.
+  openPrintableHTML(html);
 }

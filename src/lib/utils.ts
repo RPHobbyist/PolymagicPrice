@@ -148,3 +148,17 @@ export function calculateTotalTime(timeStr: string | undefined, quantity: number
   if (hours > 0) return `${hours}h`;
   return `${mins}m`;
 }
+
+/**
+ * Picks the first meaningful value when pre-filling a form field, preserving a deliberate 0.
+ *
+ * Form pre-fill used `String(incoming || previous || fallback)`. Because 0 is falsy, a saved
+ * value of 0 (no markup, no labour hours, no overhead) was silently replaced by the previous
+ * value or the default, so simply reopening a quote for revision re-priced it. Only
+ * `undefined`, `null` and `""` should fall through to the next candidate.
+ */
+export function pick(incoming: unknown, previous: string | undefined, fallback: string): string {
+  if (incoming !== undefined && incoming !== null && incoming !== "") return String(incoming);
+  if (previous !== undefined && previous !== null && previous !== "") return previous;
+  return fallback;
+}

@@ -34,6 +34,8 @@ export interface BatchQuoteContextType {
         totalElectricityCost: number;
         totalLaborCost: number;
         totalOverheadCost: number;
+        totalPaintingCost: number;
+        totalConsumablesCost: number;
         totalMarkup: number;
         grandTotal: number;
     };

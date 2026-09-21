@@ -46,6 +46,7 @@ import { Package, Plus, Trash2, MapPin, AlertTriangle, Pencil } from "lucide-rea
 import { toast } from "sonner";
 import { MaterialSpool, Material } from "@/types/quote";
 import { getSpools, saveSpool, deleteSpool } from "@/lib/core/sessionStorage";
+import { CARBON_BOUNDS, clampToBounds, resolveMaterialFactor } from "@/lib/carbon/carbonFactors";
 
 interface MaterialInventoryProps {
     material: Material;
@@ -70,6 +71,9 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
         location: "",
         purchaseCost: "",
         notes: "",
+        // The strongest carbon anchor there is: the figure for the product actually bought.
+        // Recycled PLA is 2.47 against virgin PLA's 5.76 — no generic factor can express that.
+        co2PerKg: "",
     });
 
     const loadSpools = useCallback(() => {
@@ -104,6 +108,12 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
         return count * weight;
     }, [formData.spoolCount, formData.weightPerSpool, maxWeight]);
 
+    // What a blank field falls back to: the material's own figure, or the library's match by name.
+    const inheritedCo2PerKg = useMemo(
+        () => resolveMaterialFactor(material, undefined, material.print_type).kgPerKg,
+        [material]
+    );
+
     const handleOpenDialog = (spool?: MaterialSpool) => {
         if (spool) {
             setEditingSpool(spool);
@@ -117,6 +127,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                 location: spool.location || "",
                 purchaseCost: spool.purchaseCost?.toString() || "",
                 notes: spool.notes || "",
+                co2PerKg: spool.co2PerKg?.toString() || "",
             });
         } else {
             setEditingSpool(null);
@@ -129,6 +140,7 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                 location: "",
                 purchaseCost: "",
                 notes: "",
+                co2PerKg: "",
             });
         }
         setDialogOpen(true);
@@ -195,6 +207,10 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                 location: formData.location || undefined,
                 purchaseCost: formData.purchaseCost ? parseFloat(formData.purchaseCost) * count : undefined,
                 notes: formData.notes || undefined,
+                co2PerKg: formData.co2PerKg
+                    ? clampToBounds(parseFloat(formData.co2PerKg), CARBON_BOUNDS.efKgPerKg)
+                    : undefined,
+                co2Source: formData.co2PerKg ? "Entered for this spool" : undefined,
             });
 
             toast.success(editingSpool ? "Spool updated" : `Added ${count} spool(s) (${initial}${unit} total)`);
@@ -444,6 +460,31 @@ export function MaterialInventory({ material, onStockChanged }: MaterialInventor
                                     max="10000"
                                 />
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor={`spool-co2-${material.id}`}>
+                                CO₂e per kg (optional)
+                            </Label>
+                            <Input
+                                id={`spool-co2-${material.id}`}
+                                name="co2PerKg"
+                                autoComplete="off"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max={CARBON_BOUNDS.efKgPerKg.max}
+                                value={formData.co2PerKg}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val !== "" && parseFloat(val) < 0) return;
+                                    setFormData({ ...formData, co2PerKg: val });
+                                }}
+                                placeholder={`${inheritedCo2PerKg} (inherited from ${material.name})`}
+                            />
+                            <p className="text-xs text-slate-600">
+                                From the supplier's figure for this exact product, if they publish one
+                            </p>
                         </div>
                     </div>
                     <DialogFooter>

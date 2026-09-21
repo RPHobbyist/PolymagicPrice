@@ -27,7 +27,7 @@ interface QuotesDashboardProps {
 }
 
 export const QuotesDashboard = memo(({ stats }: QuotesDashboardProps) => {
-  const { currency } = useCurrency();
+  const { formatPrice } = useCurrency();
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
@@ -41,20 +41,20 @@ export const QuotesDashboard = memo(({ stats }: QuotesDashboardProps) => {
       <StatsCard
         variant="default"
         title="Total Revenue"
-        value={`${currency.symbol}${stats.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+        value={formatPrice(stats.totalRevenue)}
         icon={TrendingUp}
       />
       <StatsCard
         variant="default"
         title="Total Profit"
-        value={`${currency.symbol}${stats.totalProfit.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+        value={formatPrice(stats.totalProfit)}
         subtitle={`${((stats.totalProfit / stats.totalRevenue) * 100 || 0).toFixed(1)}% Margin`}
         icon={TrendingUp}
       />
       <StatsCard
         variant="default"
         title="Avg Quote Value"
-        value={`${currency.symbol}${stats.avgQuoteValue.toFixed(0)}`}
+        value={formatPrice(stats.avgQuoteValue)}
         icon={Clock}
       />
       <StatsCard

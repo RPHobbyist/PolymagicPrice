@@ -117,7 +117,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
                                     >
                                         <span className="font-medium">{sanitize(item.name)}</span>
                                         <span className="text-sm text-muted-foreground">
-                                            {formatPrice(item.value)} {item.unit !== "₹" && `/${item.unit}`}
+                                            {formatPrice(item.value)}{item.unit && !item.unit.startsWith('%') ? ` ${item.unit}` : ''}
                                         </span>
                                     </Label>
                                 </div>

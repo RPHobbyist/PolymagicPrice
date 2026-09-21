@@ -22,6 +22,11 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
     children?: ReactNode;
+    /**
+     * Replacement UI for boundaries that guard a panel rather than the page —
+     * the default fallback is full-screen and would blank the app around it.
+     */
+    fallback?: ReactNode;
 }
 
 interface State {
@@ -52,6 +57,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
     public render() {
         if (this.state.hasError) {
+            if (this.props.fallback) return this.props.fallback;
+
             return (
                 <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-4">
                     <Card className="max-w-xl w-full p-6 shadow-xl border-red-100">

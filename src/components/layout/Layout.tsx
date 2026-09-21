@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { useAIStatus } from "@/hooks/useAIStatus";
-import { cn } from "@/lib/utils";
+import { cn, isAIAllowed } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 const BOT_POSITION_KEY = "ai_bot_position";
@@ -78,8 +78,10 @@ const Layout = () => {
                             <Outlet />
                         </div>
                         
-                        {/* Standalone Bot-Shape AI Assistant Button */}
-                        {!isChatOpen && (
+                        {/* Standalone Bot-Shape AI Assistant Button.
+                            Hidden where local AI cannot run at all (hosted web), so users
+                            aren't offered an assistant that can only report "disabled". */}
+                        {!isChatOpen && isAIAllowed && (
                             <motion.div 
                                 drag
                                 dragMomentum={false}
@@ -142,10 +144,12 @@ const Layout = () => {
                 open={showFeedback}
                 onOpenChange={setShowFeedback}
             />
-            <AIChatDialog 
-                open={isChatOpen} 
-                onOpenChange={setIsChatOpen} 
-            />
+            {isAIAllowed && (
+                <AIChatDialog
+                    open={isChatOpen}
+                    onOpenChange={setIsChatOpen}
+                />
+            )}
         </div>
     );
 };

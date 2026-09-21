@@ -19,9 +19,9 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogFooter, DialogDescription, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, PlaySquare, X, Layout, Calendar, ReceiptIndianRupee, Bell, BookOpen, Settings, Printer } from "lucide-react";
+import { ArrowRight, PlaySquare, X, Layout, Calendar, ReceiptIndianRupee, Bell, BookOpen, Settings, Printer, Calculator, Zap } from "lucide-react";
 
-const CURRENT_VERSION = "2.0.0"; // Major UI & Advanced Features Update
+const CURRENT_VERSION = "2.0.1"; // Time, cost and power-accuracy corrections
 const STORAGE_KEY = "last_seen_version";
 
 export const WhatsNewDialog = ({
@@ -84,6 +84,18 @@ export const WhatsNewDialog = ({
 
                 {/* Features List */}
                 <div className="p-4 space-y-5 max-h-[60vh] overflow-y-auto">
+
+                    <FeatureItem
+                        icon={<Calculator className="w-6 h-6 text-slate-700" />}
+                        title="Corrected Time & Cost Accuracy"
+                        description="Actual print time is now treated as the whole-job total everywhere, and entries like 1:30 read as 1.5 hours across the app. Multi-unit jobs no longer inflate labour, electricity and machine costs — some historical figures will shift as a result."
+                    />
+
+                    <FeatureItem
+                        icon={<Zap className="w-6 h-6 text-slate-700" />}
+                        title="Power Cost Recorded Again"
+                        description="Completed jobs now record their electricity cost against the machine, and each quote stores the rates it was priced with, so pricing-drift warnings work."
+                    />
 
                     <FeatureItem
                         icon={<Layout className="w-6 h-6 text-slate-700" />}

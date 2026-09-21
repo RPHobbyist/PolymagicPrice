@@ -317,6 +317,122 @@ export function parseGcode(content: string): GcodeData {
 }
 
 /**
+ * Computes the total mesh surface area (mm²) of a 3MF model.
+ *
+ * Kept as its own function so it can run for BOTH 3MF shapes: files that embed a sliced
+ * G-code entry and files that only carry model/metadata. Previously this lived after an
+ * early `return` in the G-code branch, so the most common export (Bambu/Orca, which does
+ * embed G-code) never produced a surface area — the one input paint costing needs.
+ */
+async function computeSurfaceAreaMm2(zip: JSZip, fileNames: string[]): Promise<number> {
+  let modelPath = fileNames.find(p => p.toLowerCase().endsWith('3dmodel.model'));
+  if (!modelPath) {
+    modelPath = fileNames.find(p => p.toLowerCase().endsWith('.model'));
+  }
+  if (!modelPath) return 0;
+
+  try {
+    const modelContent = await zip.files[modelPath].async('string');
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(modelContent, "text/xml");
+
+    // Helper to find elements ignoring namespace prefixes
+    const getElements = (root: Element | Document, tagName: string): Element[] => {
+      const els = root.getElementsByTagName(tagName);
+      if (els.length > 0) return Array.from(els);
+      const mEls = root.getElementsByTagName('m:' + tagName);
+      if (mEls.length > 0) return Array.from(mEls);
+      const all = root.getElementsByTagName('*');
+      const matches: Element[] = [];
+      for (let i = 0; i < all.length; i++) {
+        if (all[i].localName === tagName) matches.push(all[i]);
+      }
+      return matches;
+    };
+
+    let totalAreaMm2 = 0;
+    const meshes = getElements(xmlDoc, 'mesh');
+
+    for (const mesh of meshes) {
+      const vertices = getElements(mesh, 'vertex');
+      const triangles = getElements(mesh, 'triangle');
+
+      const v: { x: number; y: number; z: number }[] = [];
+      for (let i = 0; i < vertices.length; i++) {
+        v.push({
+          x: parseFloat(vertices[i].getAttribute('x') || '0'),
+          y: parseFloat(vertices[i].getAttribute('y') || '0'),
+          z: parseFloat(vertices[i].getAttribute('z') || '0')
+        });
+      }
+
+      for (let i = 0; i < triangles.length; i++) {
+        const v1Index = parseInt(triangles[i].getAttribute('v1') || '0');
+        const v2Index = parseInt(triangles[i].getAttribute('v2') || '0');
+        const v3Index = parseInt(triangles[i].getAttribute('v3') || '0');
+
+        if (v[v1Index] && v[v2Index] && v[v3Index]) {
+          const p1 = v[v1Index];
+          const p2 = v[v2Index];
+          const p3 = v[v3Index];
+
+          const ax = p2.x - p1.x, ay = p2.y - p1.y, az = p2.z - p1.z;
+          const bx = p3.x - p1.x, by = p3.y - p1.y, bz = p3.z - p1.z;
+
+          // Area = 0.5 * |A x B|
+          const cx = ay * bz - az * by;
+          const cy = az * bx - ax * bz;
+          const cz = ax * by - ay * bx;
+
+          const area = 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
+          if (Number.isFinite(area)) totalAreaMm2 += area;
+        }
+      }
+    }
+
+    if (totalAreaMm2 === 0) return 0;
+
+    // --- SCALE FACTOR ---
+    // A 3MF transform is a 4x3 row-major matrix: "m00 m01 m02 m10 m11 m12 m20 m21 m22 tx ty tz".
+    // Reading the diagonal (parts[0]/[4]/[8]) is only valid when the object is unrotated — for a
+    // rotated object those entries are cosines, which shrank the area. The correct per-axis scale
+    // is the norm of each matrix ROW.
+    const buildItems = getElements(xmlDoc, 'item');
+    const scales: number[] = [];
+
+    for (const item of buildItems) {
+      const transform = item.getAttribute('transform');
+      if (!transform) continue;
+
+      const parts = transform.trim().split(/\s+/).map(parseFloat);
+      if (parts.length < 9 || parts.some(n => !Number.isFinite(n))) continue;
+
+      const rowNorm = (a: number, b: number, c: number) => Math.sqrt(a * a + b * b + c * c);
+      const sx = rowNorm(parts[0], parts[1], parts[2]);
+      const sy = rowNorm(parts[3], parts[4], parts[5]);
+      const sz = rowNorm(parts[6], parts[7], parts[8]);
+
+      const avgLinearScale = (sx + sy + sz) / 3;
+      if (Number.isFinite(avgLinearScale) && avgLinearScale > 0) {
+        scales.push(avgLinearScale);
+      }
+    }
+
+    if (scales.length > 0) {
+      // Area scales with the square of the linear scale. Averaging across build items is an
+      // approximation, but it no longer lets the LAST item's transform define the whole plate.
+      const meanLinearScale = scales.reduce((sum, s) => sum + s, 0) / scales.length;
+      totalAreaMm2 *= meanLinearScale * meanLinearScale;
+    }
+
+    return totalAreaMm2;
+  } catch (e) {
+    console.error("Failed to parse 3MF model geometry:", e);
+    return 0;
+  }
+}
+
+/**
  * Parse 3MF file (ZIP archive) to extract print data
  * Specifically looks for G-code files inside the Metadata folder
  */
@@ -362,9 +478,22 @@ export async function parse3mf(file: File): Promise<GcodeData> {
         const thumbPath = fileNames.find(p => p.toLowerCase().endsWith('.png') && (p.toLowerCase().includes('thumbnail') || p.toLowerCase().includes('metadata')));
         if (thumbPath) {
           const thumbData = await zip.files[thumbPath].async('base64');
-          result.thumbnail = sanitizeThumbnail(`data:image/png;base64,${thumbData}`);
+          // Apply the same payload cap used on the non-G-code path.
+          if (thumbData.length > 1400000) {
+            console.warn(`[SecureParser] Thumbnail rejected: payload too large (${Math.round(thumbData.length / 1024)}KB)`);
+          } else {
+            result.thumbnail = sanitizeThumbnail(`data:image/png;base64,${thumbData}`);
+          }
         }
       }
+
+      // The model geometry is still present alongside the G-code, so compute the surface
+      // area here too rather than returning early without it.
+      const embeddedArea = await computeSurfaceAreaMm2(zip, fileNames);
+      if (embeddedArea > 0) {
+        result.surfaceAreaMm2 = Math.round(embeddedArea * 100) / 100;
+      }
+
       return result;
     }
 
@@ -431,137 +560,9 @@ export async function parse3mf(file: File): Promise<GcodeData> {
       }
     }
 
-    // --- Surface Area Calculation (Hierarchical) ---
-    let surfaceAreaMm2 = 0;
-    // Try standard name first, then fallback to any .model file
-    let modelPath = fileNames.find(p => p.toLowerCase().endsWith('3dmodel.model'));
-    if (!modelPath) {
-      modelPath = fileNames.find(p => p.toLowerCase().endsWith('.model'));
-    }
-
-    if (modelPath) {
-      try {
-        const modelContent = await zip.files[modelPath].async('string');
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(modelContent, "text/xml");
-
-        // Helper to find elements ignoring namespace prefixes
-        const getElements = (root: Element | Document, tagName: string) => {
-          // Fast path
-          const els = root.getElementsByTagName(tagName);
-          if (els.length > 0) return Array.from(els);
-          // Prefix path
-          const mEls = root.getElementsByTagName('m:' + tagName);
-          if (mEls.length > 0) return Array.from(mEls);
-          // Warning: getElementsByTagName('*') with filter is slow, but robust for mixed namespaces
-          // Optimization: Check typical namespaces manually if needed? 
-          // For now, assume if direct lookup fails, we iterate.
-          const all = root.getElementsByTagName('*');
-          const matches = [];
-          for (let i = 0; i < all.length; i++) {
-            // localName is the safe generic way
-            if (all[i].localName === tagName) {
-              matches.push(all[i]);
-            }
-          }
-          return matches;
-        };
-
-        const meshes = getElements(xmlDoc, 'mesh');
-
-        for (const mesh of meshes) {
-          const vertices = getElements(mesh, 'vertex');
-          const triangles = getElements(mesh, 'triangle');
-
-          // Parse vertices
-          const v: { x: number; y: number; z: number }[] = [];
-          for (let i = 0; i < vertices.length; i++) {
-            v.push({
-              x: parseFloat(vertices[i].getAttribute('x') || '0'),
-              y: parseFloat(vertices[i].getAttribute('y') || '0'),
-              z: parseFloat(vertices[i].getAttribute('z') || '0')
-            });
-          }
-
-          // Calculate area for each triangle
-          for (let i = 0; i < triangles.length; i++) {
-            const v1Index = parseInt(triangles[i].getAttribute('v1') || '0');
-            const v2Index = parseInt(triangles[i].getAttribute('v2') || '0');
-            const v3Index = parseInt(triangles[i].getAttribute('v3') || '0');
-
-            if (v[v1Index] && v[v2Index] && v[v3Index]) {
-              const p1 = v[v1Index];
-              const p2 = v[v2Index];
-              const p3 = v[v3Index];
-
-              // Vector A = P2 - P1
-              const ax = p2.x - p1.x;
-              const ay = p2.y - p1.y;
-              const az = p2.z - p1.z;
-
-              // Vector B = P3 - P1
-              const bx = p3.x - p1.x;
-              const by = p3.y - p1.y;
-              const bz = p3.z - p1.z;
-
-              // Cross Product A x B
-              const cx = ay * bz - az * by;
-              const cy = az * bx - ax * bz;
-              const cz = ax * by - ay * bx;
-
-              // Area = 0.5 * |A x B|
-              const area = 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
-              if (!isNaN(area)) {
-                surfaceAreaMm2 += area;
-              }
-            }
-          }
-        }
-
-        // --- SCALE FACTOR CALCULATION ---
-        // We need to check if the model is scaled in the build/item list
-        let scaleFactor = 1.0;
-        const buildItems = getElements(xmlDoc, 'item');
-
-        for (const item of buildItems) {
-          const transform = item.getAttribute('transform');
-          if (transform) {
-            // Format: "m00 m01 m02 n0 m10 m11 m12 n1 m20 m21 m22 n2"
-            // We just want to extract the scaling components (diagonal) approximately
-            const parts = transform.split(/\s+/).map(parseFloat);
-            if (parts.length >= 10) {
-              // Simple assumption: uniform scaling or taking the average scaling
-              // m00, m11, m22 correspond to indices 0, 4, 8 in a 3x3 matrix logic, 
-              // but in 3MF 4x3 matrix it is: 
-              // m00 m01 m02
-              // m10 m11 m12
-              // m20 m21 m22
-              // x   y   z 
-              // Flattened string usually: m00 m01 m02 m10 m11 m12 m20 m21 m22 x y z (12 values)
-
-              const sx = Math.abs(parts[0]);
-              const sy = Math.abs(parts[4]);
-              const sz = Math.abs(parts[8]);
-
-              // Surface area scales with the square of the linear scale
-              // Approximate composite scale for area (if uniform)
-              const avgScale = (sx + sy + sz) / 3;
-              scaleFactor = avgScale * avgScale;
-            }
-          }
-        }
-
-        // Apply scale (this is rough for non-unifrom scaling, but much better than nothing)
-        if (scaleFactor !== 1.0) {
-          surfaceAreaMm2 *= scaleFactor;
-        }
-
-      } catch (e) {
-        console.error("Failed to parse 3MF structure:", e);
-      }
-    } else {
-      // No file found ending in '3dmodel.model'
-    }
+    // --- Surface Area Calculation ---
+    // Shared with the embedded-G-code path above.
+    const surfaceAreaMm2 = await computeSurfaceAreaMm2(zip, fileNames);
 
     // Step 3: Try to find a thumbnail image if not found yet
     const thumbPath = fileNames.find(p =>
@@ -582,9 +583,13 @@ export async function parse3mf(file: File): Promise<GcodeData> {
       }
     }
 
+    // Guard against non-numeric metadata in the JSON/XML fallback above (e.g. a `prediction`
+    // field that is not a number): NaN here would flow straight into the calculator.
+    const safeNum = (value: number) => (Number.isFinite(value) ? value : 0);
+
     return {
-      printTimeHours: Math.max(0, Math.round(printTimeHours * 100) / 100),
-      filamentWeightGrams: Math.max(0, Math.round(filamentWeightGrams * 10) / 10),
+      printTimeHours: Math.max(0, Math.round(safeNum(printTimeHours) * 100) / 100),
+      filamentWeightGrams: Math.max(0, Math.round(safeNum(filamentWeightGrams) * 10) / 10),
       printerModel: printerModel || undefined,
       thumbnail: thumbnail || undefined,
       filamentSettingsId: undefined, // 3MF parsing limitation (for now)

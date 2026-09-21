@@ -25,6 +25,8 @@ export interface CurrencyContextType {
     conversionRate: number;
     setConversionRate: (rate: number) => void;
     formatPrice: (amount: number) => string;
+    formatNumber: (value: number, decimals?: number) => string;
+    getLocale: () => string;
 }
 
 export const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);

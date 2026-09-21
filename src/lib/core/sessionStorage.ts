@@ -18,14 +18,16 @@
 
 
 
-import { QuoteData, QuoteRevision, Material, Machine, CostConstant, Customer, CustomerReview, MaterialSpool, CompanySettings, QuoteStatus, Employee, StoredGcode, AISettings, BridgeSettings } from "@/types/quote";
+import { QuoteData, QuoteRevision, Material, Machine, CostConstant, Customer, CustomerReview, MaterialSpool, CompanySettings, QuoteStatus, Employee, StoredGcode, AISettings, AIAuditEntry, AIChatMessageRecord, BridgeSettings, QuoteCarbon, CarbonSettings } from "@/types/quote";
+import { calculateJobCarbon, toStoredCarbon } from "@/lib/carbon/carbonCalculator";
+import { GRID_CONSTANT_ID } from "@/lib/carbon/carbonFactors";
 import { ProductionJob, ProductionSettings } from "@/types/production";
-import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidPort } from "../sanitization";
+import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidLocalAIPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
 import { isAIAllowed } from "../utils";
 
-const generateId = (): string => {
+export const generateId = (): string => {
     try {
         return crypto.randomUUID();
     } catch {
@@ -114,15 +116,25 @@ const defaultMachines: Machine[] = [
     { id: "resin-elegoo-saturn4-16k", name: "Elegoo Saturn 4 Ultra 16K", hourly_cost: 7, power_consumption_watts: 75, print_type: "Resin", buildVolume: "219 x 123 x 220 mm" },
 ];
 
+/**
+ * Constants the app owns. They are forced hidden on read, which also keeps them out of the
+ * calculator's consumable picker — important for the grid factor, because a visible constant is
+ * selectable as a consumable and would be ADDED TO THE PRICE of a quote.
+ */
+export const SYSTEM_CONSTANT_IDS = ["electricity", "labor", "overhead", "markup", "grid_intensity"];
+
 const defaultConstants: CostConstant[] = [
-    { id: "electricity", name: "Electricity Rate", value: 0.12, unit: "$/kWh", is_visible: false, description: "Cost per kilowatt-hour" },
-    { id: "labor", name: "Labor Rate", value: 15, unit: "$/hr", is_visible: false, description: "Hourly labor cost" },
+    { id: "electricity", name: "Electricity Rate", value: 0.12, unit: "/kWh", is_visible: false, description: "Cost per kilowatt-hour" },
+    // The unit must not begin with "/" — the constants table prefixes the currency symbol to any
+    // unit that does, which would render this as "₹/kWh".
+    { id: "grid_intensity", name: "Grid Emission Factor", value: 473, unit: "gCO2e/kWh", is_visible: false, description: "Carbon intensity of your grid electricity. Defaults to the world average until you pick your region." },
+    { id: "labor", name: "Labor Rate", value: 15, unit: "/hr", is_visible: false, description: "Hourly labor cost" },
     { id: "overhead", name: "Overhead Rate", value: 10, unit: "%", is_visible: false, description: "Overhead percentage" },
     { id: "markup", name: "Default Markup", value: 30, unit: "%", is_visible: false, description: "Default profit margin" },
-    { id: "paint-acrylic-standard", name: "Acrylic Paint (Standard)", value: 0.10, unit: "$/ml", is_visible: true, description: "Standard hobby painting. Usage Rate: 0.02ml/cm2" },
-    { id: "paint-spray-primer", name: "Spray Primer", value: 0.08, unit: "$/ml", is_visible: true, description: "Base coat primer. Usage Rate: 0.03ml/cm2" },
-    { id: "paint-clear-coat", name: "Clear Coat Varnish", value: 0.12, unit: "$/ml", is_visible: true, description: "Protective finish. Usage Rate: 0.02ml/cm2" },
-    { id: "paint-enamel", name: "Enamel Paint", value: 0.15, unit: "$/ml", is_visible: true, description: "Durable detail work. Usage Rate: 0.02ml/cm2" },
+    { id: "paint-acrylic-standard", name: "Acrylic Paint (Standard)", value: 0.10, unit: "/ml", is_visible: true, description: "Standard hobby painting. Usage Rate: 0.02ml/cm2" },
+    { id: "paint-spray-primer", name: "Spray Primer", value: 0.08, unit: "/ml", is_visible: true, description: "Base coat primer. Usage Rate: 0.03ml/cm2" },
+    { id: "paint-clear-coat", name: "Clear Coat Varnish", value: 0.12, unit: "/ml", is_visible: true, description: "Protective finish. Usage Rate: 0.02ml/cm2" },
+    { id: "paint-enamel", name: "Enamel Paint", value: 0.15, unit: "/ml", is_visible: true, description: "Durable detail work. Usage Rate: 0.02ml/cm2" },
 ];
 
 const STORAGE_KEYS = {
@@ -139,10 +151,12 @@ const STORAGE_KEYS = {
     AI_SETTINGS: "session_ai_settings",
     NOTIFICATIONS: "session_notifications",
     AI_AUDIT: "session_ai_audit",
+    AI_CHAT: "session_ai_chat",
     INITIALIZED: "session_initialized",
     BRIDGE_SETTINGS: "session_bridge_settings",
     PRODUCTION_JOBS: "session_production_jobs",
     PRODUCTION_SETTINGS: "session_production_settings",
+    CARBON_SETTINGS: "session_carbon_settings",
 };
 
 
@@ -320,12 +334,7 @@ export const initializeDefaults = () => {
         localStorage.setItem(STORAGE_KEYS.GCODES, JSON.stringify([]));
         localStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(null));
         localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
-        localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify({
-            port: 11434,
-            model: "llama3",
-            contextLength: 4096,
-            enabled: false
-        }));
+        localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, JSON.stringify(DEFAULT_AI_SETTINGS));
         localStorage.setItem(STORAGE_KEYS.BRIDGE_SETTINGS, JSON.stringify({
             port: 50505,
             enabled: false
@@ -340,7 +349,29 @@ export const initializeDefaults = () => {
         localStorage.setItem(STORAGE_KEYS.INITIALIZED, "true");
     } else {
         syncLatestDefaultMachines();
+        syncLatestDefaultConstants();
     }
+};
+
+/**
+ * Adds system constants introduced after a shop's first run.
+ *
+ * The block above writes the default list only on a fresh install, so a constant added in a later
+ * version would never reach an existing user — the same trap `syncLatestDefaultMachines` exists to
+ * avoid. Only missing ids are added; anything already stored is left exactly as the shop set it.
+ */
+export const syncLatestDefaultConstants = (): boolean => {
+    const current = safeParse<CostConstant[]>(STORAGE_KEYS.CONSTANTS, []);
+    const currentIds = new Set(current.map(c => c.id));
+    const missing = defaultConstants.filter(
+        dc => SYSTEM_CONSTANT_IDS.includes(dc.id) && !currentIds.has(dc.id)
+    );
+
+    if (missing.length === 0) return false;
+
+    console.log(`[Storage] Adding ${missing.length} new system constant(s).`);
+    localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify([...current, ...missing]));
+    return true;
 };
 
 /**
@@ -372,6 +403,25 @@ const notifyMachinesUpdated = () => {
     window.dispatchEvent(new CustomEvent('session_machines_updated'));
 };
 
+/**
+ * Builds a short, human-readable quote id that is checked for uniqueness against the
+ * quotes already in storage.
+ *
+ * The previous scheme was `<4 hex chars><quotes.length + 1>`. That counter is not
+ * monotonic (it repeats after any deletion) and 4 hex chars is only 65k possibilities,
+ * so collisions were reachable within a few hundred quotes — and a collision silently
+ * OVERWROTE the older quote, because saveQuote treats a matching id as an update.
+ */
+export const generateShortQuoteId = (existingQuotes: QuoteData[]): string => {
+    const taken = new Set(existingQuotes.map(q => (typeof q.id === 'string' ? q.id.trim() : '')));
+    for (let attempt = 0; attempt < 50; attempt++) {
+        const candidate = generateId().replace(/-/g, '').substring(0, 8).toUpperCase();
+        if (!taken.has(candidate)) return candidate;
+    }
+    // Astronomically unlikely; fall back to a full unique id rather than risk an overwrite.
+    return generateId().toUpperCase();
+};
+
 export const getQuotes = (): QuoteData[] => {
     const rawQuotes = safeParse<QuoteData[]>(STORAGE_KEYS.QUOTES, []);
     return rawQuotes.map((q: QuoteData) => {
@@ -388,12 +438,12 @@ export const getQuotes = (): QuoteData[] => {
 
 export const saveQuote = (quote: QuoteData): QuoteData => {
     const quotes = getQuotes();
-    
-    const existingIndex = quote.id ? quotes.findIndex(q => q.id.trim() === quote.id.trim()) : -1;
-    
-    const randomPart = crypto.randomUUID().split('-')[1].toUpperCase();
-    const nextNumber = quotes.length + 1;
-    const newId = `${randomPart}${nextNumber}`;
+
+    // Guard against stored records that lack an id (older/hand-edited backups): without this,
+    // one such record made every subsequent save throw on q.id.trim().
+    const existingIndex = quote.id ? quotes.findIndex(q => typeof q.id === 'string' && q.id.trim() === quote.id.trim()) : -1;
+
+    const newId = generateShortQuoteId(quotes);
 
     const newQuote: QuoteData = {
         ...quote,
@@ -428,6 +478,113 @@ export const updateQuoteNotes = (id: string, notes: string): void => {
     localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
+/**
+ * Recomputes a quote's frozen footprint from whatever the quote currently says.
+ *
+ * Used after an edit and again when production reconciles actuals, so the two paths can never
+ * drift apart. Returns undefined when there is nothing to compute — the surfaces then omit the
+ * line rather than showing a stale or empty figure.
+ */
+export const recomputeQuoteCarbon = (quote: QuoteData): QuoteCarbon | undefined => {
+    const machines = getMachines();
+    const materials = getMaterials();
+
+    const machineId = (quote.assignedMachineId || quote.parameters?.machineId) as string | undefined;
+    const materialId = quote.parameters?.materialId as string | undefined;
+    const spoolId = quote.parameters?.selectedSpoolId as string | undefined;
+
+    const breakdown = calculateJobCarbon({
+        printType: quote.printType === "Resin" ? "Resin" : "FDM",
+        quantity: quote.quantity,
+        printTimePerUnit: quote.parameters?.printTime as string | undefined,
+        actualPrintTime: quote.actualPrintTime,
+        perUnitMaterial: (quote.parameters?.filamentWeight ?? quote.parameters?.resinVolume) as string | undefined,
+        actualMaterialUsed: quote.actualMaterialUsed,
+        failedUnits: quote.failedUnits,
+        featureWeights: quote.featureWeights,
+        washingTimeMinutes: quote.parameters?.washingTime as string | undefined,
+        curingTimeMinutes: quote.parameters?.curingTime as string | undefined,
+        // Fall back to the names stored on the quote: a job imported from the bridge may carry
+        // those without ids.
+        machine: machines.find(m => m.id === machineId)
+            ?? machines.find(m => m.name === quote.parameters?.machineName),
+        material: materials.find(m => m.id === materialId)
+            ?? materials.find(m => m.name === quote.parameters?.materialName),
+        spool: spoolId ? getSpools().find(s => s.id === spoolId) : undefined,
+        gridGPerKWh: getConstants().find(c => c.id === GRID_CONSTANT_ID)?.value,
+        eolPath: getCarbonSettings().defaultEolPath,
+    });
+
+    return breakdown ? toStoredCarbon(breakdown) : undefined;
+};
+
+const DEFAULT_CARBON_SETTINGS: CarbonSettings = {
+    regionConfirmed: false,
+    defaultEolPath: "landfill",
+};
+
+/** Shop-wide carbon choices. Absent keys fall back to the conservative defaults above. */
+export const getCarbonSettings = (): CarbonSettings => ({
+    ...DEFAULT_CARBON_SETTINGS,
+    ...safeParse<CarbonSettings>(STORAGE_KEYS.CARBON_SETTINGS, {} as CarbonSettings),
+});
+
+export const saveCarbonSettings = (settings: Partial<CarbonSettings>): CarbonSettings => {
+    const next = { ...getCarbonSettings(), ...settings };
+    localStorage.setItem(STORAGE_KEYS.CARBON_SETTINGS, JSON.stringify(next));
+    return next;
+};
+
+/**
+ * Recalculates stored footprints against today's factors.
+ *
+ * Records are frozen on purpose — last year's reported total must not drift because a factor was
+ * edited this morning — so restating history is an explicit, logged act rather than something that
+ * happens quietly. Shops do get a factor wrong early on (virgin where they buy recycled is a 2.3×
+ * error), and without this the mistake would be permanent.
+ *
+ * `auto` refreshes only figures that came entirely from the library. `all` also replaces those
+ * built on a factor the shop entered for a material or a spool.
+ */
+export const recalculateCarbonHistory = (
+    scope: "auto" | "all" = "auto"
+): { updated: number; untouched: number } => {
+    const quotes = getQuotes();
+    let updated = 0;
+    let untouched = 0;
+
+    const next = quotes.map(quote => {
+        const usesShopData = quote.carbon?.src.ef === "material"
+            || quote.carbon?.src.ef === "spool"
+            || quote.carbon?.src.watts === "measured";
+
+        if (scope === "auto" && usesShopData) {
+            untouched++;
+            return quote;
+        }
+
+        const carbon = recomputeQuoteCarbon(quote);
+        if (!carbon) {
+            untouched++;
+            return quote;
+        }
+
+        updated++;
+        return { ...quote, carbon };
+    });
+
+    localStorage.setItem(STORAGE_KEYS.QUOTES, JSON.stringify(next.map(encryptQuote)));
+    notifyQuotesUpdated();
+    console.log(`[Carbon] Recalculated ${updated} footprint(s), left ${untouched} untouched (scope: ${scope}).`);
+
+    return { updated, untouched };
+};
+
+/** Edits that move the footprint. Anything else leaves the stored figure alone. */
+const CARBON_RELEVANT_FIELDS: (keyof QuoteData)[] = [
+    "quantity", "parameters", "actualPrintTime", "actualMaterialUsed", "failedUnits", "featureWeights", "printType",
+];
+
 export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
     const quotes = getQuotes().map(q => {
         if (q.id === id) {
@@ -463,8 +620,8 @@ export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
                 sanitizedUpdates.notes = updates.notes ? sanitize(updates.notes) : updates.notes;
             }
 
-            return { 
-                ...q, 
+            const merged: QuoteData = {
+                ...q,
                 ...sanitizedUpdates,
                 statusTimeline: sanitizedUpdates.status && sanitizedUpdates.status !== q.status ? {
                     ...q.statusTimeline,
@@ -472,6 +629,16 @@ export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
                 } : q.statusTimeline,
                 revisions: updatedRevisions
             };
+
+            // Changing the quantity or the parameters moves the footprint, and the details dialog
+            // can change both — without this the quote would keep showing the figure it was first
+            // priced with. A caller that computed its own (production, from real actuals) wins.
+            const touchesCarbon = CARBON_RELEVANT_FIELDS.some(field => field in updates);
+            if (!("carbon" in updates) && touchesCarbon) {
+                merged.carbon = recomputeQuoteCarbon(merged);
+            }
+
+            return merged;
         }
         return q;
     });
@@ -654,29 +821,58 @@ export const getConstants = (): CostConstant[] => {
     const constants = safeParse<CostConstant[]>(STORAGE_KEYS.CONSTANTS, []);
 
     // Enforce system constants to be hidden
-    const systemIds = ["electricity", "labor", "overhead", "markup"];
-    const systemNames = ["Electricity Rate", "Labor Rate", "Overhead Rate", "Default Markup"];
+    const systemIds = SYSTEM_CONSTANT_IDS;
+    const systemNames = ["Electricity Rate", "Labor Rate", "Overhead Rate", "Default Markup", "Grid Emission Factor"];
 
-    return constants.map((c: CostConstant) => {
-        if (systemIds.includes(c.id) || systemNames.includes(c.name)) {
-            return { ...c, is_visible: false };
+    // Migrate legacy units: strip hardcoded '$' prefix from units (e.g. '$/ml' → '/ml')
+    let needsMigration = false;
+    const migrated = constants.map((c: CostConstant) => {
+        let unit = c.unit;
+        if (unit && unit.startsWith('$')) {
+            unit = unit.substring(1);
+            needsMigration = true;
         }
-        return c;
+        const result = { ...c, unit };
+        if (systemIds.includes(c.id) || systemNames.includes(c.name)) {
+            result.is_visible = false;
+        }
+        return result;
     });
+
+    // Persist migration once to avoid re-checking every time
+    if (needsMigration) {
+        localStorage.setItem(STORAGE_KEYS.CONSTANTS, JSON.stringify(migrated));
+    }
+
+    return migrated;
 };
 
 export const saveConstant = (constant: Omit<CostConstant, "id"> & { id?: string }): CostConstant => {
     const constants = getConstants();
-    const sanitizedConstant = { 
-        ...constant, 
-        name: sanitize(constant.name),
-        unit: sanitize(constant.unit || ""),
-        description: constant.description ? sanitize(constant.description) : constant.description
-    };
+    // Only sanitize fields that were actually supplied. Blindly rebuilding every field meant a
+    // partial update (e.g. the AI's `{ id, value }`) wiped name/unit/description — and the paint
+    // "Usage Rate: …ml/cm2" lives in that description, so paint pricing silently reset.
+    const sanitizedConstant: Partial<CostConstant> & { id?: string } = { ...constant };
+    if (constant.name !== undefined) sanitizedConstant.name = sanitize(constant.name);
+    if (constant.unit !== undefined) sanitizedConstant.unit = sanitize(constant.unit || "");
+    if (constant.description !== undefined) sanitizedConstant.description = constant.description ? sanitize(constant.description) : constant.description;
+
     if (sanitizedConstant.id) {
         const index = constants.findIndex(c => c.id === sanitizedConstant.id);
         if (index !== -1) {
-            constants[index] = sanitizedConstant as CostConstant;
+            // Merge, so unspecified fields on the existing record survive.
+            constants[index] = { ...constants[index], ...sanitizedConstant } as CostConstant;
+        } else {
+            // An id that is not in the list used to fall straight through: nothing was written,
+            // the caller was told it had succeeded, and the return below handed back undefined
+            // behind a non-null assertion. It happens whenever a system constant has been deleted,
+            // or is set before the defaults are seeded — the AI setting the grid factor, say.
+            // Fill in the defaults for a known id so the row still has a name and a unit.
+            const template = defaultConstants.find(c => c.id === sanitizedConstant.id);
+            constants.push({
+                ...(template ?? { name: sanitizedConstant.id, unit: "", value: 0 }),
+                ...sanitizedConstant,
+            } as CostConstant);
         }
     } else {
         const newConstant: CostConstant = {
@@ -711,10 +907,12 @@ export const resetSessionData = (): void => {
     localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
     localStorage.removeItem(STORAGE_KEYS.AI_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.AI_AUDIT);
+    localStorage.removeItem(STORAGE_KEYS.AI_CHAT);
     localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
     localStorage.removeItem(STORAGE_KEYS.BRIDGE_SETTINGS);
     localStorage.removeItem(STORAGE_KEYS.PRODUCTION_JOBS);
     localStorage.removeItem(STORAGE_KEYS.PRODUCTION_SETTINGS);
+    localStorage.removeItem(STORAGE_KEYS.CARBON_SETTINGS);
     initializeDefaults();
 };
 
@@ -976,37 +1174,55 @@ export const findBestSpoolMatch = (materialName: string, colour: string = ''): M
     return targetSpool;
 };
 
-export const deductFromSpool = (spoolId: string, amount: number): boolean => {
+/**
+ * Removes `amount` from a spool and returns the amount ACTUALLY removed.
+ *
+ * Two things matter here:
+ *  - Stock is clamped to [0, 1_000_000]. It used to be allowed down to -1,000,000, and a
+ *    negative balance was then excluded from low-stock alerts by `getLowStockMaterials`.
+ *  - The applied amount is returned rather than a bare boolean, so a caller that later
+ *    reverts the deduction restores exactly what was taken. Returning `true` after a
+ *    clamped (partial) deduction would let the revert put back more than was ever removed.
+ *
+ * The number is falsy at 0, so existing `if (deductFromSpool(...))` checks keep working.
+ */
+export const deductFromSpool = (spoolId: string, amount: number): number => {
     const spools = getSpools();
     const index = spools.findIndex(s => s.id === spoolId);
-    if (index === -1) return false;
+    if (index === -1) return 0;
 
-    // Enforce reasonable inventory bounds to prevent numerical overflow
-    const newWeight = Math.min(1000000, Math.max(-1000000, spools[index].currentWeight - amount));
+    const current = Number.isFinite(spools[index].currentWeight) ? spools[index].currentWeight : 0;
+    const delta = Number.isFinite(amount) ? amount : 0;
+    const newWeight = Math.min(1000000, Math.max(0, current - delta));
+    const applied = current - newWeight;
+
     spools[index].currentWeight = newWeight;
 
     localStorage.setItem(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
     updateMaterialStock(spools[index].materialId);
-    return true;
+    return applied;
 };
 
 /**
  * Validates incoming quote data from the Bridge or API.
  */
 export const validateQuoteData = (data: unknown): boolean => {
+    // This validates the CALCULATOR FORM payload the bridge builds, where every numeric
+    // field is a string. The previous schema demanded `quantity: number` and an `id` that
+    // form data never carries, so it rejected 100% of files received from the slicer.
     const quoteSchema = {
         projectName: 'string',
         printTime: 'string',
         filamentWeight: 'string',
-        quantity: 'number',
-        id: 'string'
+        quantity: 'string'
     };
     return validateSchema(data as Record<string, unknown>, quoteSchema);
 };
 
 
-export const restoreToSpool = (spoolId: string, amount: number): boolean => {
-    return deductFromSpool(spoolId, -amount);
+/** Returns the amount actually returned to the spool (negative deduction). */
+export const restoreToSpool = (spoolId: string, amount: number): number => {
+    return -deductFromSpool(spoolId, -amount);
 };
 
 export const getMaterialStock = (materialId: string): number => {
@@ -1019,7 +1235,9 @@ export const getLowStockMaterials = (threshold?: number): Material[] => {
     return materials.filter(m => {
         const stock = getMaterialStock(m.id);
         const limit = m.lowStockThreshold ?? threshold ?? 200; // Default 200g threshold
-        return stock < limit && stock >= 0;
+        // Note: no `stock >= 0` condition. That previously excluded fully depleted /
+        // over-drawn materials — exactly the ones that most need an alert.
+        return Number.isFinite(stock) && stock < limit;
     });
 };
 
@@ -1195,26 +1413,39 @@ export interface SettingsExport {
     quotes?: QuoteData[];
     notifications?: Notification[];
     aiSettings?: AISettings;
+    productionJobs?: ProductionJob[];
+    productionSettings?: ProductionSettings;
+    /** Optional: older backups predate carbon, and import treats a missing block as "leave as is". */
+    carbonSettings?: CarbonSettings;
 }
 
 /**
  * Strict schema validation for import data.
  */
 const validateSchema = (item: Record<string, unknown> | null | undefined, schema: Record<string, string>): boolean => {
-    if (!item || typeof item !== 'object') return false;
-    // Prototype pollution protection
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+
+    // Prototype pollution protection: reject dangerous KEYS. (This previously compared
+    // the forbidden names against values, which protected nothing.)
     const forbiddenKeys = ['__proto__', 'constructor', 'prototype'];
+    for (const key of Object.keys(item)) {
+        if (forbiddenKeys.includes(key)) return false;
+    }
 
     for (const [key, type] of Object.entries(schema)) {
         if (!(key in item)) return false;
-        
-        if (type === 'array') {
-            if (!Array.isArray(item[key])) return false;
-        } else if (typeof item[key] !== type && type !== 'string' && type !== 'number' && type !== 'boolean' && type !== 'object') {
-            return false;
-        }
 
-        if (typeof item[key] === 'string' && forbiddenKeys.includes(item[key])) {
+        const value = item[key];
+
+        if (type === 'array') {
+            if (!Array.isArray(value)) return false;
+        } else if (type === 'object') {
+            // null and arrays are not acceptable records
+            if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+        } else if (type === 'number') {
+            // Reject NaN/Infinity: they survive JSON round-trips as null and poison every total.
+            if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+        } else if (typeof value !== type) {
             return false;
         }
     }
@@ -1223,7 +1454,9 @@ const validateSchema = (item: Record<string, unknown> | null | undefined, schema
 
 const SCHEMAS = {
     MATERIAL: { id: 'string', name: 'string', cost_per_unit: 'number', unit: 'string', print_type: 'string' },
-    MACHINE: { id: 'string', name: 'string', hourly_cost: 'number', print_type: 'string', power_consumption_watts: 'number' },
+    // power_consumption_watts is intentionally not required: it is legitimately null for
+    // machines saved without a wattage, and requiring it would drop them on import.
+    MACHINE: { id: 'string', name: 'string', hourly_cost: 'number', print_type: 'string' },
     CONSTANT: { id: 'string', name: 'string', value: 'number', unit: 'string' },
     CUSTOMER: { id: 'string', name: 'string', createdAt: 'string' },
     REVIEW: { id: 'string', customerId: 'string', rating: 'number', createdAt: 'string' },
@@ -1231,9 +1464,14 @@ const SCHEMAS = {
     GCODE: { id: 'string', name: 'string', filePath: 'string', printTime: 'number', createdAt: 'string' },
     COMPANY: { name: 'string', address: 'string', email: 'string', phone: 'string' },
     EMPLOYEE: { id: 'string', name: 'string', jobPosition: 'string', createdAt: 'string' },
-    QUOTE: { materialCost: 'number', machineTimeCost: 'number', totalPrice: 'number', quantity: 'number', projectName: 'string', parameters: 'object' },
-    NOTIFICATION: { id: 'string', title: 'string', message: 'string', status: 'string', createdAt: 'number' },
-    AI_SETTINGS: { enabled: 'boolean', port: 'number' }
+    // `id` is required: a quote without one breaks every later saveQuote (it dereferences q.id).
+    QUOTE: { id: 'string', materialCost: 'number', machineTimeCost: 'number', totalPrice: 'number', quantity: 'number', projectName: 'string', parameters: 'object' },
+    // Notification uses `timestamp: string` (see types/notifications.ts). Requiring a
+    // non-existent `createdAt: number` silently rejected every notification on import.
+    NOTIFICATION: { id: 'string', title: 'string', message: 'string', status: 'string', timestamp: 'string' },
+    // Only the fields every historical export is guaranteed to carry: newer
+    // options are filled in by normalizeAISettings after import.
+    AI_SETTINGS: { enabled: 'boolean', port: 'number', model: 'string' }
 };
 
 // Export all settings to JSON
@@ -1253,6 +1491,11 @@ export const exportAllSettings = (): SettingsExport => {
         quotes: getQuotes(),
         notifications: getNotifications(),
         aiSettings: getAISettings(),
+        // The production queue and its settings are part of the shop's state; without them
+        // a "full backup" silently lost every job on the board.
+        productionJobs: getProductionJobs(),
+        productionSettings: getProductionSettings(),
+        carbonSettings: getCarbonSettings(),
     };
 };
 
@@ -1303,40 +1546,87 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
         // Optional arrays
         const optionalImports = [
-            { key: STORAGE_KEYS.CUSTOMERS, data: sanitizedData.customers, schema: SCHEMAS.CUSTOMER },
-            { key: STORAGE_KEYS.REVIEWS, data: sanitizedData.reviews, schema: SCHEMAS.REVIEW },
-            { key: STORAGE_KEYS.SPOOLS, data: sanitizedData.spools, schema: SCHEMAS.SPOOL },
-            { key: STORAGE_KEYS.GCODES, data: sanitizedData.gcodes, schema: SCHEMAS.GCODE },
-            { key: STORAGE_KEYS.EMPLOYEES, data: sanitizedData.employees, schema: SCHEMAS.EMPLOYEE },
-            { key: STORAGE_KEYS.QUOTES, data: sanitizedData.quotes, schema: SCHEMAS.QUOTE },
-            { key: STORAGE_KEYS.NOTIFICATIONS, data: sanitizedData.notifications, schema: SCHEMAS.NOTIFICATION }
+            { key: STORAGE_KEYS.CUSTOMERS, data: sanitizedData.customers, schema: SCHEMAS.CUSTOMER, label: 'customers' },
+            { key: STORAGE_KEYS.REVIEWS, data: sanitizedData.reviews, schema: SCHEMAS.REVIEW, label: 'reviews' },
+            { key: STORAGE_KEYS.SPOOLS, data: sanitizedData.spools, schema: SCHEMAS.SPOOL, label: 'spools' },
+            { key: STORAGE_KEYS.GCODES, data: sanitizedData.gcodes, schema: SCHEMAS.GCODE, label: 'stored files' },
+            { key: STORAGE_KEYS.EMPLOYEES, data: sanitizedData.employees, schema: SCHEMAS.EMPLOYEE, label: 'employees' },
+            { key: STORAGE_KEYS.QUOTES, data: sanitizedData.quotes, schema: SCHEMAS.QUOTE, label: 'quotes' },
+            { key: STORAGE_KEYS.NOTIFICATIONS, data: sanitizedData.notifications, schema: SCHEMAS.NOTIFICATION, label: 'notifications' }
         ];
+
+        // Track anything the validator rejects so the result can say so instead of
+        // reporting a clean success while silently dropping records.
+        const droppedRecords: string[] = [];
+        const noteDropped = (label: string, total: number, kept: number) => {
+            if (total > kept) droppedRecords.push(`${total - kept} ${label}`);
+        };
+
+        noteDropped('materials', sanitizedData.materials.length, validMaterials.length);
+        noteDropped('machines', sanitizedData.machines.length, validMachines.length);
+        noteDropped('constants', sanitizedData.constants.length, validConstants.length);
 
         for (const imp of optionalImports) {
             if (imp.data) {
                 const validItems = imp.data.filter((item: unknown) => validateSchema(item as Record<string, unknown>, imp.schema));
+                noteDropped(imp.label, imp.data.length, validItems.length);
                 commitMap[imp.key] = JSON.stringify(validItems);
             }
         }
 
-        // Import AI Settings (explicitly if present)
-        // SECURITY FIX (M1): Validate AI port on import to prevent probing forbidden services
-        if (sanitizedData.aiSettings) {
-            if (isPortForbidden(sanitizedData.aiSettings.port)) {
-                sanitizedData.aiSettings.port = 11434; // Safe default
-                console.warn('[Security] Import contained forbidden AI port. Reset to default 11434.');
-            }
-            commitMap[STORAGE_KEYS.AI_SETTINGS] = JSON.stringify(sanitizedData.aiSettings);
+        // Company settings were validated above but never committed, so they were exported
+        // and silently never restored.
+        if (sanitizedData.company) {
+            commitMap[STORAGE_KEYS.COMPANY] = JSON.stringify(encryptCompanySettings(sanitizedData.company));
         }
 
-        // Atomic commit: only write to localStorage if all validations passed
-        for (const [key, value] of Object.entries(commitMap)) {
-            localStorage.setItem(key, value);
+        if (sanitizedData.productionJobs && Array.isArray(sanitizedData.productionJobs)) {
+            commitMap[STORAGE_KEYS.PRODUCTION_JOBS] = JSON.stringify(sanitizedData.productionJobs.map(encryptProductionJob));
+        }
+
+        if (sanitizedData.productionSettings && typeof sanitizedData.productionSettings === 'object') {
+            commitMap[STORAGE_KEYS.PRODUCTION_SETTINGS] = wrapSecret(JSON.stringify(sanitizedData.productionSettings));
+        }
+
+        if (sanitizedData.carbonSettings && typeof sanitizedData.carbonSettings === 'object') {
+            commitMap[STORAGE_KEYS.CARBON_SETTINGS] = JSON.stringify(sanitizedData.carbonSettings);
+        }
+
+        // Import AI Settings (explicitly if present)
+        // Normalising here clamps the host to loopback, the port to a real port
+        // and every numeric option to its safe range, so an edited settings file
+        // cannot point the assistant at an arbitrary address.
+        if (sanitizedData.aiSettings) {
+            const normalizedAI = normalizeAISettings(sanitizedData.aiSettings);
+            if (normalizedAI.port !== sanitizedData.aiSettings.port) {
+                console.warn('[Security] Import contained an invalid AI port. Reset to default 11434.');
+            }
+            commitMap[STORAGE_KEYS.AI_SETTINGS] = JSON.stringify(normalizedAI);
+        }
+
+        // Commit. If a write fails part-way (most likely a storage quota error), report the
+        // partial state honestly rather than claiming a clean failure over half-replaced data.
+        const written: string[] = [];
+        try {
+            for (const [key, value] of Object.entries(commitMap)) {
+                localStorage.setItem(key, value);
+                written.push(key);
+            }
+        } catch (writeErr: unknown) {
+            console.error("Import commit failed:", writeErr);
+            return {
+                success: false,
+                message: written.length === 0
+                    ? "Failed to import: your browser storage rejected the write (it may be full)."
+                    : `Import stopped part-way: ${written.length} of ${Object.keys(commitMap).length} sections were replaced before storage ran out of space. Please re-import or restore a backup.`
+            };
         }
 
         return {
             success: true,
-            message: `Settings imported successfully.`
+            message: droppedRecords.length > 0
+                ? `Settings imported. Skipped ${droppedRecords.join(', ')} that did not match the expected format.`
+                : `Settings imported successfully.`
         };
     } catch (error: unknown) {
         console.error("Import error:", error);
@@ -1346,53 +1636,159 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
 
 
+export const DEFAULT_AI_SETTINGS: AISettings = {
+    enabled: false,
+    host: 'localhost',
+    port: 11434,
+    model: "llama3",
+    contextLength: 4096,
+    // Shop analytics wants repeatable answers, not creative ones.
+    temperature: 0.3,
+    requestTimeoutMs: 90_000,
+    redactPII: true,
+    persistChat: true,
+    customInstructions: "",
+};
+
+/** Fired whenever AI settings change, so hooks can react without a reload. */
+export const AI_SETTINGS_EVENT = "ai_settings_updated";
+
+const clamp = (value: number, min: number, max: number, fallback: number): number => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+    return Math.min(max, Math.max(min, value));
+};
+
+/**
+ * Fills in every field a stored blob may predate and clamps it to a safe range.
+ * Settings written before a field existed read as `undefined`, so merging over
+ * the defaults here is what keeps older installs working after an upgrade.
+ */
+export const normalizeAISettings = (partial: Partial<AISettings> | null | undefined): AISettings => {
+    const merged = { ...DEFAULT_AI_SETTINGS, ...(partial || {}) };
+    return {
+        ...merged,
+        enabled: Boolean(merged.enabled),
+        host: merged.host === '127.0.0.1' ? '127.0.0.1' : 'localhost',
+        port: isValidLocalAIPort(merged.port) ? Number(merged.port) : DEFAULT_AI_SETTINGS.port,
+        model: sanitize(merged.model || DEFAULT_AI_SETTINGS.model),
+        contextLength: clamp(merged.contextLength, 1024, 131072, DEFAULT_AI_SETTINGS.contextLength),
+        temperature: clamp(merged.temperature, 0, 1, DEFAULT_AI_SETTINGS.temperature),
+        requestTimeoutMs: clamp(merged.requestTimeoutMs, 10_000, 300_000, DEFAULT_AI_SETTINGS.requestTimeoutMs),
+        redactPII: merged.redactPII !== false,
+        persistChat: merged.persistChat !== false,
+        customInstructions: (merged.customInstructions || "").slice(0, 1000),
+    };
+};
+
 export const getAISettings = (): AISettings => {
     // Local AI is allowed on Desktop or Localhost (Dev)
     const raw = localStorage.getItem(STORAGE_KEYS.AI_SETTINGS);
-    const fallback: AISettings = {
-        enabled: false,
-        port: 11434,
-        model: "llama3",
-        contextLength: 4096
-    };
 
-    let settings: AISettings;
-    if (!raw) {
-        settings = fallback;
-    } else {
+    let stored: Partial<AISettings> | null = null;
+    if (raw) {
         try {
             // Transparent industrial decryption layer
-            const decrypted = unwrapSecret(raw);
-            settings = JSON.parse(decrypted);
+            stored = JSON.parse(unwrapSecret(raw));
         } catch {
-            // Fallback for transition from unencrypted legacy data or corruption
+            // Fallback for transition from unencrypted legacy data or corruption.
+            // importAllSettings writes this key unencrypted, so this branch stays.
             try {
-                settings = JSON.parse(raw);
+                stored = JSON.parse(raw);
             } catch {
-                settings = fallback;
+                stored = null;
             }
         }
     }
 
-    // Security & Infrastructure Restriction: 
-    // Enforce Local AI as disabled on production web-hosted environments 
+    const settings = normalizeAISettings(stored);
+
+    // Security & Infrastructure Restriction:
+    // Enforce Local AI as disabled on production web-hosted environments
     // to prevent confusing cross-origin or connectivity errors.
     // Allowed on Desktop or Localhost (Dev).
     if (!isAIAllowed) {
         return { ...settings, enabled: false };
     }
-    
+
     return settings;
 };
 
 export const saveAISettings = (settings: AISettings) => {
-    const sanitized = {
-        ...settings,
-        model: sanitize(settings.model || "llama3"),
-        port: !isValidPort(settings.port) ? 11434 : settings.port
-    };
-    const encrypted = wrapSecret(JSON.stringify(sanitized));
+    const normalized = normalizeAISettings(settings);
+    const encrypted = wrapSecret(JSON.stringify(normalized));
     localStorage.setItem(STORAGE_KEYS.AI_SETTINGS, encrypted);
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(AI_SETTINGS_EVENT));
+    }
+};
+
+
+
+/** Cap on the local AI audit trail; oldest entries are dropped first. */
+const MAX_AI_AUDIT_ENTRIES = 200;
+
+/**
+ * Local, append-only record of what the assistant proposed and what the user
+ * allowed. The system prompt tells the model its actions are logged — this is
+ * that log. It never leaves the device.
+ */
+export const appendAIAudit = (entry: Omit<AIAuditEntry, "timestamp">): void => {
+    try {
+        const entries = getAIAudit();
+        entries.push({ ...entry, timestamp: new Date().toISOString() });
+        const trimmed = entries.slice(-MAX_AI_AUDIT_ENTRIES);
+        localStorage.setItem(STORAGE_KEYS.AI_AUDIT, wrapSecret(JSON.stringify(trimmed)));
+    } catch (err) {
+        console.warn("[AI Audit] Could not record entry:", err);
+    }
+};
+
+export const getAIAudit = (): AIAuditEntry[] => {
+    const raw = localStorage.getItem(STORAGE_KEYS.AI_AUDIT);
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(unwrapSecret(raw));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+export const clearAIAudit = (): void => {
+    localStorage.removeItem(STORAGE_KEYS.AI_AUDIT);
+};
+
+
+
+/** Cap on the persisted chat transcript. */
+const MAX_AI_CHAT_MESSAGES = 50;
+
+/**
+ * Chat transcripts contain customer names and financials, so they are
+ * obfuscated like quotes and capped. Only stored when `persistChat` is on.
+ */
+export const getAIChat = (): AIChatMessageRecord[] => {
+    const raw = localStorage.getItem(STORAGE_KEYS.AI_CHAT);
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(unwrapSecret(raw));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+export const saveAIChat = (messages: AIChatMessageRecord[]): void => {
+    try {
+        const trimmed = messages.slice(-MAX_AI_CHAT_MESSAGES);
+        localStorage.setItem(STORAGE_KEYS.AI_CHAT, wrapSecret(JSON.stringify(trimmed)));
+    } catch (err) {
+        console.warn("[AI Chat] Could not persist transcript:", err);
+    }
+};
+
+export const clearAIChat = (): void => {
+    localStorage.removeItem(STORAGE_KEYS.AI_CHAT);
 };
 
 

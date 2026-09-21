@@ -28,7 +28,7 @@ interface CustomerInsightsDashboardProps {
 }
 
 export const CustomerInsightsDashboard = memo(({ stats }: CustomerInsightsDashboardProps) => {
-  const { currency } = useCurrency();
+  const { formatPrice } = useCurrency();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -82,7 +82,7 @@ export const CustomerInsightsDashboard = memo(({ stats }: CustomerInsightsDashbo
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-bold text-slate-900">
-                    {currency.symbol}{customer.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                    {formatPrice(customer.revenue)}
                   </div>
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Gross Contribution</div>
                 </div>

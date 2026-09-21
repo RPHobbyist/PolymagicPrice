@@ -45,6 +45,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { Material } from "@/types/quote";
 import * as sessionStore from "@/lib/core/sessionStorage";
 import { MaterialInventory } from "./MaterialInventory";
+import { CARBON_BOUNDS, MATERIAL_PRESETS, clampToBounds, getMaterialPreset, matchMaterialPreset } from "@/lib/carbon/carbonFactors";
 
 // --- Materials Form Component ---
 interface MaterialsFormProps {
@@ -62,10 +63,23 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
     print_type: "FDM" as "FDM" | "Resin",
     description: "",
     lowStockThreshold: "200",
+    // Carbon: "auto" matches a published figure by material name, a preset id pins one, and
+    // "custom" takes the shop's own — a supplier's number always beats our library.
+    co2Choice: "auto",
+    co2PerKg: "",
+    co2Source: "",
+    densityGCm3: "",
+    eolPath: "landfill" as "landfill" | "incineration" | "recycling",
   });
 
   useEffect(() => {
     if (initialData) {
+      // A stored figure that exactly matches a preset is shown as that preset, so reopening the
+      // dialog does not turn a library choice into an anonymous custom number.
+      const preset = initialData.co2PerKg
+        ? MATERIAL_PRESETS.find(p => p.kgPerKg === initialData.co2PerKg)
+        : undefined;
+
       setFormData({
         name: initialData.name,
         cost_per_unit: initialData.cost_per_unit.toString(),
@@ -73,6 +87,11 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
         print_type: initialData.print_type,
         description: initialData.description || "",
         lowStockThreshold: (initialData.lowStockThreshold || (initialData.print_type === "FDM" ? "200" : "100")).toString(),
+        co2Choice: initialData.co2PerKg ? (preset?.id || "custom") : "auto",
+        co2PerKg: initialData.co2PerKg?.toString() || "",
+        co2Source: initialData.co2Source || "",
+        densityGCm3: initialData.densityGCm3?.toString() || "",
+        eolPath: initialData.eolPath || "landfill",
       });
     } else {
       setFormData({
@@ -82,15 +101,43 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
         print_type: "FDM",
         description: "",
         lowStockThreshold: "200",
+        co2Choice: "auto",
+        co2PerKg: "",
+        co2Source: "",
+        densityGCm3: "",
+        eolPath: "landfill",
       });
     }
   }, [initialData]);
+
+  /** Picking a preset fills the number; picking Custom hands the field to the shop. */
+  const handleCarbonChoice = (choice: string) => {
+    const preset = getMaterialPreset(choice);
+    setFormData(prev => ({
+      ...prev,
+      co2Choice: choice,
+      co2PerKg: preset ? String(preset.kgPerKg) : choice === "auto" ? "" : prev.co2PerKg,
+      co2Source: preset ? `${preset.source} (${preset.year})` : choice === "auto" ? "" : prev.co2Source,
+      densityGCm3: preset && !prev.densityGCm3 ? String(preset.densityGCm3) : prev.densityGCm3,
+    }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || !formData.cost_per_unit) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // "auto" stores nothing: the factor is then resolved from the material's name at calculation
+    // time, so a shop that never opens this section still gets a figure with a traceable source.
+    const co2PerKg = formData.co2Choice === "auto" || !formData.co2PerKg
+      ? undefined
+      : clampToBounds(parseFloat(formData.co2PerKg), CARBON_BOUNDS.efKgPerKg);
+
+    if (formData.co2Choice === "custom" && formData.co2PerKg && !Number.isFinite(parseFloat(formData.co2PerKg))) {
+      toast.error("Enter a number for the carbon factor, or choose Automatic");
       return;
     }
 
@@ -101,6 +148,10 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
       print_type: formData.print_type,
       description: formData.description || undefined,
       lowStockThreshold: parseFloat(formData.lowStockThreshold) || 200,
+      co2PerKg,
+      co2Source: co2PerKg !== undefined && formData.co2Source ? formData.co2Source : undefined,
+      densityGCm3: formData.densityGCm3 ? parseFloat(formData.densityGCm3) : undefined,
+      eolPath: formData.eolPath,
     }); // ID will be handled by parent or store
   };
 
@@ -210,6 +261,97 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
             />
           </div>
         </div>
+
+        {/* Carbon footprint. Everything here is optional: left on Automatic, a published factor is
+            matched from the material's name when a quote is calculated. */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="co2Choice">Carbon Factor</Label>
+            <Select value={formData.co2Choice} onValueChange={handleCarbonChoice}>
+              <SelectTrigger id="co2Choice">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Automatic (match by name)</SelectItem>
+                {MATERIAL_PRESETS.map(preset => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.label} — {preset.kgPerKg}
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">Custom value…</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="co2PerKg">kgCO₂e per kg</Label>
+            <Input
+              id="co2PerKg"
+              type="number"
+              step="0.01"
+              min="0"
+              max={CARBON_BOUNDS.efKgPerKg.max}
+              value={formData.co2Choice === "auto" ? "" : formData.co2PerKg}
+              disabled={formData.co2Choice !== "custom"}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, co2PerKg: val });
+              }}
+              placeholder={String(matchMaterialPreset(formData.name, formData.print_type).kgPerKg)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="densityGCm3">Density (g/cm³)</Label>
+            <Input
+              id="densityGCm3"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.densityGCm3}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, densityGCm3: val });
+              }}
+              placeholder={String(matchMaterialPreset(formData.name, formData.print_type).densityGCm3)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="eolPath">Waste Disposal</Label>
+            <Select
+              value={formData.eolPath}
+              onValueChange={(value: "landfill" | "incineration" | "recycling") =>
+                setFormData({ ...formData, eolPath: value })}
+            >
+              <SelectTrigger id="eolPath">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="landfill">Landfill</SelectItem>
+                <SelectItem value="incineration">Incineration</SelectItem>
+                <SelectItem value="recycling">Recycling</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {formData.co2Choice === "custom" && (
+          <div className="space-y-2">
+            <Label htmlFor="co2Source">Source of this figure</Label>
+            <Input
+              id="co2Source"
+              value={formData.co2Source}
+              onChange={(e) => setFormData({ ...formData, co2Source: e.target.value })}
+              placeholder="e.g. Prusament PLA technical data sheet, 2025"
+              maxLength={120}
+            />
+          </div>
+        )}
       </div>
 
       <DialogFooter>

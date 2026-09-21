@@ -66,6 +66,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Machi
     name: "",
     hourly_cost: "",
     power_consumption_watts: "",
+    measuredWatts: "",
+    idleWatts: "",
     print_type: "FDM" as "FDM" | "Resin",
     buildVolume: "",
     ipAddress: "",
@@ -121,6 +123,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Machi
         name: initialData.name,
         hourly_cost: initialData.hourly_cost.toString(),
         power_consumption_watts: initialData.power_consumption_watts?.toString() || "",
+        measuredWatts: initialData.measuredWatts?.toString() || "",
+        idleWatts: initialData.idleWatts?.toString() || "",
         print_type: initialData.print_type,
         buildVolume: initialData.buildVolume || "",
         ipAddress: initialData.ipAddress || "",
@@ -136,6 +140,8 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Machi
         name: "",
         hourly_cost: "",
         power_consumption_watts: "",
+        measuredWatts: "",
+        idleWatts: "",
         print_type: "FDM",
         buildVolume: "",
         ipAddress: "",
@@ -191,6 +197,9 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Machi
       driverType: formData.driverType,
       maintenanceIntervalHours: parseInt(formData.maintenanceIntervalHours) || 0,
       isOffline: formData.driverType === 'OFFLINE',
+      // Carbon: optional, and separate from the rated wattage above, which pricing depends on.
+      measuredWatts: formData.measuredWatts ? parseFloat(formData.measuredWatts) : undefined,
+      idleWatts: formData.idleWatts ? parseFloat(formData.idleWatts) : undefined,
     });
   };
 
@@ -315,6 +324,73 @@ const MachinesForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Machi
               }}
               placeholder="5.00"
               required
+            />
+          </div>
+        </div>
+
+        {/* Optional energy figures for the carbon footprint. The rated wattage above stays exactly
+            as it is because pricing depends on it — it is a power-supply rating, typically two to
+            three times a printer's real average draw. */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 h-6">
+              <Label htmlFor="measuredWatts">Measured Draw (Watts)</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger type="button" aria-label="Measured draw help">
+                    <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[300px] p-4 text-sm bg-popover border-border" side="right">
+                    <div className="space-y-2">
+                      <p className="font-semibold">Optional — improves carbon accuracy</p>
+                      <p>Average watts while printing, read from a plug-in energy meter. Leave it empty and a published figure for this machine class is used instead.</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Input
+              id="measuredWatts"
+              type="number"
+              min="0"
+              value={formData.measuredWatts}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, measuredWatts: val });
+              }}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 h-6">
+              <Label htmlFor="idleWatts">Idle Draw (Watts)</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger type="button" aria-label="Idle draw help">
+                    <HelpCircle className="w-3.5 h-3.5 text-slate-500" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[300px] p-4 text-sm bg-popover border-border" side="right">
+                    <div className="space-y-2">
+                      <p className="font-semibold">Optional — standby power</p>
+                      <p>Draw while the printer is on but not printing. Counted in shop totals only, never charged to an individual job.</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Input
+              id="idleWatts"
+              type="number"
+              min="0"
+              value={formData.idleWatts}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== "" && parseFloat(val) < 0) return;
+                setFormData({ ...formData, idleWatts: val });
+              }}
+              placeholder="11"
             />
           </div>
         </div>

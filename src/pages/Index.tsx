@@ -126,7 +126,9 @@ const Index = memo(() => {
         resinVolume: String(gcodeData.resinVolume || '0'),
         laborHours: '0',
         overheadPercentage: '0',
-        markupPercentage: '0',
+        // Use the shop's configured markup. Hard-coding '0' here meant a job imported from
+        // the library was priced at cost, while the same file via the bridge carried a markup.
+        markupPercentage: String(constants.find(c => c.id === 'markup')?.value ?? 20),
         quantity: '1',
         selectedConsumableIds: [],
         filePath: gcodeData.filePath
@@ -135,13 +137,16 @@ const Index = memo(() => {
       const material = materials.find(m => m.id === matchedMaterialId) || materials[0];
       const machine = machines.find(m => m.id === matchedMachineId) || machines[0];
 
-      const quote = type === "FDM" 
+      const gridGPerKWh = constants.find(c => c.id === 'grid_intensity')?.value;
+
+      const quote = type === "FDM"
         ? calculateFDMQuote({
             formData: baseFormData as unknown as FDMFormData,
             material,
             machine,
             electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
             laborRate: constants.find(c => c.id === 'labor')?.value || 0,
+            gridGPerKWh,
           })
         : calculateResinQuote({
             formData: baseFormData as unknown as ResinFormData,
@@ -149,6 +154,7 @@ const Index = memo(() => {
             machine,
             electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
             laborRate: constants.find(c => c.id === 'labor')?.value || 0,
+            gridGPerKWh,
           });
 
       setQuoteData({
@@ -190,20 +196,51 @@ const Index = memo(() => {
   }, [location.state, handleIncomingGcode]);
 
   useDocumentSEO({
-    title: "3D Printing Price Calculator — Free Quote & Cost Estimator",
+    title: "3D Printing Cost Calculator — Free FDM & Resin Price Estimator",
     description: "Free 3D print price calculator for FDM filament and Resin SLA/DLP. Upload G-code, 3MF, or CXDLPV4 files to auto-calculate material costs, electricity, labor, and machine depreciation. Generate professional PDF quotes instantly. No cloud, 100% offline.",
     canonical: "/cost-calculator",
-    ogTitle: "3D Printing Price Calculator — Free Quote & Cost Estimator | PolymagicPrice",
+    ogTitle: "3D Printing Cost Calculator — Free FDM & Resin Price Estimator | PolymagicPrice",
     ogDescription: "Free 3D printing quote calculator. Upload G-code for instant cost breakdowns covering material, electricity, labor, and overhead. Generate professional PDF quotes for your 3D print farm.",
-    ogImage: SYSTEM_CONFIG.logo
+    ogImage: SYSTEM_CONFIG.logo,
+    jsonLd: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PolymagicPrice 3D Printing Cost Calculator",
+        "url": `${SYSTEM_CONFIG.baseUrl}/cost-calculator`,
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "description": "Free 3D printing cost calculator for FDM and resin. Upload a G-code, 3MF or CXDLPV4 file to auto-calculate material, electricity, machine and labor costs and generate a professional quote."
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I calculate the cost of a 3D print?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Add material, electricity, machine depreciation, labor and consumables for the unit cost, then add overhead and multiply by (1 + markup%). Upload a sliced file and PolymagicPrice fills in print time and weight for you." }
+          },
+          {
+            "@type": "Question",
+            "name": "How much does it cost to 3D print something?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Most hobby FDM parts cost $0.50-$5 in material and machine time; the final quoted price is usually $5-$30 once labor, overhead and markup are included. Resin parts cost more to finish because of wash and cure work." }
+          },
+          {
+            "@type": "Question",
+            "name": "Is this 3D printing price calculator free?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. PolymagicPrice is free and open-source (AGPLv3), runs entirely in your browser, and never uploads your files." }
+          }
+        ]
+      }
+    ]
   });
 
-  const {
-    addQuote: addToBatch,
-    items: batchItems,
-    clear: clearBatch,
-    totalPrice: batchTotal
-  } = useBatchQuote();
+  // NOTE: these must match BatchQuoteContextType. The previous names (addQuote/items/clear/
+  // totalPrice) do not exist on the context, so `clearBatch` was undefined and every call to
+  // handleReset — the Reset button and the post-save reset — threw a TypeError.
+  const { clearBatch } = useBatchQuote();
 
 
   const handleReset = useCallback(() => {
@@ -270,11 +307,12 @@ const Index = memo(() => {
         }
 
         // Map to Form Data
+        const defaultMarkup = constants.find(c => c.id === 'markup')?.value ?? 20;
         const formData = {
           projectName: sanitize(safeFilename.replace(/\.gcode$/i, '').substring(0, 100)), // Enforce strict length cap and sanitization
           printTime: (gcodeData.printTimeHours as number).toFixed(2),
           filamentWeight: (gcodeData.filamentWeightGrams as number).toFixed(2),
-          markupPercentage: "20",
+          markupPercentage: String(defaultMarkup),
           quantity: "1",
           materialId: material.id,
           machineId: machine.id,
@@ -295,6 +333,7 @@ const Index = memo(() => {
           machine,
           electricityRate,
           laborRate,
+          gridGPerKWh: constants.find(c => c.id === 'grid_intensity')?.value,
           consumables: []
         });
 
@@ -324,9 +363,9 @@ const Index = memo(() => {
 
   return (
     <div className="flex-1 bg-background flex flex-col relative">
-      <PageHeader 
-        title="Cost Calculator" 
-        subtitle="Standardized Industrial Quotation Engine"
+      <PageHeader
+        title="3D Printing Cost Calculator"
+        subtitle="Free FDM & Resin price estimator with G-code auto-fill"
       />
       {/* Glow effect */}
       <div className="fixed inset-0 bg-gradient-glow pointer-events-none" />
@@ -457,6 +496,7 @@ const Index = memo(() => {
             </Suspense>
           )}
         </div>
+
       </main>
     </div>
   );

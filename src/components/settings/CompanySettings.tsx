@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Save, Upload, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getCompanySettings, saveCompanySettings } from "@/lib/core/sessionStorage";
@@ -267,6 +268,21 @@ const CompanySettings = () => {
                             onChange={handleChange}
                             placeholder="Thank you for your business!"
                             maxLength={200}
+                        />
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4 pt-2">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="showCarbonOnInvoice">Show carbon footprint on invoices</Label>
+                            <p className="text-xs text-slate-600">
+                                Adds the estimated kgCO₂e for the job beneath the total. Off by default — it is an
+                                estimate, and it goes to your customer.
+                            </p>
+                        </div>
+                        <Switch
+                            id="showCarbonOnInvoice"
+                            checked={!!formData.showCarbonOnInvoice}
+                            onCheckedChange={(checked) => setFormData({ ...formData, showCarbonOnInvoice: checked })}
                         />
                     </div>
 

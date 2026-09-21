@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -34,7 +35,8 @@ import {
     ClipboardList, 
     Settings, 
     TrendingUp,
-    HelpCircle
+    HelpCircle,
+    Leaf
 } from "lucide-react";
 
 interface FAQItem {
@@ -176,9 +178,10 @@ export default function ToolGuidePage() {
                 "What It Does: The AI Assistant analyzes your local shop data (quotes, materials, machines, orders) to answer natural language questions about your business health. It can surface trends, flag low inventory, and suggest pricing adjustments based on your actual historical data",
                 "How to Open It: Click the robot icon in the bottom-right corner of any page. The chat panel slides open. Type your question in plain English, like 'What is my most profitable material?' or 'How many orders did I complete this month?'",
                 "Step 1: Ask a Question: Type a natural language query into the chat. Examples include: 'Which printer has the highest utilization?', 'What is my average quote value?', 'Am I running low on any materials?', or 'Show me my revenue trend for the last 30 days'",
-                "Step 2: Review the Response: The AI processes your query against your local database and returns a structured answer. It may include charts, tables, or actionable recommendations. All processing happens locally: no data is sent to external servers",
-                "Human-In-The-Loop Safety: The AI can suggest actions (e.g., 'Consider reordering PLA as stock is below 500g'), but it can NEVER execute changes to your data automatically. Every modification requires your explicit physical approval via a confirmation dialog",
-                "Connecting to Ollama: For the AI to function, you need a local Ollama instance running on your machine. Install Ollama from ollama.com, pull a model (e.g., 'ollama pull llama3'), and ensure it's running on localhost:11434. PolymagicPrice auto-detects the connection",
+                "Step 2: Review the Response: The AI processes your query against your local database and returns a structured answer, using tables and lists where they help. All processing happens locally: no data is sent to external servers",
+                "Human-In-The-Loop Safety: The AI can suggest actions (e.g., 'Consider reordering PLA as stock is below 500g'), but it can NEVER execute changes to your data automatically. Every proposed action appears as its own approval card that you must approve or reject, and every proposal, approval and rejection is recorded in the local activity log in Settings → Local AI",
+                "Connecting to Ollama: For the AI to function, you need a local Ollama instance running on your machine. Install Ollama from ollama.com, pull a model (e.g., 'ollama pull llama3'), and start it. Set the host and port in Settings → Local AI (default localhost:11434) and click Test Connection — the model list fills in automatically",
+                "Desktop App Note: The desktop build runs from a local file, so Ollama has to be told to accept it. Set OLLAMA_ORIGINS=file://*,null,http://localhost:* and restart Ollama. Settings → Local AI shows the exact command with a copy button",
                 "Pro Tip: The AI works best when your data is well-maintained. Regularly update material costs, close completed orders, and keep your machines current for the most accurate insights"
             ]
         },
@@ -226,6 +229,22 @@ export default function ToolGuidePage() {
             ]
         },
         {
+            title: "Carbon Footprint",
+            icon: Leaf,
+            description: "How the estimated emissions per job are calculated, and what they do and do not cover",
+            items: [
+                "Overview: Every quote carries an estimated carbon footprint in kgCO₂e, made up of three parts: the electricity the print consumes, the material it uses, and the disposal of what is thrown away. It appears on the quote summary and, in more depth, on the Carbon Footprint page. No setup is required — sensible published figures are used until you supply better ones",
+                "Electricity: Print hours are multiplied by the machine's average draw while printing, then by your grid's emission factor. The average draw is deliberately not the 'Power Consumption' figure on the machine, which rates the power supply — an Ender 3 is sold as 350 W but measures 75-125 W in use. Enter a reading from a plug-in meter under Settings → Machines → Measured Draw and that machine's figures become measured rather than estimated",
+                "Grid factor: Set under Settings → Consumables as 'Grid Emission Factor', in grams of CO₂e per kilowatt-hour. It defaults to the world average of 473. Regional figures range from about 41 in France to 710 in India, so setting yours is the single biggest accuracy win after metering a machine",
+                "Material: The mass printed is multiplied by a cradle-to-gate factor for that material — everything from growing or mining the raw material through to the spool being boxed. Defaults come from published figures: virgin PLA at 5.76 and recycled PLA at 2.47 kgCO₂e per kg, from the only manufacturer life-cycle assessment published for filament. You can pick a different preset, or enter your supplier's own number with a source, per material or per individual spool",
+                "Waste: Supports, purge and failed prints are counted for disposal on top of the material used to make them. Landfill is near zero, incineration is calculated from the polymer's carbon content, and recycling is counted as zero because claiming a credit requires a method the app cannot verify for you",
+                "Estimate, Actual, Measured: Each figure carries a grade showing its weakest input. Estimate uses planned print time and library values. Actual means the job completed and real print time and material were used. Measured additionally means the machine's wattage was measured rather than assumed. Completing a job corrects the time and material, but not the energy — only a meter reading does that",
+                "What is not included: One material per quote, so multi-material and AMS prints attribute everything to one factor. Purge and support weights are only available for files sliced in OrcaSlicer or Bambu Studio. Warm-up energy, consumables, packaging, freight and the manufacture of the printers themselves are all out of scope",
+                "Shop totals: The Carbon Footprint page counts only work that actually ran — a quote that was never printed emitted nothing, and is listed separately. Jobs are booked in the month they were completed, not the month they were quoted. Idle printers are reported as shop overhead rather than charged to any one job",
+                "Honesty: These are estimates built on published averages, and the app never generates an environmental claim on your behalf. Show the number to a customer with its basis, and keep the word 'estimate' attached to it. Under EU rules that apply from 27 September 2026, offset-based 'carbon neutral' claims are prohibited outright"
+            ]
+        },
+        {
             title: "Order Manager",
             icon: ClipboardList,
             description: "How to track orders through their full lifecycle using the Kanban board",
@@ -250,7 +269,7 @@ export default function ToolGuidePage() {
                 "Electricity & Labor: Set your local electricity rate in $/kWh (check your utility bill, typically $0.08–$0.30/kWh depending on region). Set your hourly labor rate (what you want to pay yourself per hour of hands-on work: setup, post-processing, packaging). These values apply to every quote automatically",
                 "Consumables: Register recurring consumable costs like build plate adhesive, painter's tape, IPA, gloves, FEP film, paper towels, or sandpaper. When calculating a quote, you can select which consumables apply to that specific job — and the cost is added per-unit",
                 "Company Profile: Enter your business name, address, logo, and contact details. This information appears on every PDF quote you generate, giving your quotes a professional, branded appearance that inspires customer confidence",
-                "AI Configuration: If you're using the Local AI Assistant, configure the Ollama connection settings here — model name and server address. You can also define custom system prompts that tailor the AI's responses to your shop's specific terminology and workflows",
+                "AI Configuration: If you're using the Local AI Assistant, configure it under Settings → Local AI: host (localhost or 127.0.0.1), port, model, context length, temperature, response timeout, whether personal details are redacted from answers, and whether the chat is kept across reloads. 'Shop instructions' lets you add your own guidance — house material, lead times, quoting conventions — which is appended to the assistant's built-in rules",
                 "Pro Tip: Schedule a monthly 'Settings Audit': spend 10 minutes checking that your material costs, electricity rate, and labor rate are still accurate. Material prices change seasonally, and an outdated cost-per-kg can silently erode your margins for weeks before you notice"
             ]
         },
@@ -294,9 +313,9 @@ export default function ToolGuidePage() {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(JSON.stringify(faqSchema)) }}
             />
-            <PageHeader 
-                title="Tool Guide" 
-                subtitle="Mastering the PolymagicPrice"
+            <PageHeader
+                title="3D Printing Price Guide & FAQ"
+                subtitle="How to calculate print costs, set markup, and generate quotes"
             />
 
             <main className="container mx-auto px-6 py-8 max-w-[1000px] flex-1">
@@ -495,6 +514,32 @@ export default function ToolGuidePage() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                <div className="mt-16 border-t border-slate-200 pt-8">
+                    <h2 className="text-lg font-semibold tracking-tight text-slate-900">Related guides</h2>
+                    <ul className="mt-4 space-y-2 text-sm text-slate-600">
+                        <li>
+                            <Link to="/guides/how-to-calculate-3d-printing-cost" className="text-primary hover:underline">
+                                How to calculate 3D printing cost — formula &amp; worked examples
+                            </Link>
+                        </li>
+                        <li>
+                            <Link to="/guides/fdm-vs-resin-printing-cost" className="text-primary hover:underline">
+                                FDM vs resin 3D printing cost — full price comparison
+                            </Link>
+                        </li>
+                        <li>
+                            <Link to="/guides/filament-cost-per-gram" className="text-primary hover:underline">
+                                Filament cost per gram — price PLA, PETG &amp; ABS prints
+                            </Link>
+                        </li>
+                        <li>
+                            <Link to="/cost-calculator" className="text-primary hover:underline">
+                                Open the free 3D printing cost calculator
+                            </Link>
+                        </li>
+                    </ul>
                 </div>
             </main>
         </div>

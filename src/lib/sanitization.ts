@@ -113,31 +113,6 @@ export function escapeHTML(str: string): string {
   return String(str).replace(/[&<>"']/g, (m) => chars[m]);
 }
 
-export function stripAIInjection<T>(value: T): T {
-  if (value === null || value === undefined) return value;
-  
-  if (typeof value === 'string') {
-    return value.replace(/POLY-SEC-7F3A/g, '[REDACTED]') as unknown as T;
-  }
-  
-  if (Array.isArray(value)) {
-    return value.map(item => stripAIInjection(item)) as unknown as T;
-  }
-  
-  if (typeof value === 'object') {
-    const input = value as Record<string, unknown>;
-    const scrubbed: Record<string, unknown> = {};
-    for (const key in input) {
-      if (Object.prototype.hasOwnProperty.call(input, key)) {
-        scrubbed[key] = stripAIInjection(input[key]);
-      }
-    }
-    return scrubbed as unknown as T;
-  }
-  
-  return value;
-}
-
 /**
  * Checks if a port is in the "Forbidden" list
  */
@@ -146,28 +121,6 @@ export function isPortForbidden(port: number | string): boolean {
   const p = typeof port === "string" ? parseInt(port, 10) : port;
   const forbidden = [21, 22, 23, 25, 53, 80, 443, 3306, 5000, 5432, 6379, 8000, 8080, 8888, 9000, 27017];
   return forbidden.includes(p);
-}
-
-/**
- * AI Response Shield
- */
-export function sanitizeAIResponse(text: string): string {
-    if (!text) return '';
-    const scrubText = String(text);
-    
-    const forbidden = [/confirm password/gi, /enter your key/gi, /system maintenance/gi];
-    let sanitized = scrubText;
-    forbidden.forEach(regex => {
-        sanitized = sanitized.replace(regex, '[REDACTED]');
-    });
-
-    const urlPattern = /https?:\/\/[^\s]+/g;
-    sanitized = sanitized.replace(urlPattern, (match) => {
-        if (match.includes('rphobbyist.com')) return match;
-        return '[LINK REMOVED FOR SECURITY]';
-    });
-
-    return sanitized;
 }
 
 /**
@@ -194,5 +147,19 @@ export function isValidPort(port: number | string): boolean {
     if (port === null || port === undefined) return false;
     const p = typeof port === 'string' ? parseInt(port, 10) : port;
     return !isNaN(p) && p >= 1024 && p <= 65535 && !isPortForbidden(p);
+}
+
+/**
+ * Port validation for the local AI connection.
+ *
+ * Deliberately looser than `isValidPort`: the target is the user's own Ollama
+ * server on loopback, and people legitimately run it on ports the general
+ * blocklist rejects (8080 is a common `OLLAMA_HOST` choice). The blocklist
+ * still guards the Bridge and any outward-facing connection.
+ */
+export function isValidLocalAIPort(port: number | string): boolean {
+    if (port === null || port === undefined) return false;
+    const p = typeof port === 'string' ? parseInt(port, 10) : port;
+    return !isNaN(p) && p >= 1 && p <= 65535;
 }
 

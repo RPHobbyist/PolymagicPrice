@@ -11,7 +11,7 @@ import { Customer, QuoteData } from '@/types/quote';
  * SECURITY FIX (L1): Prevents Excel formula injection (CSV/DDE attack).
  * Prefixes cells starting with dangerous characters with a single quote.
  */
-function safeCell(value: string | undefined | null): string {
+export function safeCell(value: string | undefined | null): string {
     if (!value) return '';
     const s = String(value);
     if (/^[=+\-@\t\r]/.test(s)) {
@@ -31,8 +31,21 @@ export async function exportCustomerToExcel(
         lastOrderDate: string | null; 
     }, 
     orders: QuoteData[],
-    currencySymbol: string = '₹'
+    currencySymbol: string = '₹',
+    // Stored amounts are in the base currency; the UI multiplies by this rate at display
+    // time. Without it the report printed base-currency numbers under a converted symbol.
+    conversionRate: number = 1
 ) {
+    const locale = typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US';
+    const rate = Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1;
+    const fmtPrice = (value: number) => {
+        const amount = Number.isFinite(value) ? value * rate : 0;
+        const formatted = new Intl.NumberFormat(locale, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(amount);
+        return `${currencySymbol}${formatted}`;
+    };
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(`${customer.name.slice(0, 20)} Report`);
 
@@ -62,7 +75,7 @@ export async function exportCustomerToExcel(
     // --- 2. Summary Stats Section ---
     worksheet.addRow(['ACCOUNT SUMMARY']).font = { bold: true };
     worksheet.addRow(['Total Orders', stats.orderCount]);
-    worksheet.addRow(['Total Revenue', `${currencySymbol}${stats.totalSpent.toFixed(2)}`]);
+    worksheet.addRow(['Total Revenue', fmtPrice(stats.totalSpent)]);
     worksheet.addRow(['Last Order Date', stats.lastOrderDate ? new Date(stats.lastOrderDate).toLocaleDateString() : 'N/A']);
 
     worksheet.addRow([]); // Spacer
@@ -91,7 +104,7 @@ export async function exportCustomerToExcel(
             safeCell(order.projectName),
             order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A',
             order.printType,
-            `${currencySymbol}${order.totalPrice.toFixed(2)}`
+            fmtPrice(order.totalPrice)
         ]);
         row.eachCell((cell) => {
             cell.border = {

@@ -381,6 +381,19 @@ const NotificationItem = ({ item, updateStatus, deleteNotification, navigate }: 
                                 Log Maintenance
                             </Button>
                         )}
+                        {(type === 'CARBON_METER_SUGGESTION' || type === 'CARBON_DIGEST') && item.source === 'SYSTEM' && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-[10px] font-bold"
+                                onClick={() => {
+                                    navigate('/carbon-footprint');
+                                    updateStatus(item.id, 'ATTENDED');
+                                }}
+                            >
+                                View Footprint
+                            </Button>
+                        )}
                         {type === 'PROCUREMENT' && item.source === 'SYSTEM' && (
                             <Button 
                                 variant="default" 

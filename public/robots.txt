@@ -21,6 +21,7 @@ Disallow: /cgi-bin/
 Disallow: /admin
 Disallow: /login
 Disallow: /profile
+Disallow: /*.map$
 
 # Sitemap location
 Sitemap: https://polymagicprice.rphobbyist.com/sitemap.xml

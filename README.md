@@ -101,7 +101,19 @@ Privacy-first intelligence. Connect your local **Ollama** instance to get instan
 <img src="./docs/images/2.png" alt="AI Shop Assistant" width="100%" style="border-radius: 10px;">
 
 - **Natural Language Queries**: Ask "Which material is my most profitable?" or "What is my average print time?"
-- **Sanitized Context**: AI metadata is encapsulated and sanitized locally to prevent prompt injection.
+- **Real Numbers**: Answers are built from the same profit, capacity and inventory calculations the dashboards use — in your configured currency — so the assistant can't contradict the UI.
+- **Sanitized Context**: Shop data is fenced off as data, prompt-injection phrasing is neutralised, and personal details are redacted from answers by default.
+- **Approval Required**: The assistant can propose changes (rates, clients, reminders, reports) but never applies them. Each one is a separate approval card, and every proposal, approval and rejection is written to a local activity log.
+
+### Setup
+
+1. Install [Ollama](https://ollama.com) and pull a model: `ollama pull gemma3:1b` (small) or `ollama pull llama3`.
+2. In PolymagicPrice, open **Settings → Local AI**, enable it, set host/port (default `localhost:11434`), pick the model and click **Test connection**.
+3. **Desktop app only**: it runs from a local file, so Ollama must be told to accept it —
+   set `OLLAMA_ORIGINS=file://*,null,http://localhost:*` and restart Ollama
+   (Windows: `setx OLLAMA_ORIGINS "file://*,null,http://localhost:*"`).
+
+Local AI is available in the desktop app and when running on localhost; the hosted web build keeps it switched off.
 
 ---
 

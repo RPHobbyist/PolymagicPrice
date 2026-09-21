@@ -18,6 +18,8 @@
 
 // Resin file parser for .cxdlpv4 and other resin printer formats
 
+import JSZip from 'jszip';
+
 export interface ResinFileData {
   printTimeHours: number;
   resinVolumeMl: number;
@@ -29,13 +31,40 @@ export interface ResinFileData {
 }
 
 /**
+ * Resin slicer files carry per-layer image data and are routinely 100 MB - 1 GB. Everything
+ * this parser needs (header fields and the preview image) lives near the start, so only the
+ * leading slice is read into memory instead of the whole file.
+ */
+const HEADER_SLICE_BYTES = 8 * 1024 * 1024; // 8 MB
+
+async function readHeaderBuffer(file: File): Promise<ArrayBuffer> {
+  const slice = file.size > HEADER_SLICE_BYTES ? file.slice(0, HEADER_SLICE_BYTES) : file;
+  return slice.arrayBuffer();
+}
+
+/**
+ * Cleans a string read out of an untrusted binary file before it reaches the UI:
+ * strips control characters and caps the length.
+ */
+function cleanBinaryString(value: string): string {
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\x00-\x1f\x7f-\x9f]/g, '').trim().substring(0, 128);
+}
+
+/**
  * Read a null-terminated string with a Big Endian length prefix
  */
 function readNullTerminatedString(dataView: DataView, offset: number): { value: string; bytesRead: number } {
+  // Bounds check first: the length prefix comes from the file and can point past the buffer,
+  // which would throw a RangeError and abort the whole parse.
+  if (offset + 4 > dataView.byteLength) {
+    return { value: '', bytesRead: 4 };
+  }
+
   // Read the length (4 bytes, Big Endian)
   const length = dataView.getUint32(offset, false);
 
-  if (length === 0 || length > 256) {
+  if (length === 0 || length > 256 || offset + 4 + length > dataView.byteLength) {
     return { value: '', bytesRead: 4 };
   }
 
@@ -75,9 +104,8 @@ function readNullTerminatedString(dataView: DataView, offset: number): { value: 
  * - Various lift/speed settings
  * - VolumeMl (float) at offset 20 within the section
  */
-async function parseCxdlpv4(file: File): Promise<ResinFileData> {
+async function parseCxdlpv4(buffer: ArrayBuffer): Promise<ResinFileData> {
   try {
-    const buffer = await file.arrayBuffer();
     const dataView = new DataView(buffer);
 
 
@@ -105,9 +133,10 @@ async function parseCxdlpv4(file: File): Promise<ResinFileData> {
     offset += 2;
 
 
-    // Read printer model (null-terminated string with length prefix)
+    // Read printer model (null-terminated string with length prefix).
+    // Sanitized because it comes from an untrusted file and is rendered in the UI.
     const printerModelResult = readNullTerminatedString(dataView, offset);
-    const printerModel = printerModelResult.value;
+    const printerModel = cleanBinaryString(printerModelResult.value);
     offset += printerModelResult.bytesRead;
 
 
@@ -314,22 +343,13 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
 
     // We can read just what we need:
 
-    // Read necessary header values
-    const bedSizeX = dataView.getFloat32(12, true);
-    const layerHeight = dataView.getFloat32(24, true);
-
-    // Skip...
-
-    const resolutionX = dataView.getUint32(52, true);
-    const resolutionY = dataView.getUint32(56, true);
-
+    // Read only the header values we actually use. (Bed size / resolution / total height were
+    // read solely to feed the volume guess that has been removed.)
     const previewLargeOffset = dataView.getUint32(60, true);
     const layerCount = dataView.getUint32(68, true);
     const printTimeSeconds = dataView.getUint32(76, true);
     // Skip ProjectorType at 80
     const printParametersOffset = dataView.getUint32(84, true);
-
-    const totalHeightMm = layerHeight * layerCount;
 
 
 
@@ -351,13 +371,12 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
       }
     }
 
-    // Fallback: estimate volume from bed dimensions if not found
+    // No fallback estimate. The previous one assumed the print filled 30% of the entire bed
+    // for its full height and presented that guess as an extracted volume — for a small part
+    // it overstated resin use (and therefore the price) by orders of magnitude. If the file
+    // does not carry a volume, the UI asks the user for it.
     if (resinVolumeMl === 0) {
-      const pixelSizeMm = bedSizeX / resolutionX;
-      const printAreaMm2 = (resolutionX * resolutionY) * (pixelSizeMm * pixelSizeMm) * 0.3;
-      const estimatedVolumeMm3 = printAreaMm2 * totalHeightMm;
-      resinVolumeMl = Math.round((estimatedVolumeMm3 / 1000) * 10) / 10;
-
+      console.warn('[ResinParser] CTB file has no volume in its print parameters; leaving it for manual entry.');
     }
 
     // Try to extract thumbnail from preview section
@@ -457,7 +476,8 @@ async function parsePhotonFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
 
     let printTimeSeconds = 0;
     let layerCount = 0;
-    let resinVolumeMl = 0;
+    // Not derived from the file: see the note on the offset scan below.
+    const resinVolumeMl = 0;
     let printerModel = '';
 
     // Photon format has different header structure
@@ -466,40 +486,33 @@ async function parsePhotonFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
       printerModel = 'Anycubic Photon';
     }
 
-    // Scan for print parameters at common offsets
-    // Photon format typically has:
-    // - Header info at start
-    // - Print time as uint32 at various possible offsets
+    // The Anycubic header layout is not published, so these offsets are heuristic. Two rules
+    // keep the heuristic honest:
+    //  1. A given offset may supply EITHER print time OR layer count, never both. Previously
+    //     both `if`s tested against 0 independently, so one value like 1200 was reported as
+    //     "1200 seconds" AND "1200 layers" simultaneously.
+    //  2. Volume is not guessed at all. Scanning for "the first float that looks plausible"
+    //     returned things like the bed width and presented them as a resin volume.
     const offsets = [24, 28, 32, 48, 52, 56, 60, 64, 68, 72, 76, 80];
 
     for (const offset of offsets) {
-      if (offset + 4 <= buffer.byteLength) {
-        const val = dataView.getUint32(offset, true);
+      if (offset + 4 > buffer.byteLength) continue;
+      const val = dataView.getUint32(offset, true);
 
-        // Check if this could be print time (1 minute to 100 hours)
-        if (printTimeSeconds === 0 && val >= 60 && val <= 360000) {
-          printTimeSeconds = val;
-        }
-
-        // Check if this could be layer count (10 to 50000)
-        if (layerCount === 0 && val >= 10 && val <= 50000) {
-          layerCount = val;
-        }
+      if (printTimeSeconds === 0 && val >= 60 && val <= 360000) {
+        printTimeSeconds = val;
+        continue; // do not let the same field also become the layer count
       }
-    }
 
-    // Try to find floats that could be volume
-    for (let i = 0; i < Math.min(buffer.byteLength - 4, 200); i += 4) {
-      const floatVal = dataView.getFloat32(i, true);
-      if (resinVolumeMl === 0 && Number.isFinite(floatVal) && floatVal >= 0.1 && floatVal <= 2000) {
-        resinVolumeMl = floatVal;
-        break;
+      if (layerCount === 0 && val >= 10 && val <= 50000) {
+        layerCount = val;
       }
     }
 
     return {
       printTimeHours: printTimeSeconds > 0 ? Math.round((printTimeSeconds / 3600) * 100) / 100 : 0,
-      resinVolumeMl: Math.round(resinVolumeMl * 10) / 10,
+      // Left at 0 so the UI asks the user for it rather than showing an invented number.
+      resinVolumeMl,
       layerCount: layerCount > 0 ? layerCount : undefined,
       printerModel: printerModel || undefined,
       thumbnail: undefined,
@@ -512,15 +525,19 @@ async function parsePhotonFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
 }
 
 /**
- * Fallback parser for files that don't match expected format
+ * Fallback for files whose binary layout we do not know.
+ *
+ * This used to scan the first 1 KB and take the first integers that fell in a plausible
+ * range as print time and layer count, and the first plausible float as the resin volume.
+ * On an unknown (or compressed, e.g. a ZIP-based .sl1) file those bytes are effectively
+ * random, so the app confidently displayed invented print times and volumes that the user
+ * would then quote a customer from.
+ *
+ * We now only report the printer model when its name is literally present in the header,
+ * and leave the priced quantities at 0 so the UI prompts for manual entry.
  */
 function parseGenericBinary(buffer: ArrayBuffer): ResinFileData {
-  const dataView = new DataView(buffer);
   const uint8Array = new Uint8Array(buffer);
-
-  let printTimeSeconds = 0;
-  let resinVolumeMl = 0;
-  let layerCount = 0;
   let printerModel = '';
 
   // Scan header for text patterns (printer model)
@@ -539,39 +556,79 @@ function parseGenericBinary(buffer: ArrayBuffer): ResinFileData {
   for (const pattern of printerPatterns) {
     const match = headerText.match(pattern);
     if (match) {
-      printerModel = match[0].replace(/\0/g, '').trim();
+      printerModel = cleanBinaryString(match[0]);
       break;
     }
   }
 
-  // Scan for reasonable numeric values
-  for (let i = 0; i < Math.min(buffer.byteLength - 4, 1024); i += 4) {
-    const uint32Val = dataView.getUint32(i, true);
-    const floatVal = dataView.getFloat32(i, true);
-
-    // Look for print time (60 seconds to 100 hours)
-    if (printTimeSeconds === 0 && uint32Val >= 60 && uint32Val <= 360000) {
-      printTimeSeconds = uint32Val;
-    }
-
-    // Look for layer count (10 to 50000)
-    if (layerCount === 0 && uint32Val >= 10 && uint32Val <= 50000) {
-      layerCount = uint32Val;
-    }
-
-    // Look for volume (0.1ml to 5000ml as float)
-    if (resinVolumeMl === 0 && Number.isFinite(floatVal) && floatVal >= 0.1 && floatVal <= 5000) {
-      resinVolumeMl = floatVal;
-    }
-  }
+  console.warn('[ResinParser] Unrecognised file layout; not guessing print time or volume.');
 
   return {
-    printTimeHours: Math.round((printTimeSeconds / 3600) * 100) / 100,
-    resinVolumeMl: Math.round(resinVolumeMl * 10) / 10,
-    layerCount: layerCount > 0 ? layerCount : undefined,
+    printTimeHours: 0,
+    resinVolumeMl: 0,
+    layerCount: undefined,
     printerModel: printerModel || undefined,
     thumbnail: undefined,
   };
+}
+
+/**
+ * Parse Prusa SL1 / SL1S, which is a ZIP archive containing `config.ini`.
+ *
+ * These were previously fed to the binary scanner above, which read compressed ZIP bytes as
+ * if they were header fields — guaranteed nonsense. The real values are plain key/value
+ * pairs in the ini.
+ */
+async function parseSl1Format(file: File): Promise<ResinFileData> {
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const configEntry =
+      zip.file('config.ini') ||
+      zip.file(/config\.ini$/i)[0] ||
+      zip.file(/prusaslicer\.ini$/i)[0];
+
+    if (!configEntry) {
+      console.warn('[ResinParser] SL1 archive has no config.ini');
+      return { printTimeHours: 0, resinVolumeMl: 0 };
+    }
+
+    const config = await configEntry.async('string');
+
+    const readValue = (key: string): number => {
+      const match = config.match(new RegExp(`^\\s*${key}\\s*=\\s*([\\d.]+)`, 'im'));
+      if (!match) return 0;
+      const parsed = parseFloat(match[1]);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const printTimeSeconds = readValue('printTime');
+    const usedMaterialMl = readValue('usedMaterial'); // millilitres
+    const layerCount = readValue('numFade') > 0 ? readValue('numSlow') + readValue('numFast') : readValue('numFast');
+
+    const printerModelMatch = config.match(/^\s*printerModel\s*=\s*(.+)$/im);
+    const printerModel = printerModelMatch ? cleanBinaryString(printerModelMatch[1]) : '';
+
+    // Prefer the embedded preview if one is present.
+    let thumbnail: string | undefined;
+    const thumbEntry = zip.file(/thumbnail\/thumbnail.*\.png$/i)[0];
+    if (thumbEntry) {
+      const base64 = await thumbEntry.async('base64');
+      if (base64.length <= 1400000) {
+        thumbnail = `data:image/png;base64,${base64}`;
+      }
+    }
+
+    return {
+      printTimeHours: printTimeSeconds > 0 ? Math.round((printTimeSeconds / 3600) * 100) / 100 : 0,
+      resinVolumeMl: usedMaterialMl > 0 && usedMaterialMl < 10000 ? Math.round(usedMaterialMl * 10) / 10 : 0,
+      layerCount: layerCount > 0 && layerCount < 100000 ? layerCount : undefined,
+      printerModel: printerModel || undefined,
+      thumbnail,
+    };
+  } catch (error) {
+    console.error('Error parsing SL1 file:', error);
+    return { printTimeHours: 0, resinVolumeMl: 0 };
+  }
 }
 
 /**
@@ -580,50 +637,33 @@ function parseGenericBinary(buffer: ArrayBuffer): ResinFileData {
 export async function parseResinFile(file: File): Promise<ResinFileData> {
   const fileName = file.name.toLowerCase();
 
+  // SL1/SL1S are ZIP archives and must be handled before any binary path.
+  if (fileName.endsWith('.sl1s') || fileName.endsWith('.sl1')) {
+    return parseSl1Format(file);
+  }
+
+  // Everything below is a binary format whose header lives at the start of the file, so only
+  // the leading slice is loaded. These files are frequently hundreds of megabytes.
+  const buffer = await readHeaderBuffer(file);
+
   // Creality Halot series
   if (fileName.endsWith('.cxdlpv4')) {
-    return parseCxdlpv4(file);
+    return parseCxdlpv4(buffer);
   }
 
   // CTB format (CHITUBOX) - used by Elegoo, Phrozen, Anycubic
-  if (fileName.endsWith('.ctb')) {
-
-    const buffer = await file.arrayBuffer();
+  // FDG format - Elegoo Mars/Saturn (same layout)
+  if (fileName.endsWith('.ctb') || fileName.endsWith('.fdg')) {
     return parseCtbFormat(buffer);
   }
 
-  // FDG format - Elegoo Mars/Saturn (similar to CTB)
-  if (fileName.endsWith('.fdg')) {
-
-    const buffer = await file.arrayBuffer();
-    return parseCtbFormat(buffer);
-  }
-
-  // GOO format - Anycubic Cloud printers
-  if (fileName.endsWith('.goo')) {
-
-    const buffer = await file.arrayBuffer();
+  // GOO (Anycubic Cloud) and Photon/PWMO (Anycubic Photon series)
+  if (fileName.endsWith('.goo') || fileName.endsWith('.photon') || fileName.endsWith('.pwmo')) {
     return parsePhotonFormat(buffer);
   }
 
-  // Photon/PWMO format - Anycubic Photon series
-  if (fileName.endsWith('.photon') || fileName.endsWith('.pwmo')) {
-
-    const buffer = await file.arrayBuffer();
-    return parsePhotonFormat(buffer);
-  }
-
-  // SL1S format - Prusa SL1/SL1S Speed (ZIP archive with config)
-  if (fileName.endsWith('.sl1s') || fileName.endsWith('.sl1')) {
-
-    const buffer = await file.arrayBuffer();
-    return parseGenericBinary(buffer);
-  }
-
-  // FORM format - Formlabs
+  // FORM format - Formlabs (layout not documented here)
   if (fileName.endsWith('.form')) {
-
-    const buffer = await file.arrayBuffer();
     return parseGenericBinary(buffer);
   }
 

@@ -16,8 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { summariseQuote } from "@/lib/quoteCalculations";
+import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { FileText, Download, Save, FileDown, Package, PieChart as PieChartIcon, Copy, FileSpreadsheet, ChevronDown, Share2 } from "lucide-react";
@@ -45,7 +48,7 @@ interface QuoteSummaryProps {
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e'];
 
 const QuoteSummary = memo(({ quoteData, onSaveQuote }: QuoteSummaryProps) => {
-  const { currency, formatPrice } = useCurrency();
+  const { currency, formatPrice, conversionRate } = useCurrency();
   const { addItem, batchItems } = useBatchQuote();
   const [isBatchOpen, setIsBatchOpen] = useState(false);
 
@@ -120,6 +123,8 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
   const handleExportExcel = useCallback(async () => {
     if (!quoteData) return;
 
+    const exportCarbonKg = summariseQuote(quoteData).carbonKg;
+
     try {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
@@ -146,11 +151,18 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
         { desc: "Subtotal", val: formatPrice(quoteData.subtotal) },
         { desc: "Profit Markup", val: formatPrice(quoteData.markup) },
         { desc: "TOTAL PRICE", val: formatPrice(quoteData.totalPrice) },
+        // Carbon last and clearly labelled, so nothing in the money column above changes shape.
+        // Read through the shared summary rather than the record, like every other surface, and
+        // called here so the callback keeps `quoteData` as its only data dependency.
+        ...(exportCarbonKg !== undefined
+          ? [{ desc: "Carbon Footprint (estimate)", val: formatCarbon(exportCarbonKg) }]
+          : []),
       ]);
 
       worksheet.getRow(1).font = { bold: true };
       worksheet.getRow(7).font = { bold: true };
       worksheet.getRow(15).font = { bold: true };
+
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -170,6 +182,12 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
   ].filter(f => f.value > 0).map((f, i) => ({ ...f, colour: CHART_COLORS[i % CHART_COLORS.length] })) : [];
 
   const COLORS = featureData.map(f => f.colour);
+
+  // Shared money breakdown (same helper the invoice and quotes table use).
+  const summary = useMemo(
+    () => quoteData ? summariseQuote(quoteData) : null,
+    [quoteData]
+  );
 
   const { saveBatchAsQuote } = useBatchQuote();
 
@@ -199,13 +217,13 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
   const handlePDF = useCallback(() => {
     if (!quoteData) return;
     try {
-      printQuotePDF(quoteData, currency.symbol);
+      printQuotePDF(quoteData, currency.symbol, conversionRate);
       toast.success("PDF opened for printing. Use 'Save as PDF' in print dialog.");
     } catch (error) {
       console.error("PDF error:", error);
       toast.error("Failed to generate PDF. Please allow popups.");
     }
-  }, [quoteData, currency.symbol]);
+  }, [quoteData, currency.symbol, conversionRate]);
 
   const handleAddToBatch = useCallback(() => {
     if (!quoteData) return;
@@ -280,6 +298,11 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
             {quoteData.laborCost > 0 && (
               <CostRow label="Labor" value={quoteData.laborCost} />
             )}
+            {/* Consumables are inside the subtotal but had no row, so the listed lines
+                provably did not add up to the subtotal shown underneath them. */}
+            {summary && summary.consumablesTotal > 0 && (
+              <CostRow label="Consumables" value={summary.consumablesTotal} />
+            )}
             {quoteData.overheadCost > 0 && (
               <CostRow label="Overhead" value={quoteData.overheadCost} />
             )}
@@ -287,6 +310,26 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
               <CostRow label="Painting (Beta)" value={quoteData.paintingCost} />
             )}
           </div>
+
+          {/* Carbon sits below the money, never inside it. The line is simply absent when the
+              footprint could not be computed — an estimate is never worth breaking a quote for. */}
+          {quoteData.carbon && (
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-muted-foreground">Carbon Footprint</span>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
+                  {quoteData.carbon.grade === "MEASURED" ? "Measured"
+                    : quoteData.carbon.grade === "ACTUAL" ? "Actual" : "Estimate"}
+                </Badge>
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatCarbon(summary?.carbonPerPart ?? quoteData.carbon.kg)}
+                  {summary?.carbonPerPart !== undefined && (
+                    <span className="text-muted-foreground font-normal"> / part</span>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
 
           {featureData.length > 0 && (
             <>
@@ -451,12 +494,16 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
 
 QuoteSummary.displayName = "QuoteSummary";
 
-const CostRow = memo(({ label, value }: { label: string; value: number }) => {
+/**
+ * One row of the breakdown. `display` renders a value that is not money — the carbon line uses it,
+ * because routing kgCO₂e through `formatPrice` would stamp a currency symbol on an emissions figure.
+ */
+const CostRow = memo(({ label, value, display }: { label: string; value: number; display?: string }) => {
   const { formatPrice } = useCurrency();
   return (
     <div className="flex justify-between text-muted-foreground group">
       <span className="group-hover:text-foreground transition-colors">{label}</span>
-      <span className="font-medium text-foreground tabular-nums">{formatPrice(value)}</span>
+      <span className="font-medium text-foreground tabular-nums">{display ?? formatPrice(value)}</span>
     </div>
   );
 });

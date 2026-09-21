@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { QuoteData, QuoteStats } from "@/types/quote";
 import { toast } from "sonner";
 import * as sessionStore from "@/lib/core/sessionStorage";
+import { computeQuoteStats } from "@/lib/quoteStats";
 import { useProduction } from "./useProduction";
 
 
@@ -77,142 +78,9 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
     };
   }, [fetchQuotes]);
 
-  const stats = useMemo((): QuoteStats => {
-    const now = new Date();
-    const weekAgoTS = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-    const thirtyDaysAgoTS = now.getTime() - 30 * 24 * 60 * 60 * 1000;
-    const sixtyDaysAgoTS = now.getTime() - 60 * 24 * 60 * 60 * 1000;
-
-    const accum = {
-      totalQuotes: 0,
-      totalRevenue: 0,
-      totalProfit: 0,
-      fdmCount: 0,
-      resinCount: 0,
-      recentQuotes: 0,
-      totalPrintTime: 0,
-      totalFilamentUsed: 0,
-      totalResinUsed: 0,
-      failedPrintsCount: 0,
-      revenueLast30d: 0,
-      revenuePrev30d: 0,
-      totalLaborCost: 0,
-      totalElectricityCost: 0,
-      totalMaterialCost: 0,
-      totalOverheadCost: 0,
-      statusDistribution: {} as Record<string, number>,
-      customerMap: new Map<string, { id?: string; name: string; count: number; revenue: number }>()
-    };
-
-    const parseVal = (val: string | number | undefined | null) => {
-        if (typeof val === 'number') return val;
-        if (typeof val === 'string') return parseFloat(val) || 0;
-        return 0;
-    };
-
-    quotes.forEach(q => {
-      const qTime = q.createdAt ? new Date(q.createdAt).getTime() : 0;
-      const isCancelled = q.status === 'CANCELLED';
-      
-      accum.totalQuotes++;
-      
-      // Update Status Distribution
-      const status = q.status || 'PENDING';
-      accum.statusDistribution[status] = (accum.statusDistribution[status] || 0) + 1;
-
-      // Only count revenue/costs for non-cancelled quotes
-      if (!isCancelled) {
-        accum.totalRevenue += q.totalPrice || 0;
-        
-        // FINANCIAL CLOSED LOOP: Adjust time-dependent costs based on Actual vs Estimated time
-        const estimatedTime = parseVal(q.parameters?.printTime);
-        const actualTime = q.actualPrintTime;
-        
-        let laborCost = q.laborCost || 0;
-        let electricityCost = q.electricityCost || 0;
-        let machineCost = q.machineTimeCost || 0;
-
-        if (actualTime && estimatedTime > 0) {
-            const ratio = actualTime / estimatedTime;
-            // Only adjust if the difference is significant (>5%) to avoid noise
-            if (Math.abs(ratio - 1) > 0.05) {
-                laborCost *= ratio;
-                electricityCost *= ratio;
-                machineCost *= ratio;
-            }
-        }
-
-        const actualSubtotal = (q.materialCost || 0) + laborCost + electricityCost + machineCost + (q.overheadCost || 0);
-        accum.totalProfit += ((q.totalPrice || 0) - actualSubtotal);
-        accum.totalLaborCost += laborCost;
-        accum.totalElectricityCost += electricityCost;
-        accum.totalMaterialCost += (q.materialCost || 0);
-        accum.totalOverheadCost += (q.overheadCost || 0);
-
-        if (qTime >= thirtyDaysAgoTS) accum.revenueLast30d += (q.totalPrice || 0);
-        else if (qTime >= sixtyDaysAgoTS) accum.revenuePrev30d += (q.totalPrice || 0);
-      }
-
-      if (qTime >= weekAgoTS) accum.recentQuotes++;
-
-      if (q.printType === "FDM") {
-        accum.fdmCount++;
-        const estimatedWeight = parseVal(q.parameters?.filamentWeight);
-        const actualWeight = q.actualMaterialUsed ?? (estimatedWeight * (q.quantity || 1));
-        accum.totalFilamentUsed += (actualWeight / 1000); // Standardize to kg for dashboard
-      } else {
-        accum.resinCount++;
-        const estimatedVolume = parseVal(q.parameters?.resinVolume);
-        const actualVolume = q.actualMaterialUsed ?? (estimatedVolume * (q.quantity || 1));
-        accum.totalResinUsed += (actualVolume / 1000); // Standardize to L for dashboard
-      }
-
-      const printTime = q.actualPrintTime || parseVal(q.parameters?.printTime);
-      accum.totalPrintTime += printTime;
-      accum.failedPrintsCount += (q.failedUnits || 0);
-
-      // Customer Tracking
-      const cKey = q.customerId || q.clientName || 'Guest';
-      const existingC = accum.customerMap.get(cKey) || { id: q.customerId, name: q.clientName || 'Guest', count: 0, revenue: 0 };
-      accum.customerMap.set(cKey, {
-        id: existingC.id,
-        name: existingC.name,
-        count: existingC.count + 1,
-        revenue: existingC.revenue + (q.totalPrice || 0)
-      });
-    });
-
-    // Derived Metrics
-    const customersList = Array.from(accum.customerMap.values());
-    const repeatCustomersCount = customersList.filter(c => c.count > 1).length;
-    
-    const revenueGrowth = accum.revenuePrev30d > 0 
-      ? ((accum.revenueLast30d - accum.revenuePrev30d) / accum.revenuePrev30d) * 100 
-      : (accum.revenueLast30d > 0 ? 100 : 0);
-
-    return {
-      totalQuotes: accum.totalQuotes,
-      totalRevenue: accum.totalRevenue,
-      totalProfit: accum.totalProfit,
-      avgQuoteValue: accum.totalQuotes > 0 ? accum.totalRevenue / accum.totalQuotes : 0,
-      fdmCount: accum.fdmCount,
-      resinCount: accum.resinCount,
-      recentQuotes: accum.recentQuotes,
-      totalPrintTime: accum.totalPrintTime,
-      totalFilamentUsed: accum.totalFilamentUsed / 1000,
-      totalResinUsed: accum.totalResinUsed / 1000,
-      failedPrintsCount: accum.failedPrintsCount,
-      repeatCustomerRate: customersList.length > 0 ? (repeatCustomersCount / customersList.length) * 100 : 0,
-      topCustomers: [...customersList].sort((a, b) => b.revenue - a.revenue).slice(0, 5),
-      revenueGrowth,
-      totalLaborCost: accum.totalLaborCost,
-      totalElectricityCost: accum.totalElectricityCost,
-      totalMaterialCost: accum.totalMaterialCost,
-      totalOverheadCost: accum.totalOverheadCost,
-      avgMargin: accum.totalRevenue > 0 ? (accum.totalProfit / accum.totalRevenue) * 100 : 0,
-      statusDistribution: accum.statusDistribution
-    };
-  }, [quotes]);
+  // The heavy lifting lives in computeQuoteStats so the AI assistant and the
+  // report generator report exactly the same numbers as this dashboard.
+  const stats = useMemo((): QuoteStats => computeQuoteStats(quotes), [quotes]);
 
   const saveQuote = useCallback(async (quote: QuoteData) => {
     try {

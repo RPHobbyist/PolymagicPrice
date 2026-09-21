@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { QuoteData } from "./quote";
+import { QuoteCarbon, QuoteData } from "./quote";
 
 export type JobStatus = 'queued' | 'printing' | 'post_processing' | 'completed';
 export type JobPriority = 'low' | 'normal' | 'high';
@@ -40,6 +40,16 @@ export interface ProductionJob {
     completedAt?: string; // When the job finished
     spoolId?: string; // Tracks the specific inventory spool used
     inventoryDeducted?: number; // Total grams/ml deducted from inventory
+    /**
+     * What this job actually consumed, recorded when it completes.
+     *
+     * Batch children aggregate onto their master quote, and a revert has to recompute that
+     * aggregate from the siblings that are still finished — both need each child's own
+     * contribution, so it is stored here rather than derived twice.
+     */
+    actualMaterialUsed?: number; // grams/ml, including scrap
+    actualPowerCost?: number;    // currency, for the same aggregation
+    actualCarbon?: QuoteCarbon;  // this job's footprint, summed onto a batch master
     // Failure Analysis
     failureReason?: 'SPOOL_EMPTY' | 'MECHANICAL' | 'ADHESION' | 'OTHER' | null;
     totalScrapMaterial?: number; // Extra material lost during failure

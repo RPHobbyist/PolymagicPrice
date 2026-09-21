@@ -97,12 +97,19 @@ export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): Calc
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [fetchData]);
 
-  const getConstantValue = useCallback((name: string): number => {
-    // Search in allConstants to ensure hidden system constants (like Electricity) still work
-    const constant = allConstants.find(c =>
-      c.name.toLowerCase().includes(name.toLowerCase())
-    );
-    return constant?.value || 0;
+  const getConstantValue = useCallback((key: string): number => {
+    // Match on the stable id first ("electricity", "labor"). The old substring-on-name match
+    // let any user-created consumable containing that word (e.g. "Labor Gloves") shadow the
+    // real rate, and it disagreed with the id-based lookup used elsewhere in the app.
+    const lowerKey = key.toLowerCase();
+    const constant =
+      allConstants.find(c => c.id?.toLowerCase() === lowerKey) ??
+      allConstants.find(c => c.name.toLowerCase() === lowerKey) ??
+      // Legacy fallback for constants created before ids were stable.
+      allConstants.find(c => c.name.toLowerCase().includes(lowerKey));
+
+    const value = constant?.value;
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
   }, [allConstants]);
 
   return {

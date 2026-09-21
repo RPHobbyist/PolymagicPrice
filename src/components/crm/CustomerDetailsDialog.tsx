@@ -57,7 +57,7 @@ interface CustomerDetailsDialogProps {
 }
 
 export const CustomerDetailsDialog = ({ customer, open, onOpenChange }: CustomerDetailsDialogProps) => {
-    const { formatPrice } = useCurrency();
+    const { formatPrice, currency, conversionRate } = useCurrency();
     const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
     const [, setRefreshKey] = useState(0);
 
@@ -133,9 +133,17 @@ export const CustomerDetailsDialog = ({ customer, open, onOpenChange }: Customer
                             <Button 
                                 variant="outline" 
                                 size="sm" 
-                                onClick={() => {
-                                    const orders = getQuotes().filter(q => q.customerId === customer.id);
-                                    exportCustomerToExcel(customer, stats, orders);
+                                onClick={async () => {
+                                    try {
+                                        const orders = getQuotes().filter(q => q.customerId === customer.id);
+                                        // Pass the active currency and rate: the export previously
+                                        // hard-coded '₹' and ignored the conversion rate entirely.
+                                        await exportCustomerToExcel(customer, stats, orders, currency.symbol, conversionRate);
+                                        toast.success("Customer report exported");
+                                    } catch (err) {
+                                        console.error("Customer export failed:", err);
+                                        toast.error("Could not export the customer report");
+                                    }
                                 }}
                                 className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 font-semibold h-9 flex items-center gap-2"
                             >

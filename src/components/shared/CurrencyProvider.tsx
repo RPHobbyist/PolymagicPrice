@@ -16,71 +16,102 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useCallback, useMemo } from "react";
 import { Currency, CURRENCIES } from "@/types/currency";
 import { CurrencyContext, CurrencyContextType } from "@/contexts/CurrencyContext";
+import {
+    makeFormatters,
+    resolveLocale,
+    CURRENCY_STORAGE_KEY as STORAGE_KEY,
+    RATE_STORAGE_KEY,
+} from "@/lib/currencyFormat";
 
 interface CurrencyProviderProps {
     children: ReactNode;
 }
 
-const STORAGE_KEY = "preferred-currency";
-const RATE_STORAGE_KEY = "conversion-rate";
-
 export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
     const [currency, setCurrencyState] = useState<Currency>(() => {
         // Load from localStorage on initial render
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                const found = CURRENCIES.find(c => c.code === saved);
-                if (found) return found;
+        try {
+            if (typeof window !== "undefined") {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const found = CURRENCIES.find(c => c.code === saved);
+                    if (found) return found;
+                }
             }
+        } catch (err) {
+            console.warn("[Currency] Could not read the saved currency:", err);
         }
         return CURRENCIES[0]; // Default to INR
     });
 
     const [conversionRate, setRateState] = useState<number>(() => {
-        if (typeof window !== "undefined") {
-            const saved = localStorage.getItem(RATE_STORAGE_KEY);
-            return saved ? parseFloat(saved) : 1.0;
+        try {
+            if (typeof window !== "undefined") {
+                const saved = localStorage.getItem(RATE_STORAGE_KEY);
+                const parsed = saved !== null ? parseFloat(saved) : NaN;
+                // A corrupt value used to yield NaN here, which made EVERY price in the app
+                // render as "--" with no explanation and no way to diagnose it.
+                if (Number.isFinite(parsed) && parsed > 0) return parsed;
+            }
+        } catch (err) {
+            console.warn("[Currency] Could not read the saved conversion rate:", err);
         }
         return 1.0;
     });
 
     const setCurrency = (newCurrency: Currency) => {
         setCurrencyState(newCurrency);
-        localStorage.setItem(STORAGE_KEY, newCurrency.code);
+        try {
+            localStorage.setItem(STORAGE_KEY, newCurrency.code);
+        } catch (err) {
+            // Storage can be full or blocked (private windows); keep the in-memory choice.
+            console.warn("[Currency] Could not persist the selected currency:", err);
+        }
     };
 
     const setConversionRate = (rate: number) => {
-        setRateState(rate);
-        localStorage.setItem(RATE_STORAGE_KEY, rate.toString());
-    };
-
-    const formatPrice = (amount: number): string => {
-        // Final Precautionary Layer for numerical edge-cases
-        if (amount === undefined || amount === null || isNaN(amount) || !isFinite(amount)) {
-            return `${currency.symbol} --`;
+        // Reject zero/negative/non-finite rates: they silently zero out or break every price.
+        const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
+        setRateState(safeRate);
+        try {
+            localStorage.setItem(RATE_STORAGE_KEY, safeRate.toString());
+        } catch (err) {
+            console.warn("[Currency] Could not persist the conversion rate:", err);
         }
-        
-        const converted = amount * conversionRate;
-        
-        // Final sanity check for converted result
-        if (isNaN(converted) || !isFinite(converted)) return `${currency.symbol} --`;
-
-        return `${currency.symbol}${converted.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })}`;
     };
+
+    const getLocale = useCallback((): string => {
+        return resolveLocale(currency.locale);
+    }, [currency.locale]);
+
+    // Shared with non-React callers (AI context, reports) so every surface of the
+    // app formats and converts money identically.
+    const formatters = useMemo(
+        () => makeFormatters(currency, conversionRate),
+        [currency, conversionRate]
+    );
+
+    const formatPrice = useCallback(
+        (amount: number): string => formatters.money(amount),
+        [formatters]
+    );
+
+    const formatNumber = useCallback(
+        (value: number, decimals: number = 2): string => formatters.number(value, decimals),
+        [formatters]
+    );
 
     const contextValue: CurrencyContextType = {
         currency,
         setCurrency,
         conversionRate,
         setConversionRate,
-        formatPrice
+        formatPrice,
+        formatNumber,
+        getLocale
     };
 
     return (
@@ -89,3 +120,4 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         </CurrencyContext.Provider>
     );
 };
+
