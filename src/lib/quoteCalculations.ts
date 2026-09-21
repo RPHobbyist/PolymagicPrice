@@ -19,6 +19,7 @@
 import { QuoteData, Material, Machine, FDMFormData, ResinFormData, CostConstant, MaterialSpool, QuoteCarbon, CarbonGrade } from "@/types/quote";
 import { parseTimeToHours } from "@/lib/utils/time";
 import { calculateJobCarbon, CarbonInput, toStoredCarbon } from "@/lib/carbon/carbonCalculator";
+import { matchMaterialPreset, resolveDensity } from "@/lib/carbon/carbonFactors";
 
 interface CalculationParams {
   material: Material;
@@ -68,6 +69,78 @@ const toNum = (value: string | number | undefined | null, fallback = 0): number 
 const toInt = (value: string | number | undefined | null, fallback = 0): number => {
   const parsed = toNum(value, fallback);
   return Math.trunc(parsed);
+};
+
+/**
+ * The material's price expressed in the unit this engine prices in: per kilogram for FDM, which
+ * measures a job in grams, and per litre for resin, which measures it in millilitres.
+ *
+ * The materials form lets a shop choose kg, liter, g or ml, and the calculator prints that choice
+ * back as though it counted ("$0.03/g"). It did not: both engines simply divided by 1000 and
+ * assumed per-kg and per-litre. A shop pricing PLA at 0.025 per GRAM was charging 0.00055 for a
+ * 22 g part instead of 0.55 — a thousandfold under-charge that no validation could catch, because
+ * every number involved was perfectly valid.
+ *
+ * Crossing between mass and volume (resin sold by the kilogram, filament priced by the litre)
+ * needs a density. The material's own figure wins; otherwise the carbon factor library supplies
+ * one for its class, which is the same density the footprint already uses for that material.
+ *
+ * Materials stored as kg (FDM) or liter (Resin) — every seeded default and the form's own default
+ * — convert to themselves, so no existing shop sees a price move.
+ */
+export const costPerBaseUnit = (
+  material: Pick<Material, "cost_per_unit" | "unit" | "name"> | undefined,
+  printType: "FDM" | "Resin"
+): number => {
+  const cost = toNum(material?.cost_per_unit);
+  if (cost === 0) return 0;
+
+  const unit = String(material?.unit ?? "").trim().toLowerCase();
+
+  // g/cm³ is numerically identical to kg/L, which is the ratio both conversions need.
+  const density = resolveDensity(
+    material as Material | undefined,
+    matchMaterialPreset(material?.name, printType)
+  );
+  const usableDensity = Number.isFinite(density) && density > 0 ? density : 0;
+
+  if (printType === "FDM") {
+    switch (unit) {
+      case "g":
+      case "gram":
+      case "grams":
+        return cost * 1000;
+      case "ml":
+      case "milliliter":
+      case "millilitre":
+        return usableDensity ? (cost * 1000) / usableDensity : cost * 1000;
+      case "l":
+      case "liter":
+      case "litre":
+        return usableDensity ? cost / usableDensity : cost;
+      default:
+        // kg, and anything unrecognised, is what the engine already assumed.
+        return cost;
+    }
+  }
+
+  switch (unit) {
+    case "ml":
+    case "milliliter":
+    case "millilitre":
+      return cost * 1000;
+    case "g":
+    case "gram":
+    case "grams":
+      return usableDensity ? cost * 1000 * usableDensity : cost * 1000;
+    case "kg":
+    case "kilogram":
+    case "kilograms":
+      return usableDensity ? cost * usableDensity : cost;
+    default:
+      // liter, and anything unrecognised, is what the engine already assumed.
+      return cost;
+  }
 };
 
 interface ConsumableInfo {
@@ -122,7 +195,8 @@ export const calculateFDMQuote = ({
   const markupPercentage = toNum(formData.markupPercentage);
   const quantity = Math.max(1, toInt(formData.quantity, 1));
 
-  const materialCost = filamentWeightKg * toNum(material.cost_per_unit);
+  // Priced per kilogram whatever unit the shop buys in — see costPerBaseUnit.
+  const materialCost = filamentWeightKg * costPerBaseUnit(material, "FDM");
   const machineTimeCost = printTimeHours * toNum(machine.hourly_cost);
   const powerConsumptionKw = toNum(machine.power_consumption_watts) / 1000;
   const electricityCost = printTimeHours * powerConsumptionKw * toNum(electricityRate);
@@ -267,7 +341,8 @@ export const calculateResinQuote = ({
   const markupPercentage = toNum(formData.markupPercentage);
   const quantity = Math.max(1, toInt(formData.quantity, 1));
 
-  const materialCost = resinVolumeLiters * toNum(material.cost_per_unit) + isopropylCost;
+  // Priced per litre whatever unit the shop buys in — see costPerBaseUnit.
+  const materialCost = resinVolumeLiters * costPerBaseUnit(material, "Resin") + isopropylCost;
   const totalProcessTime = printTimeHours + washingTimeHours + curingTimeHours;
   const machineTimeCost = totalProcessTime * toNum(machine.hourly_cost);
   const powerConsumptionKw = toNum(machine.power_consumption_watts) / 1000;
@@ -410,8 +485,10 @@ export const validateFDMForm = (formData: FDMFormData): string | null => {
   if (!formData.materialId) return "Please select a material";
   if (!formData.machineId) return "Please select a machine";
 
-  const printTime = parseFloat(formData.printTime);
-  if (isNaN(printTime) || printTime <= 0) return "Print time must be greater than 0";
+  // Read the field the way the calculation reads it. parseFloat sees "0:45" as 0 and rejects a
+  // valid 45-minute job, and sees "1:30" as 1 while the price is built from 1.5 h.
+  const printTime = parseTimeToHours(formData.printTime);
+  if (printTime <= 0) return "Print time must be greater than 0";
   if (printTime > 10000) return "Print time exceeds maximum (10000h)";
 
   const weight = parseFloat(formData.filamentWeight);
@@ -452,8 +529,9 @@ export const validateResinForm = (formData: ResinFormData): string | null => {
   if (!formData.materialId) return "Please select a material";
   if (!formData.machineId) return "Please select a machine";
 
-  const printTime = parseFloat(formData.printTime);
-  if (isNaN(printTime) || printTime <= 0) return "Print time must be greater than 0";
+  // See validateFDMForm: the validator must read the time field exactly as the price does.
+  const printTime = parseTimeToHours(formData.printTime);
+  if (printTime <= 0) return "Print time must be greater than 0";
   if (printTime > 10000) return "Print time exceeds maximum (10000h)";
 
   const volume = parseFloat(formData.resinVolume);
@@ -538,16 +616,21 @@ export const summariseQuote = (quote: QuoteData): QuoteSummaryTotals => {
 
   const carbonKg = quote.carbon?.kg;
 
+  // Round on the way out, exactly as the calculators round on the way in. Summing seven
+  // two-decimal figures in binary floating point produces debris (1.1 + 14 + 0.13 + 1 + 18 +
+  // 3.42 is 37.650000000000006), which made the summary's subtotal differ from the quote's own
+  // stored subtotal and put the invoice a hair away from the saved-quotes row.
+  // Carbon is left untouched: kilograms are not money and small footprints need the precision.
   return {
     quantity,
-    consumablesTotal,
-    manufacturing,
-    labour,
-    painting,
-    overhead,
-    subtotal,
-    markup,
-    total: subtotal + markup,
+    consumablesTotal: round(consumablesTotal),
+    manufacturing: round(manufacturing),
+    labour: round(labour),
+    painting: round(painting),
+    overhead: round(overhead),
+    subtotal: round(subtotal),
+    markup: round(markup),
+    total: round(subtotal + markup),
     carbonKg,
     carbonPerPart: carbonKg !== undefined && !quote.isBatch ? carbonKg / quantity : undefined,
     carbonGrade: quote.carbon?.grade,

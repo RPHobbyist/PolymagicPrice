@@ -578,6 +578,7 @@ const KNOWN_ROUTES = new Set([
   '/cost-calculator',
   '/settings',
   '/billing-analysis',
+  '/carbon-footprint',
   '/order-manager',
   '/print-manager',
   '/capacity-planner',

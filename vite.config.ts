@@ -29,6 +29,16 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
   },
   plugins: [react()],
+  // Strip console and debugger from production builds.
+  //
+  // This used to sit under `build.esbuildOptions`, which is not a Vite option — it was accepted
+  // silently and did nothing, so every one of the 96 `console.*` calls in the source shipped. The
+  // built bundle carried 46 of them in the main chunk alone, including `[Storage]`, `[ClosedLoop]`
+  // and `[Financial ClosedLoop]` lines that printed a shop's cost figures into the browser console.
+  // `esbuild` at the top level is the key Vite actually reads.
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -52,10 +62,6 @@ export default defineConfig(({ mode }) => ({
     cssCodeSplit: true,
     // Use esbuild for minification (built-in, faster than terser)
     minify: 'esbuild',
-    // Drop console in production
-    esbuildOptions: {
-      drop: mode === 'production' ? ['console', 'debugger'] : [],
-    },
     // No production source maps. Previously `true`, which shipped `//# sourceMappingURL`
     // comments and multi-MB `.map` files; Search Console was picking those up and listing
     // `assets/index-*.js` URLs as indexed "pages". Disabling also shrinks the deploy.

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { memo, useState, useCallback, useEffect } from "react";
+import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuoteData, QuoteStatus } from "@/types/quote";
@@ -83,6 +83,17 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
             });
         }
     }, [quote, open]);
+
+    /**
+     * What the edits currently on screen add up to, through the same helper `handleSave` commits
+     * with. The two totals below used to be summed inline, adding the PER-UNIT consumables figure
+     * to quantity-inclusive costs — so the preview a shop was reading while deciding what to change
+     * was short by consumablesTotal * (quantity - 1) against the total that saving then wrote.
+     */
+    const previewTotals = useMemo(
+        () => (quote ? summariseQuote({ ...quote, ...editData } as QuoteData) : null),
+        [quote, editData]
+    );
 
     const handleSave = useCallback(() => {
         if (!quote?.id || !onUpdateQuote) return;
@@ -468,7 +479,7 @@ Status: ${quote.status}
 
                                 <div className="my-4 h-px bg-border/50" />
 
-                                <CostDetailRow label="Subtotal" value={isEditMode ? ((editData.materialCost || 0) + (editData.machineTimeCost || 0) + (editData.electricityCost || 0) + (editData.laborCost || 0) + (editData.overheadCost || 0) + (editData.paintingCost || 0) + (quote.parameters?.consumablesTotal || 0)) : quote.subtotal} highlight formatPrice={formatPrice} />
+                                <CostDetailRow label="Subtotal" value={isEditMode ? (previewTotals?.subtotal ?? quote.subtotal) : quote.subtotal} highlight formatPrice={formatPrice} />
                                 
                                 <EditableCostRow
                                     label="Profit Markup"
@@ -503,7 +514,7 @@ Status: ${quote.status}
                                         <span className="text-slate-500 font-black text-[10px] uppercase tracking-widest block pl-0.5">Grand Total</span>
                                         <div className="flex items-baseline gap-1">
                                             <span className="text-3xl font-black text-white tabular-nums tracking-tight">
-                                                {formatPrice(isEditMode ? ((editData.materialCost || 0) + (editData.machineTimeCost || 0) + (editData.electricityCost || 0) + (editData.laborCost || 0) + (editData.overheadCost || 0) + (editData.paintingCost || 0) + (quote.parameters?.consumablesTotal || 0) + (editData.markup || 0)) : quote.totalPrice)}
+                                                {formatPrice(isEditMode ? (previewTotals?.total ?? quote.totalPrice) : quote.totalPrice)}
                                             </span>
                                         </div>
                                     </div>
