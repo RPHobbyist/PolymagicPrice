@@ -34,6 +34,7 @@ interface CalculatorData {
   error: string | null;
   refetch: () => Promise<void>;
   getConstantValue: (_name: string) => number;
+  findConstantValue: (_name: string) => number | undefined;
 }
 
 export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): CalculatorData => {
@@ -97,10 +98,14 @@ export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): Calc
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [fetchData]);
 
-  const getConstantValue = useCallback((key: string): number => {
-    // Match on the stable id first ("electricity", "labor"). The old substring-on-name match
-    // let any user-created consumable containing that word (e.g. "Labor Gloves") shadow the
-    // real rate, and it disagreed with the id-based lookup used elsewhere in the app.
+  /**
+   * The stored value of a constant, or undefined when the shop has no such constant.
+   *
+   * Match on the stable id first ("electricity", "labor"). The old substring-on-name match let any
+   * user-created consumable containing that word (e.g. "Labor Gloves") shadow the real rate, and it
+   * disagreed with the id-based lookup used elsewhere in the app.
+   */
+  const findConstantValue = useCallback((key: string): number | undefined => {
     const lowerKey = key.toLowerCase();
     const constant =
       allConstants.find(c => c.id?.toLowerCase() === lowerKey) ??
@@ -109,8 +114,22 @@ export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): Calc
       allConstants.find(c => c.name.toLowerCase().includes(lowerKey));
 
     const value = constant?.value;
-    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
   }, [allConstants]);
+
+  /**
+   * The same lookup for callers that want a number to multiply by, where a missing rate is
+   * indistinguishable from a rate of zero (electricity, labour: both are validated separately
+   * before a quote is calculated).
+   *
+   * Anything with a meaningful default of its own — the grid emission factor falls back to the
+   * world average — must use `findConstantValue` instead, because a 0 returned from here reads as
+   * a deliberate figure and suppresses that fallback. That is how a shop with no grid constant
+   * ended up with zero-carbon jobs.
+   */
+  const getConstantValue = useCallback((key: string): number => {
+    return findConstantValue(key) ?? 0;
+  }, [findConstantValue]);
 
   return {
     materials,
@@ -120,5 +139,6 @@ export const useCalculatorData = ({ printType }: UseCalculatorDataOptions): Calc
     error,
     refetch: fetchData,
     getConstantValue,
+    findConstantValue,
   };
 };

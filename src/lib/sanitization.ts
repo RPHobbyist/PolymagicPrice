@@ -50,12 +50,35 @@ export const SECURITY_THRESHOLDS = {
  */
 
 /**
- * Generic string sanitizer
+ * Generic string sanitizer.
+ *
+ * Strips the whole HTML metacharacter set, so it is destructive by design. Use it for structural
+ * values — units, ip addresses, ids, build volumes — never for text a person wrote: see
+ * `sanitizeText` below.
  */
 export function sanitize(text: string): string {
     if (text === null || text === undefined) return '';
     const cleanText = String(text);
     return cleanText.replace(/[<>&"'`]/g, '').trim();
+}
+
+/**
+ * Sanitizer for text a person wrote: names, companies, addresses, project names, notes.
+ *
+ * `sanitize` REMOVES `& " ' \`` rather than escaping them, and it runs on the way *into* storage,
+ * so "Tom's Prints & Co." was saved — and invoiced — as "Toms Prints  Co.", with no way back.
+ * Stripping those characters buys nothing here: every output path already escapes. React escapes
+ * text nodes, the PDF interpolates through `escapeHTML`, Excel writes cell values rather than
+ * markup, and the app's only HTML sink runs DOMPurify. So this keeps the characters that belong in
+ * a name and removes only what never does: angle brackets and control characters.
+ */
+export function sanitizeText(text: string): string {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/[<>]/g, '')
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
+        .trim();
 }
 
 /**

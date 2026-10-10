@@ -123,7 +123,7 @@ export const MATERIAL_PRESETS: MaterialPreset[] = [
     { id: "tpu", label: "TPU", kgPerKg: 5.50, carbonFraction: 0.64, densityGCm3: 1.21, materialClass: "tpu", thermal: "standard", source: "Polyurethane range 4.5-6.5, midpoint", year: 2024 },
     { id: "nylon", label: "Nylon / PA12", kgPerKg: 8.00, carbonFraction: 0.73, densityGCm3: 1.01, materialClass: "nylon", thermal: "engineering", source: "Polyamide eco-profiles 7-9, midpoint", year: 2024 },
     { id: "pc", label: "Polycarbonate", kgPerKg: 6.50, carbonFraction: 0.756, densityGCm3: 1.20, materialClass: "pc", thermal: "engineering", source: "Plastics Europe range 5.5-7.6, midpoint", year: 2024 },
-    { id: "resin", label: "Photopolymer resin", kgPerKg: 5.00, carbonFraction: 0.65, densityGCm3: 1.10, materialClass: "resin", thermal: "resin", source: "Proxy from epoxy/acrylate thermosets — no public SLA figure exists; ask your supplier for an EPD", year: 2024 },
+    { id: "resin", label: "Photopolymer resin", kgPerKg: 5.00, carbonFraction: 0.65, densityGCm3: 1.10, materialClass: "resin", thermal: "resin", source: "Proxy from epoxy/acrylate thermosets: no public SLA figure exists, so ask your supplier for an EPD", year: 2024 },
 ];
 
 const MATERIAL_NAME_PATTERNS: { pattern: RegExp; presetId: string }[] = [

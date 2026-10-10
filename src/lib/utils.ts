@@ -18,6 +18,7 @@
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { totalPrintHours } from "@/lib/utils/time";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -105,47 +106,26 @@ export function addVisibilityTag(description: string, isVisible: boolean): strin
 }
 
 /**
- * Calculates total print time from a string format (e.g., "1h 30m") and quantity.
+ * Formats the total print time for a whole job, e.g. "3h 45m".
+ *
+ * This used to carry its own parser, which read "1:30" as parseFloat does — 1 — so the production
+ * board displayed "1h" for a job the pricing engine had costed at 1.5 h. Everything now goes
+ * through `totalPrintHours`/`parseTimeToHours`, the single parser documented in lib/utils/time.ts,
+ * so one stored value can no longer be read two ways.
  */
 export function calculateTotalTime(timeStr: string | undefined, quantity: number): string {
   if (!timeStr) return '0h';
-  if (quantity <= 1) return timeStr;
 
-  // Parse time string
-  let totalMinutes = 0;
+  const hours = totalPrintHours(timeStr, quantity);
 
-  // Handle "1h 30m" format
-  if (timeStr.includes('h') && timeStr.includes('m')) {
-    const hMatch = timeStr.match(/(\d+(\.\d+)?)h/);
-    const mMatch = timeStr.match(/(\d+(\.\d+)?)m/);
-    if (hMatch) totalMinutes += parseFloat(hMatch[1]) * 60;
-    if (mMatch) totalMinutes += parseFloat(mMatch[1]);
-  }
-  // Handle "1.5h" or "45m" formats
-  else if (timeStr.includes('h')) {
-    const h = parseFloat(timeStr.replace('h', ''));
-    if (!isNaN(h)) totalMinutes = h * 60;
-  } else if (timeStr.includes('m')) {
-    const m = parseFloat(timeStr.replace('m', ''));
-    if (!isNaN(m)) totalMinutes = m;
-  } else {
-    // Fallback if just a number (assume hours?) or unknown
-    const val = parseFloat(timeStr);
-    if (!isNaN(val)) totalMinutes = val * 60;
-  }
+  // Ten-year cap (5,256,000 minutes) so a nonsense entry cannot break the layout with Infinity.
+  const totalMinutes = Math.min(5256000, Math.round(hours * 60));
 
-  // Multiply by quantity
-  totalMinutes *= quantity;
-  
-  // Enforce a ten-year cap (5,256,000 minutes) to prevent numerical UI breaking or Infinity
-  totalMinutes = Math.min(5256000, totalMinutes);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
 
-  // Format back to string
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = Math.round(totalMinutes % 60);
-
-  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-  if (hours > 0) return `${hours}h`;
+  if (wholeHours > 0 && mins > 0) return `${wholeHours}h ${mins}m`;
+  if (wholeHours > 0) return `${wholeHours}h`;
   return `${mins}m`;
 }
 

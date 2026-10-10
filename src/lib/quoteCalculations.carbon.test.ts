@@ -93,4 +93,33 @@ describe("carbon on a calculated quote", () => {
         });
         expect(quote.carbon?.gridGPerKWh).toBe(473);
     });
+
+    /*
+     * The distinction the calculators now respect. A shop with no grid constant must get the
+     * default above, while a shop that deliberately enters 0 — fully renewable supply — keeps its
+     * zero. Both used to arrive here as 0, because the hook's getConstantValue returned 0 for a
+     * missing constant, so the fallback never ran and every job reported energy carbon of zero
+     * with no sign that anything was missing.
+     */
+    it("honours an explicit zero grid factor instead of substituting the default", () => {
+        const quote = calculateFDMQuote({
+            formData: form(), material, machine, electricityRate: 0.12, laborRate: 15, gridGPerKWh: 0,
+        });
+
+        expect(quote.carbon?.gridGPerKWh).toBe(0);
+        expect(quote.carbon?.energyKg).toBe(0);
+        // Material still carries a footprint, so the quote is not carbon-free overall.
+        expect(quote.carbon?.kg).toBeGreaterThan(0);
+    });
+
+    it("still counts energy when a grid factor is present", () => {
+        const withGrid = calculateFDMQuote({
+            formData: form(), material, machine, electricityRate: 0.12, laborRate: 15, gridGPerKWh: 473,
+        });
+        const withoutGrid = calculateFDMQuote({
+            formData: form(), material, machine, electricityRate: 0.12, laborRate: 15, gridGPerKWh: 0,
+        });
+
+        expect(withGrid.carbon!.kg).toBeGreaterThan(withoutGrid.carbon!.kg);
+    });
 });

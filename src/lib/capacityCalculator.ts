@@ -32,17 +32,28 @@ function addDays(date: Date, days: number, includeWeekends: boolean = true): Dat
     // Limit extreme values to prevent hanging (e.g., 10 years max)
     const safeDays = Math.min(days, 3650);
 
+    /*
+     * Round up, in both branches.
+     *
+     * `estimatedDays` is almost always fractional — 10 units of 3.5 h on an 8 h day is 4.375 — and
+     * `setDate` truncates, so the weekends-on branch used to promise day 4 for work that needs part
+     * of day 5, while the weekends-off branch below already used Math.ceil. The same job therefore
+     * moved a day earlier merely because "Weekend Ops" was switched on, and a job under one day
+     * long reported the start date itself as its completion date.
+     */
+    const wholeDays = Math.ceil(safeDays);
+
     if (includeWeekends) {
-        result.setDate(result.getDate() + safeDays);
+        result.setDate(result.getDate() + wholeDays);
         return result;
     }
 
     let added = 0;
     // Hard limit on iterations to prevent infinite loops in any edge case
     let iterations = 0;
-    const maxIterations = safeDays * 5; 
+    const maxIterations = wholeDays * 5;
 
-    while (added < Math.ceil(safeDays) && iterations < maxIterations) {
+    while (added < wholeDays && iterations < maxIterations) {
         iterations++;
         result.setDate(result.getDate() + 1);
         const day = result.getDay();

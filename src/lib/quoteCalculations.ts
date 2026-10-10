@@ -53,6 +53,19 @@ const round = (val: number) => {
   return Math.round((val + Number.EPSILON) * 100) / 100;
 };
 
+/*
+ * On `unitPrice` and `totalPrice` being rounded independently, which looks like a defect and was
+ * examined as one:
+ *
+ * With two-decimal money, no scheme satisfies both "the line items sum to the total" and "unit
+ * price x quantity equals the total" — 52.708 over two units is 26.354 each, and neither 26.35
+ * nor 26.36 doubles to 52.71. Rounding each figure once, from the same unrounded arithmetic,
+ * keeps every stored line as close to true as two decimals allow and keeps the sum of the lines
+ * equal to the total, which is what the invoice prints and what `summariseQuote` re-derives.
+ * Deriving the unit price from the rounded total instead would move it further from the real
+ * figure, so it is deliberately left alone. The residue is at most half a paisa per unit.
+ */
+
 /**
  * Parses a form value into a usable number.
  *
@@ -63,6 +76,50 @@ const toNum = (value: string | number | undefined | null, fallback = 0): number 
   if (value === undefined || value === null || value === "") return fallback;
   const parsed = typeof value === "number" ? value : parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+/** The default ml of paint laid down per cm² per coat, when a paint's description omits its rate. */
+export const DEFAULT_PAINT_USAGE_RATE = 0.02;
+
+/**
+ * Reads "Usage Rate: 0.02ml/cm2" out of a paint consumable's description.
+ *
+ * The shop types this into the description because a consumable has nowhere else to put it. Four
+ * copies of this regex lived in the pricing engine and two more in each calculator table.
+ */
+export const parsePaintUsageRate = (description?: string | null): number => {
+  const match = description?.match(/Usage Rate:\s*([\d.]+)/i);
+  return match ? toNum(match[1], DEFAULT_PAINT_USAGE_RATE) : DEFAULT_PAINT_USAGE_RATE;
+};
+
+/**
+ * What one paint contributes to a quote, for both pricing modes.
+ *
+ * A paint priced per millilitre is charged over the painted area and the number of coats; anything
+ * else is a flat charge per job.
+ *
+ * This was four near-identical inline blocks — one per paint slot per print type — and they had
+ * already drifted: the resin primary slot read `paintConsumable.value` raw where the other three
+ * used `toNum`. A paint whose stored value was not a number therefore produced NaN, which spread
+ * through the subtotal, the markup and the total, and `round()` turned each of those into 0. The
+ * shop got a quote priced at zero with its material and labour lines still looking normal.
+ *
+ * The old `Math.max(1, layers)` is gone as well: validation accepts 0 coats, so a deliberate zero
+ * should cost nothing instead of being billed as one coat.
+ */
+export const computePaintCost = (
+  paint: CostConstant | undefined,
+  surfaceAreaCm2: number,
+  layers: number
+): number => {
+  if (!paint) return 0;
+
+  if (paint.unit?.includes('/ml')) {
+    const coats = Math.max(0, layers);
+    return toNum(paint.value) * Math.max(0, surfaceAreaCm2) * coats * parsePaintUsageRate(paint.description);
+  }
+
+  return toNum(paint.value);
 };
 
 /** Integer variant of `toNum`, used for counts (quantity, layers, failed units). */
@@ -212,39 +269,9 @@ export const calculateFDMQuote = ({
 
   const paintingLaborCost = paintingTime * toNum(laborRate);
 
-  // Revised formula: Supports both flat rate AND calculated ($/ml) paints
-  let paintingMaterialCost = 0;
-
-  if (paintConsumable) {
-    // Check if it's a calculated paint (/ml)
-    if (paintConsumable.unit.includes('/ml')) {
-      // Extract usage rate from description (e.g. "Usage Rate: 0.02ml/cm2")
-      // matches "Usage Rate: 0.02" with optional unit suffix
-      const usageRateMatch = paintConsumable.description?.match(/Usage Rate:\s*([\d.]+)/i);
-      const usageRate = usageRateMatch ? toNum(usageRateMatch[1], 0.02) : 0.02; // Default to 0.02 if not found
-
-      paintingMaterialCost = toNum(paintConsumable.value) * surfaceAreaCm2 * Math.max(1, paintingLayers) * usageRate;
-    } else {
-      // Flat rate
-      paintingMaterialCost = toNum(paintConsumable.value);
-    }
-  }
-
-  // Second Painting Calculation (Primary Paint)
-  // Re-use logic for second paint if present
-  let paintingMaterialCost2 = 0;
   const paintingLayers2 = toInt(formData.paintingLayers2);
-
-  if (paintConsumable2) {
-    if (paintConsumable2.unit.includes('/ml')) {
-      const usageRateMatch = paintConsumable2.description?.match(/Usage Rate:\s*([\d.]+)/i);
-      const usageRate = usageRateMatch ? toNum(usageRateMatch[1], 0.02) : 0.02;
-
-      paintingMaterialCost2 = toNum(paintConsumable2.value) * surfaceAreaCm2 * Math.max(1, paintingLayers2) * usageRate;
-    } else {
-      paintingMaterialCost2 = toNum(paintConsumable2.value);
-    }
-  }
+  const paintingMaterialCost = computePaintCost(paintConsumable, surfaceAreaCm2, paintingLayers);
+  const paintingMaterialCost2 = computePaintCost(paintConsumable2, surfaceAreaCm2, paintingLayers2);
 
   const paintingCost = paintingLaborCost + paintingMaterialCost + paintingMaterialCost2;
 
@@ -358,32 +385,9 @@ export const calculateResinQuote = ({
 
   const paintingLaborCost = paintingTime * toNum(laborRate);
 
-  // Primary Paint
-  let paintingMaterialCost = 0;
-
-  if (paintConsumable) {
-    if (paintConsumable.unit.includes('/ml')) {
-      const usageRateMatch = paintConsumable.description?.match(/Usage Rate:\s*([\d.]+)/i);
-      const usageRate = usageRateMatch ? toNum(usageRateMatch[1], 0.02) : 0.02;
-      paintingMaterialCost = paintConsumable.value * surfaceAreaCm2 * Math.max(1, paintingLayers) * usageRate;
-    } else {
-      paintingMaterialCost = toNum(paintConsumable.value);
-    }
-  }
-
-  // Secondary Paint
-  let paintingMaterialCost2 = 0;
   const paintingLayers2 = toInt(formData.paintingLayers2);
-
-  if (paintConsumable2) {
-    if (paintConsumable2.unit.includes('/ml')) {
-      const usageRateMatch = paintConsumable2.description?.match(/Usage Rate:\s*([\d.]+)/i);
-      const usageRate = usageRateMatch ? toNum(usageRateMatch[1], 0.02) : 0.02;
-      paintingMaterialCost2 = toNum(paintConsumable2.value) * surfaceAreaCm2 * Math.max(1, paintingLayers2) * usageRate;
-    } else {
-      paintingMaterialCost2 = toNum(paintConsumable2.value);
-    }
-  }
+  const paintingMaterialCost = computePaintCost(paintConsumable, surfaceAreaCm2, paintingLayers);
+  const paintingMaterialCost2 = computePaintCost(paintConsumable2, surfaceAreaCm2, paintingLayers2);
 
   const paintingCost = paintingLaborCost + paintingMaterialCost + paintingMaterialCost2;
 

@@ -22,7 +22,7 @@ import {
     getMaterials,
     getCompanySettings,
     getLowStockMaterials,
-    getMaterialStock,
+    getStockByMaterial,
     getProductionSettings,
     isMachineMaintenanceDue,
     getConstants,
@@ -35,7 +35,7 @@ import { DEFAULT_GRID_G_PER_KWH, GRID_CONSTANT_ID, GRID_PRESETS, resolveMaterial
 import { getFormatters, ContextFormatters } from "@/lib/currencyFormat";
 import { formatHours } from "@/lib/capacityCalculator";
 import { escapeHTML } from "@/lib/sanitization";
-import { QuoteData } from "@/types/quote";
+import { QuoteData, Material } from "@/types/quote";
 
 export type ShopReportType = "FINANCIAL" | "MATERIAL" | "USAGE" | "CARBON";
 
@@ -159,14 +159,26 @@ function buildMaterialReport(fmt: ContextFormatters): ReportModel {
         consumption.set(name, (consumption.get(name) || 0) + used);
     });
 
+    /*
+     * Stock and consumption are both held in the base unit the shop works in — grams for
+     * filament, millilitres for resin — while `m.unit` is the unit it BUYS in, typically kg or
+     * litre. Printing the one with the other's label reported 10 kg of PLA as "10000kg", which is
+     * the sort of figure an accountant reads straight into a purchase order.
+     */
+    const baseUnit = (m: Material) => (m.print_type === "Resin" ? "ml" : "g");
+
+    // One pass over the spool store for the whole report, rather than one per material row.
+    const stockByMaterialId = getStockByMaterial();
+
     const rows = materials.map(m => {
-        const stock = getMaterialStock(m.id);
+        const stock = stockByMaterialId.get(m.id) ?? 0;
+        const unit = baseUnit(m);
         return [
             m.name,
             m.print_type,
-            `${fmt.number(stock, 0)}${m.unit}`,
-            `${fmt.number(consumption.get(m.name) || 0, 0)}${m.unit}`,
-            fmt.money(m.cost_per_unit),
+            `${fmt.number(stock, 0)} ${unit}`,
+            `${fmt.number(consumption.get(m.name) || 0, 0)} ${unit}`,
+            `${fmt.money(m.cost_per_unit)} / ${m.unit}`,
             lowStockIds.has(m.id) ? "LOW STOCK" : "OK",
         ];
     });

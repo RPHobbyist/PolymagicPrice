@@ -19,11 +19,35 @@
 // G-code and 3MF parser utility to extract print time and filament usage
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
+import {
+    DEFAULT_FILAMENT_DIAMETER_MM,
+    DEFAULT_FILAMENT_DENSITY_G_CM3,
+    filamentWeightFromLength,
+    plausible,
+} from './filamentGeometry';
+
+// Re-exported so the parser stays the obvious place to look for them; the implementations live in
+// a dependency-free module so a caller that needs only the arithmetic does not pull in JSZip.
+export {
+    DEFAULT_FILAMENT_DIAMETER_MM,
+    DEFAULT_FILAMENT_DENSITY_G_CM3,
+    filamentWeightFromLength,
+} from './filamentGeometry';
 
 export interface GcodeData {
   printTimeHours: number;
   filamentWeightGrams: number;
   filamentLengthMm?: number;
+  /**
+   * True when the slicer stated no weight and the figure above was derived from filament length.
+   * Such a weight depends on the filament's diameter and density, so the calculator refines it
+   * once a material is chosen and the UI labels it as an estimate.
+   */
+  weightFromLength?: boolean;
+  /** Filament diameter in mm, when the slicer wrote one (PrusaSlicer, OrcaSlicer, Bambu Studio). */
+  filamentDiameterMm?: number;
+  /** Filament density in g/cm³, when the slicer wrote one. */
+  filamentDensityGCm3?: number;
   printerModel?: string;
   filamentColour?: string;
   filamentSettingsId?: string;
@@ -94,6 +118,7 @@ export function parseGcode(content: string): GcodeData {
   let filamentWeight = 0;
   let timeHours = 0;
   let filamentLengthMm = 0;
+  let weightFromLength = false;
   let printerModel = '';
   let filamentColour = '';
   let filamentSettingsId = '';
@@ -196,10 +221,34 @@ export function parseGcode(content: string): GcodeData {
     }
   }
 
-  // If we have length but no weight, estimate weight
-  // Assuming PLA: 1.24 g/cm³, 1.75mm filament diameter
+  // --- Filament diameter and density, when the slicer states them ---
+  // PrusaSlicer, OrcaSlicer and Bambu Studio all write these in their config block; a
+  // multi-material file lists one value per extruder, and the first is the one in use here.
+  const diameterMatch = content.match(/;\s*filament[_ ]diameter\s*=\s*([\d.]+)/i);
+  const densityMatch = content.match(/;\s*filament[_ ]density\s*=\s*([\d.]+)/i);
+
+  const statedDiameterMm = plausible(diameterMatch && parseFloat(diameterMatch[1]), 1, 4);
+  const statedDensityGCm3 = plausible(densityMatch && parseFloat(densityMatch[1]), 0.5, 3);
+
+  /*
+   * A weight the slicer did not state has to be derived from length, and that derivation depends
+   * on the filament, not on a constant.
+   *
+   * This was `filamentLengthMm * 0.00298`, which is exactly 1.75 mm PLA and nothing else. Cura
+   * writes only metres — no gram figure at all — so every Cura file took this branch: 2.85 mm
+   * filament came out 2.65x light, and ABS on 1.75 mm came out ~19% heavy. That number is the
+   * material cost on the quote and the mass behind the carbon figure.
+   *
+   * The file's own figures win; otherwise the calculator refines this once a material is chosen
+   * (see `weightFromLength`), and 1.75 mm PLA remains the last resort.
+   */
   if (filamentLengthMm > 0 && filamentWeight === 0) {
-    filamentWeight = filamentLengthMm * 0.00298;
+    filamentWeight = filamentWeightFromLength(
+      filamentLengthMm,
+      statedDiameterMm ?? DEFAULT_FILAMENT_DIAMETER_MM,
+      statedDensityGCm3 ?? DEFAULT_FILAMENT_DENSITY_G_CM3
+    );
+    weightFromLength = true;
   }
 
   // --- Printer model extraction ---
@@ -331,6 +380,9 @@ export function parseGcode(content: string): GcodeData {
     printTimeHours: Math.max(0, Math.round((timeHours || 0) * 100) / 100),
     filamentWeightGrams: Math.max(0, Math.round((filamentWeight || 0) * 10) / 10),
     filamentLengthMm: Math.max(0, Math.round(filamentLengthMm * 10) / 10),
+    weightFromLength: weightFromLength || undefined,
+    filamentDiameterMm: statedDiameterMm,
+    filamentDensityGCm3: statedDensityGCm3,
     printerModel: printerModel || undefined,
     filamentColour: filamentColour || undefined,
     filamentSettingsId: filamentSettingsId || undefined,
