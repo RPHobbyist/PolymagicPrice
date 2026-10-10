@@ -52,7 +52,7 @@ function wrap(title, body) {
 const staticContentMap = {
   '/': wrap(
     '<h1>Free 3D Printing Price Calculator for FDM &amp; Resin</h1>',
-    `<p>PolymagicPrice is a free, open-source <strong>3D printing price calculator</strong> and print-farm command center by <a href="${PARENT}">RP Hobbyist</a>. Upload a G-code, 3MF or CXDLPV4 file and get an instant, itemised cost breakdown &mdash; material, electricity, machine depreciation, labor and markup &mdash; then export a professional PDF quote. It also manages production with a visual Kanban board, monitors your printer fleet, and gives AI-powered pricing insights via local Ollama. 100% private, offline-capable, and open source.</p>
+    `<p>PolymagicPrice is a free, open-source <strong>3D printing price calculator</strong> and print-farm command center by <a href="${PARENT}">RP Hobbyist</a>. Upload a G-code, 3MF or CXDLPV4 file and get an instant, itemised cost breakdown &mdash; material, electricity, machine depreciation, labor and markup &mdash; then export a professional PDF quote. It also manages production with a visual Kanban board, monitors your printer fleet, and gives AI-powered pricing insights via local Ollama. 100% private, local-first, and open source.</p>
 
 <h2>Free 3D printing cost calculator</h2>
 <p>Price FDM filament jobs by weight and Resin (SLA/DLP) jobs by volume with a professional 6-factor formula: <strong>Price = (Material + Electricity + Machine depreciation + Labor + Consumables + Overhead) &times; (1 + Markup%)</strong>. See <a href="/guides/how-to-calculate-3d-printing-cost">how to calculate 3D printing cost</a>, compare <a href="/guides/fdm-vs-resin-printing-cost">FDM vs resin costs</a>, or open the <a href="/cost-calculator">cost calculator</a>.</p>
@@ -64,7 +64,7 @@ const staticContentMap = {
   <li><strong>Production Kanban Board</strong> &mdash; Track jobs across machines, check maintenance intervals, deduct spool materials from live stock.</li>
   <li><strong>Print Farm Capacity Planner</strong> &mdash; Forecast delivery feasibility, detect build-volume mismatches and material shortages.</li>
   <li><strong>AI-Powered Pricing Analysis</strong> &mdash; Private AI via local Ollama, with PII redaction and operational pricing reports.</li>
-  <li><strong>Local-First Privacy</strong> &mdash; Zero cloud trackers. Desktop uses OS keychain encryption. 100% offline-capable.</li>
+  <li><strong>Local-First Privacy</strong> &mdash; Zero cloud trackers. Desktop uses OS keychain encryption and runs fully offline.</li>
   <li><strong>Professional PDF Quotes</strong> &mdash; Generate branded quotations with full cost breakdowns for customers.</li>
   <li><strong>Multi-Currency Support</strong> &mdash; USD, EUR, GBP, INR, and more with local electricity and labor rates.</li>
 </ul>
@@ -428,11 +428,11 @@ const staticContentMap = {
 const seoMap = {
   '/': {
     title: "3D Printing Price Calculator \u2014 Free FDM & Resin Cost & Quote Tool",
-    description: "Free 3D printing price calculator for FDM filament and Resin (SLA/DLP). Upload G-code, 3MF or CXDLPV4 files to calculate material, electricity, labor and machine costs, then generate professional PDF quotes. Open-source, offline, no cloud."
+    description: "Free 3D printing price calculator for FDM filament and Resin (SLA/DLP). Upload G-code, 3MF or CXDLPV4 files to calculate material, electricity, labor and machine costs, then generate professional PDF quotes. Open-source, local-first, no cloud."
   },
   '/cost-calculator': {
     title: "3D Printing Cost Calculator \u2014 Free FDM & Resin Price Estimator",
-    description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload a G-code file to auto-fill print time and weight, see a full material + electricity + labor + machine breakdown, and export a professional quote. Free and 100% offline."
+    description: "Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload a G-code file to auto-fill print time and weight, see a full material + electricity + labor + machine breakdown, and export a professional quote. Free, and every calculation runs in your browser."
   },
   '/guides/how-to-calculate-3d-printing-cost': {
     title: "How to Calculate 3D Printing Cost \u2014 Formula, Examples & Calculator",

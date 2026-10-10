@@ -10,7 +10,9 @@ export default tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      ecmaVersion: 2020,
+      // Matches the build target in vite.config.ts; 2020 here made the linter parse the code
+      // under older rules than the one it actually ships as.
+      ecmaVersion: 2022,
       globals: globals.browser,
     },
     plugins: {

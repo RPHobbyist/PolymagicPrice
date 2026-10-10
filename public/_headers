@@ -1,6 +1,11 @@
 /*
-  # Content Security Policy (single source of truth — no meta tag CSP in index.html)
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com; connect-src 'self' https://cloudflareinsights.com http://localhost:* http://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; require-trusted-types-for 'script';
+  # Content Security Policy (single source of truth — no meta tag CSP in index.html).
+  # The placeholder in script-src below is replaced at build time by
+  # scripts/csp-inline-hashes.mjs with one sha256 source per inline script in dist/index.html
+  # (the Trusted Types policy and the JSON-LD blocks). That is what lets 'unsafe-inline' go: it
+  # used to allow any injected inline script to run, which also made the
+  # require-trusted-types-for directive below decorative.
+  Content-Security-Policy: default-src 'self'; script-src 'self' INLINE_SCRIPT_HASHES https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://img.youtube.com https://i.ytimg.com; connect-src 'self' https://cloudflareinsights.com http://localhost:* http://127.0.0.1:* ws://localhost:*; object-src 'none'; base-uri 'self'; require-trusted-types-for 'script';
 
   # HSTS (1 year, with preload)
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload

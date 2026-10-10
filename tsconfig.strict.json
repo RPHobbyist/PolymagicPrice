@@ -1,0 +1,25 @@
+{
+  // Strictness, turned on one area at a time.
+  //
+  // The app's own tsconfig has `strict: false` and `noImplicitAny: false`, which is a lot of code
+  // to fix in one go — and the money math is the part that least deserves to go unchecked. This
+  // config type-checks the pricing, storage and state layers under the stricter rules without
+  // blocking the build, so the rest of the codebase can follow directory by directory.
+  //
+  // Run it with `npm run typecheck:strict`. When `files` below covers everything, fold these
+  // flags into tsconfig.app.json and delete this file.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "noEmit": true
+  },
+  "include": [
+    // Vite's ambient declarations, without which `import.meta.env` is an error in every file.
+    "src/vite-env.d.ts",
+    "src/lib/**/*.ts",
+    "src/contexts/**/*.ts",
+    "src/contexts/**/*.tsx",
+    "src/types/**/*.ts"
+  ]
+}

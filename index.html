@@ -2,14 +2,36 @@
 <html lang="en" dir="ltr">
 
 <head>
-  <!-- Register Trusted Types Default Policy immediately to cover any edge-injected scripts (like Cloudflare) -->
+  <!--
+    Trusted Types default policy: the last line of defence for any string that reaches a DOM
+    injection sink without going through a policy of its own.
+
+    This used to return every string unchanged, which is the documented way to turn the
+    `require-trusted-types-for 'script'` directive in _headers OFF: the directive was in the CSP
+    but nothing was filtered. The app's only HTML sink is the JSON-LD block in ToolGuide, and that
+    asks DOMPurify for a TrustedHTML directly, so it does not rely on this policy.
+  -->
   <script>
     if (typeof window !== 'undefined' && window.trustedTypes && window.trustedTypes.createPolicy) {
       try {
         window.trustedTypes.createPolicy('default', {
-          createHTML: (string) => string,
-          createScript: (string) => string,
-          createScriptURL: (string) => string,
+          // Anything arriving here has not been sanitized by a named policy, so it is treated as
+          // text rather than markup.
+          createHTML: (string) => String(string).replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+          // Nothing in this app builds a script from a string; there is no eval and no
+          // `new Function` anywhere in src/. A caller that needs one must declare its own policy.
+          createScript: () => {
+            throw new TypeError('Blocked by the Trusted Types default policy: script from string.');
+          },
+          // Same origin plus the Cloudflare analytics beacon, which is the only third-party
+          // script this site loads.
+          createScriptURL: (url) => {
+            const resolved = new URL(String(url), window.location.origin);
+            if (resolved.origin === window.location.origin || resolved.origin === 'https://static.cloudflareinsights.com') {
+              return resolved.href;
+            }
+            throw new TypeError('Blocked by the Trusted Types default policy: ' + resolved.origin);
+          },
         });
       } catch (e) {
         console.warn('Trusted Types policy initialization skipped:', e);
@@ -25,7 +47,7 @@
   <!-- Primary Meta Tags -->
   <title>Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice</title>
   <meta name="description"
-    content="Free 3D printing price calculator for FDM & Resin. Calculate 3D print costs, generate professional quotes, and manage your print farm with local AI. Upload G-code for instant pricing. Open-source, offline, no cloud." />
+    content="Free 3D printing price calculator for FDM & Resin. Calculate 3D print costs, generate professional quotes, and manage your print farm with local AI. Upload G-code for instant pricing. Open-source, local-first, no cloud." />
   <meta name="keywords"
     content="3D printing price calculator, 3D print price calculator, 3D printing quote calculator, 3D printing cost estimator, 3D print cost calculator, print price calculator, FDM calculator, resin SLA cost calculator, free 3D print calculator, 3D print farm management, local AI 3D printing, G-code price estimator, prusa price calculator, open source 3D printing, PolymagicPrice, RP Hobbyist" />
   <meta name="author" content="RP Hobbyist" />
@@ -53,7 +75,7 @@
   <meta property="og:url" content="https://polymagicprice.rphobbyist.com/" />
   <meta property="og:title" content="Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice" />
   <meta property="og:description"
-    content="Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, get instant price breakdowns, and generate professional PDF quotes. Free, open-source, 100% offline." />
+    content="Calculate accurate 3D printing costs for FDM filament and Resin (SLA/DLP). Upload G-code files, get instant price breakdowns, and generate professional PDF quotes. Free, open-source, 100% local-first." />
   <meta property="og:image" content="https://polymagicprice.rphobbyist.com/logo.webp" />
   <meta property="og:image:alt" content="PolymagicPrice — 3D Printing Price Calculator by RP Hobbyist" />
   <meta property="og:image:width" content="1024" />
@@ -64,7 +86,7 @@
   <meta name="twitter:site" content="@RPHobbyist" />
   <meta name="twitter:title" content="Free 3D Printing Price Calculator & Quote Tool | PolymagicPrice" />
   <meta name="twitter:description"
-    content="Calculate 3D printing costs for FDM & Resin. Upload G-code, get instant price breakdowns, generate professional quotes. Free, offline, open-source." />
+    content="Calculate 3D printing costs for FDM & Resin. Upload G-code, get instant price breakdowns, generate professional quotes. Free, local-first, open-source." />
   <meta name="twitter:image" content="https://polymagicprice.rphobbyist.com/logo.webp" />
   <meta name="twitter:image:alt" content="PolymagicPrice 3D Print Calculator" />
 
@@ -214,7 +236,7 @@
           "name": "How does PolymagicPrice calculate 3D printing costs?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "PolymagicPrice uses an industrial cost-stacking algorithm: Material Cost (by grams/milliliters) + Electricity Cost (Printer Wattage Ã Print Hours Ã Local kWh Rate) + Machine Depreciation (Hourly wear rate Ã Print Hours) + Labor Cost (Operator prep hours Ã Hourly rate) + Overhead. Upload a G-code file for auto-fill or enter values manually."
+            "text": "PolymagicPrice uses an industrial cost-stacking algorithm: Material Cost (by grams/milliliters) + Electricity Cost (Printer Wattage × Print Hours × Local kWh Rate) + Machine Depreciation (Hourly wear rate × Print Hours) + Labor Cost (Operator prep hours × Hourly rate) + Overhead. Upload a G-code file for auto-fill or enter values manually."
           }
         },
         {
@@ -246,7 +268,7 @@
           "name": "How much should I charge for 3D prints?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Total Price = (Material + Electricity + Machine Wear + Labor + Overhead) Ã (1 + Markup%). Typical markup for 3D printing services is 20â50%. Simple parts: 20â30%. Custom or artisan work: 40â50% or higher."
+            "text": "Total Price = (Material + Electricity + Machine Wear + Labor + Overhead) × (1 + Markup%). Typical markup for 3D printing services is 20–50%. Simple parts: 20–30%. Custom or artisan work: 40–50% or higher."
           }
         },
         {
@@ -270,7 +292,7 @@
           "name": "Is resin printing more expensive than FDM?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. FDM filament costs $15â$50/kg, while resin costs $35â$150+ per liter, plus consumables like IPA wash solution, nitrile gloves, and FEP film replacements. PolymagicPrice handles both with dedicated calculators."
+            "text": "Yes. FDM filament costs $15–$50/kg, while resin costs $35–$150+ per liter, plus consumables like IPA wash solution, nitrile gloves, and FEP film replacements. PolymagicPrice handles both with dedicated calculators."
           }
         },
         {
@@ -278,7 +300,7 @@
           "name": "How do I calculate electricity costs for 3D printing?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Formula: (Printer Wattage / 1000) Ã Print Hours Ã Electricity Rate per kWh. Most FDM printers consume 100â150W. PolymagicPrice calculates this automatically when you enter your local kWh rate."
+            "text": "Formula: (Printer Wattage / 1000) × Print Hours × Electricity Rate per kWh. Most FDM printers consume 100–150W. PolymagicPrice calculates this automatically when you enter your local kWh rate."
           }
         }
       ]
@@ -318,7 +340,7 @@
     <div
       style="max-width:800px;margin:40px auto;padding:20px;font-family:Arial,system-ui,sans-serif;text-align:center;">
       <h1>PolymagicPrice — Run Your 3D Print Farm with Local AI</h1>
-      <p>PolymagicPrice is the free, open-source command center for 3D print farms by <a href="https://www.rphobbyist.com">RP Hobbyist</a>. Price jobs accurately with FDM & Resin cost calculators, manage production with a visual Kanban board, monitor your printer fleet, and get AI-powered insights — all running locally on your machine. Upload G-code, 3MF, or CXDLPV4 files for instant cost breakdowns. 100% private, offline-capable, and open source.</p>
+      <p>PolymagicPrice is the free, open-source command center for 3D print farms by <a href="https://www.rphobbyist.com">RP Hobbyist</a>. Price jobs accurately with FDM & Resin cost calculators, manage production with a visual Kanban board, monitor your printer fleet, and get AI-powered insights — all running locally on your machine. Upload G-code, 3MF, or CXDLPV4 files for instant cost breakdowns. 100% private, local-first, and open source.</p>
 
       <h2>Navigate PolymagicPrice</h2>
       <nav style="text-align:center;margin:20px 0;">

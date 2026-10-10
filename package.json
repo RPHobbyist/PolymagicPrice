@@ -32,15 +32,39 @@
   "private": true,
   "version": "2.0.1",
   "type": "module",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "build": "npm run typecheck && vite build",
-    "build:no-typecheck": "vite build",
+    "typecheck:strict": "tsc --noEmit -p tsconfig.strict.json",
+    "build": "npm run typecheck && npm run typecheck:strict && vite build && npm run build:csp",
+    "build:no-typecheck": "vite build && npm run build:csp",
+    "build:csp": "node scripts/csp-inline-hashes.mjs",
     "build:electron": "tsc -p electron/tsconfig.json",
+    "electron:dev": "npm run build:electron && electron .",
+    "electron:package": "npm run build && npm run build:electron && npx --yes electron-builder",
     "lint": "eslint .",
     "test": "vitest run",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.polymagicprice.app",
+    "productName": "PolymagicPrice",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "dist/logo.ico",
+      "legalTrademarks": "PolymagicPrice",
+      "verifyUpdateCodeSignature": false
+    },
+    "copyright": "Copyright © 2026 Rp Hobbyist"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
