@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Notification, NotificationStatus } from '@/types/notifications';
 import { 
     getNotifications, 
@@ -33,6 +33,10 @@ import { NotificationContext } from '@/contexts/NotificationContext';
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const location = useLocation();
+
+    // Where the user is, without making that a dependency of anything (see addNotification).
+    const pathnameRef = useRef(location.pathname);
+    pathnameRef.current = location.pathname;
     
     // Track if this is a returning visitor to suppress initial noise for first-timers
     const [hasVisitedBefore] = useState(() => {
@@ -54,30 +58,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const addNotification = useCallback((notification: Omit<Notification, "id" | "timestamp" | "status">, showToast = true) => {
         const newNotif = saveNotification(notification);
         setNotifications(prev => [newNotif, ...prev]);
-        
+
         // Logic to suppress "pop up" boxes (toasts) based on user requirements:
         // 1. Never show on landing page ("/")
         // 2. Do not show for first time visitors (until they refresh/return)
-        const isLandingPage = location.pathname === '/';
-        const shouldShowToast = showToast && 
-                                !isLandingPage && 
-                                hasVisitedBefore && 
-                                location.pathname !== '/notifications';
+        //
+        // The current path is read from a ref rather than captured. As a dependency it made this
+        // callback — and therefore `checkHealth`, the context value and the polling effect below —
+        // change identity on every navigation, so each route change tore down the one-minute timer
+        // and re-ran a full scan of every material, spool, machine and quote.
+        const pathname = pathnameRef.current;
+        const isLandingPage = pathname === '/';
+        const shouldShowToast = showToast &&
+                                !isLandingPage &&
+                                hasVisitedBefore &&
+                                pathname !== '/notifications';
 
         if (shouldShowToast) {
-            const toastType = (notification.type.toLowerCase() === 'warning' ? 'warning' : 
+            const toastType = (notification.type.toLowerCase() === 'warning' ? 'warning' :
                                notification.type.toLowerCase() === 'success' ? 'success' :
                                notification.type.toLowerCase() === 'error' ? 'error' : 'info') as 'info' | 'success' | 'warning' | 'error';
             toast[toastType](notification.title, {
                 description: notification.message,
             });
         }
-    }, [location.pathname, hasVisitedBefore]);
+    }, [hasVisitedBefore]);
 
     const checkHealth = useCallback((onMount = false) => {
         const issues = getSystemHealthIssues();
         const currentNotifs = getNotifications();
-        
+
         issues.forEach(issue => {
             // Only add if a notification with this title doesn't already exist (and isn't deleted)
             const exists = currentNotifs.some(n => n.title === issue.title && n.status !== 'CANCELLED');
@@ -86,9 +96,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 addNotification(issue, !onMount);
             }
         });
-        
-        refresh();
-    }, [addNotification, refresh]);
+
+        // No refresh here: `addNotification` has already put each new record into state, and the
+        // effect below reads the store once on mount. The call that used to sit here was a second
+        // full read and decrypt of every notification, on every minute-tick and every navigation.
+    }, [addNotification]);
 
     useEffect(() => {
         refresh();

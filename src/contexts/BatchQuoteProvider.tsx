@@ -16,26 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback, useEffect, ReactNode } from 'react';
+import { useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
 import { QuoteData } from '@/types/quote';
 import { BatchQuoteContext, BatchQuoteContextType } from '@/contexts/BatchQuoteContext';
-import { getQuotes, generateShortQuoteId } from '@/lib/core/sessionStorage';
-
-const STORAGE_KEY = 'batch_quote_items';
+import { getQuotes, generateShortQuoteId, getBatchItems, saveBatchItems } from '@/lib/core/sessionStorage';
 
 export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
-    const [batchItems, setBatchItems] = useState<QuoteData[]>(() => {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            return stored ? JSON.parse(stored) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [batchItems, setBatchItems] = useState<QuoteData[]>(() => getBatchItems());
 
-    // Persist to localStorage whenever batchItems changes
+    // Persist whenever the tray changes.
+    //
+    // This goes through the store rather than calling localStorage directly: the bare
+    // `setItem` that used to be here wrote full quote objects — thumbnails included — from an
+    // effect, so a quota refusal reached the root error boundary, and the reload rehydrated the
+    // same oversized value and crashed again. `saveBatchItems` reports a refusal instead, which
+    // the app's storage-health listener turns into a message the shop can act on.
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(batchItems));
+        saveBatchItems(batchItems);
     }, [batchItems]);
 
     const addItem = useCallback((item: QuoteData) => {
@@ -62,8 +59,11 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         setBatchItems([]);
     }, []);
 
-    // Calculate batch totals with industrial numerical ceilings
-    const batchTotals = batchItems.reduce(
+    // Calculate batch totals with industrial numerical ceilings.
+    // Memoised because it is a dependency of saveBatchAsQuote and of the context value below:
+    // recomputing it on every render of a provider that sits above the whole router gave both a
+    // new identity each time, which re-ran every consumer.
+    const batchTotals = useMemo(() => batchItems.reduce(
         (acc, item) => {
             const qty = item.quantity || 1;
             // Enforce a $100M ceiling on any cumulative batch value to prevent numerical noise/UI-breakage
@@ -105,7 +105,7 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             totalMarkup: 0,
             grandTotal: 0,
         }
-    );
+    ), [batchItems]);
 
     const saveBatchAsQuote = useCallback((projectName?: string): QuoteData => {
         if (batchItems.length === 0) {
@@ -149,6 +149,10 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             parameters: {
                 materialName: "Batch Consists of Multiple Materials",
                 machineName: "Multiple Machines",
+                // summariseQuote reads consumables from here, and every summary of a batch was
+                // therefore short by exactly this figure while the quote's own `subtotal` above
+                // included it. The master's quantity is 1, so this is the whole batch's total.
+                consumablesTotal: batchTotals.totalConsumablesCost,
             },
             isBatch: true,
             batchItems: [...batchItems],
@@ -160,7 +164,7 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         return masterQuote;
     }, [batchItems, batchTotals]);
 
-    const contextValue: BatchQuoteContextType = {
+    const contextValue: BatchQuoteContextType = useMemo(() => ({
         batchItems,
         addItem,
         removeItem,
@@ -168,7 +172,7 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
         clearBatch,
         saveBatchAsQuote,
         batchTotals,
-    };
+    }), [batchItems, addItem, removeItem, updateItem, clearBatch, saveBatchAsQuote, batchTotals]);
 
     return (
         <BatchQuoteContext.Provider value={contextValue}>

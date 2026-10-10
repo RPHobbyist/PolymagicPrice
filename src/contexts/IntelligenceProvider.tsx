@@ -51,9 +51,22 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const notificationsRef = useRef(notifications);
     notificationsRef.current = notifications;
 
+    /*
+     * The pathname lives in a ref so that `analyzeSystem` is stable.
+     *
+     * It used to be a dependency, and the effect below depends on `analyzeSystem`, so every single
+     * navigation tore down the interval, ran a full analysis immediately and queued another one
+     * 2 s later. That analysis reads and decrypts the whole quote book, the spools, the jobs, the
+     * machines, the materials and the constants — nine store reads, ~9 ms of blocked main thread
+     * each time — so moving between screens cost two of them and the 15-minute fallback interval
+     * never reached 15 minutes.
+     */
+    const pathnameRef = useRef(location.pathname);
+    pathnameRef.current = location.pathname;
+
     const analyzeSystem = useCallback(() => {
         // Optimization: Never run analysis or show notifications on landing page
-        if (location.pathname === '/') return;
+        if (pathnameRef.current === '/') return;
 
         const findings = analyzeShop({
             quotes: getQuotes(),
@@ -86,16 +99,13 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 metadata: finding.metadata,
             });
         });
-    }, [addNotification, location.pathname]);
+    }, [addNotification]);
 
     useEffect(() => {
-        // Initial analysis after a short delay to ensure other providers are ready
+        // One analysis after a short delay, to let the other providers settle. The immediate
+        // second call that used to sit here ran the same nine store reads a moment earlier and
+        // then again on the timeout; the findings are not time-critical enough to pay twice.
         const timeout = setTimeout(analyzeSystem, 2000);
-
-        // Re-analyze when the user moves from landing to a tool page
-        if (location.pathname !== '/') {
-            analyzeSystem();
-        }
 
         // Cross-tab Synchronization: Re-analyze immediately on relevant data changes
         const handleStorageChange = (e: StorageEvent) => {
@@ -124,7 +134,9 @@ export const IntelligenceProvider: React.FC<{ children: React.ReactNode }> = ({ 
             clearInterval(interval);
             window.removeEventListener('storage', handleStorageChange);
         };
-    }, [analyzeSystem, location.pathname]);
+        // No `location.pathname` dependency: `analyzeSystem` is stable now, so this runs once per
+        // mount and the interval actually lasts 15 minutes.
+    }, [analyzeSystem]);
 
     // Memoized for the same reason as every other provider here: a new object on each render
     // re-renders every consumer even though `analyzeSystem` itself is stable.

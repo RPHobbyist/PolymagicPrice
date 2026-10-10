@@ -106,11 +106,13 @@ export const OrderManagerProvider = ({ children, quotes, onQuoteUpdate }: OrderM
         onQuoteUpdate();
     }, [onQuoteUpdate, quotes, jobs, addJob, moveProductionJob]);
 
-    const contextValue: OrderManagerContextType = {
+    // Memoised like every other provider: a fresh object here re-rendered the whole order board
+    // on any render of this provider, whether or not the columns had changed.
+    const contextValue: OrderManagerContextType = useMemo(() => ({
         columns,
         moveQuote,
         refreshBoard: onQuoteUpdate
-    };
+    }), [columns, moveQuote, onQuoteUpdate]);
 
     return (
         <OrderManagerContext.Provider value={contextValue}>

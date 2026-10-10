@@ -22,7 +22,7 @@ import { QuoteData, QuoteRevision, Material, Machine, CostConstant, Customer, Cu
 import { calculateJobCarbon, toStoredCarbon } from "@/lib/carbon/carbonCalculator";
 import { GRID_CONSTANT_ID } from "@/lib/carbon/carbonFactors";
 import { ProductionJob, ProductionSettings } from "@/types/production";
-import { sanitize, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidLocalAIPort } from "../sanitization";
+import { sanitize, sanitizeText, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidLocalAIPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
 import { isAIAllowed } from "../utils";
@@ -43,7 +43,20 @@ export const generateId = (): string => {
 function safeParse<T>(key: string, fallback: T): T {
     try {
         const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
+        if (!raw) return fallback;
+
+        const parsed = JSON.parse(raw);
+
+        // Valid JSON of the wrong shape is still corrupt data. A collection key holding an object
+        // instead of an array used to be returned as-is, and the very next line in every getter is
+        // a `.map`, which threw a TypeError that no caller catches — a hand-edited or half-written
+        // backup took the whole page down instead of falling back to defaults.
+        if (Array.isArray(fallback) && !Array.isArray(parsed)) {
+            console.warn(`[Storage] "${key}" is not a list, using defaults.`);
+            return fallback;
+        }
+
+        return parsed;
     } catch (err: unknown) {
         console.warn(`[Storage] Corrupted data in "${key}", using defaults.`, err);
         return fallback;
@@ -269,6 +282,8 @@ const STORAGE_KEYS = {
     PRODUCTION_JOBS: "session_production_jobs",
     PRODUCTION_SETTINGS: "session_production_settings",
     CARBON_SETTINGS: "session_carbon_settings",
+    // Kept under its original key so an open batch survives the upgrade.
+    BATCH_ITEMS: "batch_quote_items",
 };
 
 
@@ -571,15 +586,16 @@ export const saveQuote = (quote: QuoteData): QuoteData => {
 
     // Guard against stored records that lack an id (older/hand-edited backups): without this,
     // one such record made every subsequent save throw on q.id.trim().
-    const existingIndex = quote.id ? quotes.findIndex(q => typeof q.id === 'string' && q.id.trim() === quote.id.trim()) : -1;
+    const targetId = quote.id?.trim();
+    const existingIndex = targetId ? quotes.findIndex(q => typeof q.id === 'string' && q.id.trim() === targetId) : -1;
 
     const newId = generateShortQuoteId(quotes);
 
     const newQuote: QuoteData = {
         ...quote,
-        projectName: sanitize(quote.projectName),
-        clientName: quote.clientName ? sanitize(quote.clientName) : quote.clientName,
-        notes: quote.notes ? sanitize(quote.notes) : quote.notes,
+        projectName: sanitizeText(quote.projectName),
+        clientName: quote.clientName ? sanitizeText(quote.clientName) : quote.clientName,
+        notes: quote.notes ? sanitizeText(quote.notes) : quote.notes,
         id: quote.id || newId,
         createdAt: quote.createdAt || new Date().toISOString(),
     };
@@ -603,7 +619,7 @@ export const deleteQuote = (id: string): void => {
 
 export const updateQuoteNotes = (id: string, notes: string): void => {
     const quotes = getQuotes().map(q =>
-        q.id === id ? { ...q, notes: sanitize(notes) } : q
+        q.id === id ? { ...q, notes: sanitizeText(notes) } : q
     );
     writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
@@ -715,7 +731,20 @@ const CARBON_RELEVANT_FIELDS: (keyof QuoteData)[] = [
     "quantity", "parameters", "actualPrintTime", "actualMaterialUsed", "failedUnits", "featureWeights", "printType",
 ];
 
-export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
+/**
+ * Applies changes to one stored quote.
+ *
+ * The id is allowed to be undefined because the callers' quotes carry an optional id, and several
+ * of them (the production board, the order manager) pass it straight through. Without the guard
+ * below, an undefined id matched the first stored quote that also had no id — an old or
+ * hand-edited record — and wrote another quote's actuals and a revision entry onto it.
+ */
+export const updateQuote = (id: string | undefined, updates: Partial<QuoteData>): void => {
+    if (!id) {
+        console.warn("[Storage] updateQuote called without a quote id; nothing was changed.");
+        return;
+    }
+
     const quotes = getQuotes().map(q => {
         if (q.id === id) {
             const hasSignificantChanges = updates.parameters || updates.totalPrice || updates.materialCost;
@@ -741,13 +770,13 @@ export const updateQuote = (id: string, updates: Partial<QuoteData>): void => {
 
             const sanitizedUpdates = { ...updates };
             if ('projectName' in updates) {
-                sanitizedUpdates.projectName = updates.projectName ? sanitize(updates.projectName) : updates.projectName;
+                sanitizedUpdates.projectName = updates.projectName ? sanitizeText(updates.projectName) : updates.projectName;
             }
             if ('clientName' in updates) {
-                sanitizedUpdates.clientName = updates.clientName ? sanitize(updates.clientName) : updates.clientName;
+                sanitizedUpdates.clientName = updates.clientName ? sanitizeText(updates.clientName) : updates.clientName;
             }
             if ('notes' in updates) {
-                sanitizedUpdates.notes = updates.notes ? sanitize(updates.notes) : updates.notes;
+                sanitizedUpdates.notes = updates.notes ? sanitizeText(updates.notes) : updates.notes;
             }
 
             const merged: QuoteData = {
@@ -820,8 +849,8 @@ export const saveMaterial = (material: Omit<Material, "id"> & { id?: string }): 
     const materials = getMaterials();
     const sanitizedMaterial = {
         ...material,
-        name: sanitize(material.name),
-        description: material.description ? sanitize(material.description) : material.description,
+        name: sanitizeText(material.name),
+        description: material.description ? sanitizeText(material.description) : material.description,
         unit: material.unit ? sanitize(material.unit) : material.unit,
     };
     if (sanitizedMaterial.id) {
@@ -878,7 +907,7 @@ export const saveMachine = (machine: Omit<Machine, "id"> & { id?: string }): Mac
     const machines = getMachines();
     const sanitizedMachine = {
         ...machine,
-        name: sanitize(machine.name),
+        name: sanitizeText(machine.name),
         serialNumber: sanitizeAPIKey(machine.serialNumber || ""),
         accessCode: sanitizeAPIKey(machine.accessCode || ""),
         ipAddress: machine.ipAddress ? sanitize(machine.ipAddress) : machine.ipAddress,
@@ -969,9 +998,15 @@ export const getConstants = (): CostConstant[] => {
         return result;
     });
 
-    // Persist migration once to avoid re-checking every time
+    // Persist migration once to avoid re-checking every time.
+    //
+    // `tryWriteStore`, not `writeStore`: this is a getter, called from render paths and from
+    // inside the production board's state updater. A full quota made a *read* throw
+    // StorageWriteError into React, which the root error boundary turned into the crash screen —
+    // a read should degrade to returning the migrated values in memory, and the refusal is
+    // already announced on the window for the storage-health toast to report.
     if (needsMigration) {
-        writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(migrated));
+        tryWriteStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(migrated));
     }
 
     return migrated;
@@ -983,9 +1018,9 @@ export const saveConstant = (constant: Omit<CostConstant, "id"> & { id?: string 
     // partial update (e.g. the AI's `{ id, value }`) wiped name/unit/description — and the paint
     // "Usage Rate: …ml/cm2" lives in that description, so paint pricing silently reset.
     const sanitizedConstant: Partial<CostConstant> & { id?: string } = { ...constant };
-    if (constant.name !== undefined) sanitizedConstant.name = sanitize(constant.name);
+    if (constant.name !== undefined) sanitizedConstant.name = sanitizeText(constant.name);
     if (constant.unit !== undefined) sanitizedConstant.unit = sanitize(constant.unit || "");
-    if (constant.description !== undefined) sanitizedConstant.description = constant.description ? sanitize(constant.description) : constant.description;
+    if (constant.description !== undefined) sanitizedConstant.description = constant.description ? sanitizeText(constant.description) : constant.description;
 
     if (sanitizedConstant.id) {
         const index = constants.findIndex(c => c.id === sanitizedConstant.id);
@@ -1056,13 +1091,13 @@ export const saveCustomer = (customer: Omit<Customer, "id" | "createdAt"> & { id
     const customers = getCustomers();
     const sanitizedCustomer = {
         ...customer,
-        name: sanitize(customer.name),
-        company: customer.company ? sanitize(customer.company) : customer.company,
-        email: customer.email ? sanitize(customer.email).toLowerCase() : customer.email,
-        phone: customer.phone ? sanitize(customer.phone) : customer.phone,
-        address: customer.address ? sanitize(customer.address) : customer.address,
-        notes: customer.notes ? sanitize(customer.notes) : customer.notes,
-        tags: customer.tags ? customer.tags.map(t => sanitize(t)) : customer.tags,
+        name: sanitizeText(customer.name),
+        company: customer.company ? sanitizeText(customer.company) : customer.company,
+        email: customer.email ? sanitizeText(customer.email).toLowerCase() : customer.email,
+        phone: customer.phone ? sanitizeText(customer.phone) : customer.phone,
+        address: customer.address ? sanitizeText(customer.address) : customer.address,
+        notes: customer.notes ? sanitizeText(customer.notes) : customer.notes,
+        tags: customer.tags ? customer.tags.map(t => sanitizeText(t)) : customer.tags,
     };
 
     // Reject malformed emails
@@ -1166,10 +1201,10 @@ export const saveEmployee = (employee: Omit<Employee, "id" | "createdAt"> & { id
     const employees = getEmployees();
     const sanitizedEmployee = {
         ...employee,
-        name: sanitize(employee.name),
-        jobPosition: sanitize(employee.jobPosition),
-        email: employee.email ? sanitize(employee.email) : employee.email,
-        phone: employee.phone ? sanitize(employee.phone) : employee.phone,
+        name: sanitizeText(employee.name),
+        jobPosition: sanitizeText(employee.jobPosition),
+        email: employee.email ? sanitizeText(employee.email) : employee.email,
+        phone: employee.phone ? sanitizeText(employee.phone) : employee.phone,
     };
     if (sanitizedEmployee.id) {
         // Update existing
@@ -1213,8 +1248,8 @@ export const saveReview = (review: Omit<CustomerReview, "id" | "createdAt"> & { 
     const reviews = getReviews();
     const sanitizedReview = {
         ...review,
-        comment: review.comment ? sanitize(review.comment) : review.comment,
-        tags: review.tags ? review.tags.map(t => sanitize(t)) : review.tags
+        comment: review.comment ? sanitizeText(review.comment) : review.comment,
+        tags: review.tags ? review.tags.map(t => sanitizeText(t)) : review.tags
     };
     if (sanitizedReview.id) {
         const index = reviews.findIndex(r => r.id === sanitizedReview.id);
@@ -1287,10 +1322,12 @@ export const saveSpool = (spool: Omit<MaterialSpool, "id"> & { id?: string }): M
     const spools = getSpools();
     const sanitizedSpool = {
         ...spool,
-        name: sanitize(spool.name),
-        colour: spool.colour ? sanitize(spool.colour) : spool.colour,
-        location: spool.location ? sanitize(spool.location) : spool.location,
-        notes: spool.notes ? sanitize(spool.notes) : spool.notes,
+        // A spool's name is optional — it is a label like "PLA Red #3" — so it is sanitised the
+        // same way as the other optional fields rather than being forced through as a string.
+        name: spool.name ? sanitizeText(spool.name) : spool.name,
+        colour: spool.colour ? sanitizeText(spool.colour) : spool.colour,
+        location: spool.location ? sanitizeText(spool.location) : spool.location,
+        notes: spool.notes ? sanitizeText(spool.notes) : spool.notes,
     };
     if (sanitizedSpool.id) {
         const index = spools.findIndex(s => s.id === sanitizedSpool.id);
@@ -1305,7 +1342,7 @@ export const saveSpool = (spool: Omit<MaterialSpool, "id"> & { id?: string }): M
         spools.push(newSpool);
     }
     writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
-    updateMaterialStock(sanitizedSpool.materialId);
+    updateMaterialStock(sanitizedSpool.materialId, spools);
     return sanitizedSpool.id ? spools.find(s => s.id === sanitizedSpool.id)! : spools[spools.length - 1];
 };
 
@@ -1316,7 +1353,8 @@ export const deleteSpool = (id: string): void => {
     writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(filtered.map(encryptSpool)));
 
     if (spool) {
-        updateMaterialStock(spool.materialId);
+        // The filtered list, not a fresh read: the deleted spool must not count towards the total.
+        updateMaterialStock(spool.materialId, filtered);
     }
 };
 
@@ -1363,10 +1401,11 @@ export const deductFromSpool = (spoolId: string, amount: number): number => {
     const newWeight = Math.min(1000000, Math.max(0, current - delta));
     const applied = current - newWeight;
 
-    spools[index].currentWeight = newWeight;
+    spools[index] = { ...spools[index], currentWeight: newWeight };
 
     writeStore(STORAGE_KEYS.SPOOLS, JSON.stringify(spools.map(encryptSpool)));
-    updateMaterialStock(spools[index].materialId);
+    // Hand over the spools already in hand rather than making the callee read them again.
+    updateMaterialStock(spools[index].materialId, spools);
     return applied;
 };
 
@@ -1397,10 +1436,37 @@ export const getMaterialStock = (materialId: string): number => {
     return spools.reduce((sum, s) => sum + s.currentWeight, 0);
 };
 
+/**
+ * Total remaining stock for every material, from ONE pass over the spool store.
+ *
+ * Prefer this to calling `getMaterialStock` per material. Each of those calls re-reads, re-parses
+ * and re-decrypts every spool on file — measured at ~1 ms for 200 spools, so a settings page that
+ * renders 40 material rows spent ~40 ms of its render doing the same work forty times, on every
+ * keystroke in its search box.
+ */
+export const getStockByMaterial = (): Map<string, number> => stockByMaterial(getSpools());
+
+/** Total remaining stock per material, from a single pass over the spool store. */
+const stockByMaterial = (spools: MaterialSpool[]): Map<string, number> => {
+    const totals = new Map<string, number>();
+    for (const spool of spools) {
+        const weight = Number.isFinite(spool.currentWeight) ? spool.currentWeight : 0;
+        totals.set(spool.materialId, (totals.get(spool.materialId) || 0) + weight);
+    }
+    return totals;
+};
+
 export const getLowStockMaterials = (threshold?: number): Material[] => {
     const materials = getMaterials();
+
+    // One read of the spool store for the whole list. This used to call getMaterialStock per
+    // material, and each of those re-read, re-parsed and re-decrypted every spool on file — a
+    // shop with 40 materials and 200 spools paid 40 full passes, once a minute, from the system
+    // health check.
+    const totals = stockByMaterial(getSpools());
+
     return materials.filter(m => {
-        const stock = getMaterialStock(m.id);
+        const stock = totals.get(m.id) || 0;
         const limit = m.lowStockThreshold ?? threshold ?? 200; // Default 200g threshold
         // Note: no `stock >= 0` condition. That previously excluded fully depleted /
         // over-drawn materials — exactly the ones that most need an alert.
@@ -1408,12 +1474,23 @@ export const getLowStockMaterials = (threshold?: number): Material[] => {
     });
 };
 
-const updateMaterialStock = (materialId: string): void => {
-    const stock = getMaterialStock(materialId);
+/**
+ * Writes a material's cached stock total back to the material record.
+ *
+ * Takes the spools it should count, because the only caller (`deductFromSpool`) has just written
+ * them and would otherwise make this re-read and re-decrypt the entire spool store — the third
+ * and fourth full pass of a single deduction, of which the production board does up to three per
+ * card drag.
+ */
+const updateMaterialStock = (materialId: string, spools: MaterialSpool[]): void => {
+    const stock = spools
+        .filter(s => s.materialId === materialId)
+        .reduce((sum, s) => sum + (Number.isFinite(s.currentWeight) ? s.currentWeight : 0), 0);
+
     const materials = getMaterials();
     const index = materials.findIndex(m => m.id === materialId);
     if (index !== -1) {
-        materials[index].totalInStock = stock;
+        materials[index] = { ...materials[index], totalInStock: stock };
         writeStore(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
     }
 };
@@ -1427,10 +1504,10 @@ export const saveGcode = (gcode: Omit<StoredGcode, "id"> & { id?: string }): Sto
     const gcodes = getGcodes();
     const sanitizedGcode = {
         ...gcode,
-        name: sanitize(gcode.name),
-        filePath: sanitize(gcode.filePath),
-        machineName: gcode.machineName ? sanitize(gcode.machineName) : gcode.machineName,
-        materialName: gcode.materialName ? sanitize(gcode.materialName) : gcode.materialName,
+        name: sanitizeText(gcode.name),
+        filePath: sanitizeText(gcode.filePath),
+        machineName: gcode.machineName ? sanitizeText(gcode.machineName) : gcode.machineName,
+        materialName: gcode.materialName ? sanitizeText(gcode.materialName) : gcode.materialName,
     };
     if (sanitizedGcode.id) {
         // Update existing
@@ -1497,6 +1574,28 @@ export const getProductionJobs = (): ProductionJob[] => {
  */
 export const saveProductionJobs = (jobs: ProductionJob[]): boolean => {
     return tryWriteStore(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify(jobs.map(encryptProductionJob)));
+};
+
+/**
+ * The calculator's batch tray.
+ *
+ * It lives here rather than in the provider because the provider wrote it with a bare
+ * `localStorage.setItem` from an effect, holding full quote objects — thumbnails included — in the
+ * same ~5 MB origin quota as everything else. A quota refusal there reached the root error
+ * boundary, and the reload rehydrated the same oversized value and refused again: a permanent
+ * lockout, which is exactly what `tryWriteStore` exists to prevent.
+ *
+ * Project names are the only free text a batch item carries beyond what the quote store already
+ * protects, so the same quote encryption applies here.
+ */
+export const getBatchItems = (): QuoteData[] => {
+    const raw = safeParse<QuoteData[]>(STORAGE_KEYS.BATCH_ITEMS, []);
+    return raw.map(decryptQuote);
+};
+
+/** Returns false when the write was refused; the failure has already been announced. */
+export const saveBatchItems = (items: QuoteData[]): boolean => {
+    return tryWriteStore(STORAGE_KEYS.BATCH_ITEMS, JSON.stringify(items.map(encryptQuote)));
 };
 
 export const getProductionSettings = (): ProductionSettings => {
@@ -1566,13 +1665,13 @@ export const getCompanySettings = (): CompanySettings | null => {
 export const saveCompanySettings = (settings: CompanySettings): void => {
     const sanitizedSettings = {
         ...settings,
-        name: sanitize(settings.name),
-        address: sanitize(settings.address),
-        email: sanitize(settings.email),
-        phone: sanitize(settings.phone),
-        website: sanitize(settings.website),
-        taxId: settings.taxId ? sanitize(settings.taxId) : settings.taxId,
-        footerText: settings.footerText ? sanitize(settings.footerText) : settings.footerText,
+        name: sanitizeText(settings.name),
+        address: sanitizeText(settings.address),
+        email: sanitizeText(settings.email),
+        phone: sanitizeText(settings.phone),
+        website: sanitizeText(settings.website),
+        taxId: settings.taxId ? sanitizeText(settings.taxId) : settings.taxId,
+        footerText: settings.footerText ? sanitizeText(settings.footerText) : settings.footerText,
     };
     writeStore(STORAGE_KEYS.COMPANY, JSON.stringify(encryptCompanySettings(sanitizedSettings)));
 };
@@ -1724,15 +1823,28 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
         const validConstants = sanitizedData.constants.filter((c: unknown) => validateSchema(c as Record<string, unknown>, SCHEMAS.CONSTANT));
         commitMap[STORAGE_KEYS.CONSTANTS] = JSON.stringify(validConstants);
 
-        // Optional arrays
-        const optionalImports = [
-            { key: STORAGE_KEYS.CUSTOMERS, data: sanitizedData.customers, schema: SCHEMAS.CUSTOMER, label: 'customers' },
-            { key: STORAGE_KEYS.REVIEWS, data: sanitizedData.reviews, schema: SCHEMAS.REVIEW, label: 'reviews' },
-            { key: STORAGE_KEYS.SPOOLS, data: sanitizedData.spools, schema: SCHEMAS.SPOOL, label: 'spools' },
-            { key: STORAGE_KEYS.GCODES, data: sanitizedData.gcodes, schema: SCHEMAS.GCODE, label: 'stored files' },
-            { key: STORAGE_KEYS.EMPLOYEES, data: sanitizedData.employees, schema: SCHEMAS.EMPLOYEE, label: 'employees' },
-            { key: STORAGE_KEYS.QUOTES, data: sanitizedData.quotes, schema: SCHEMAS.QUOTE, label: 'quotes' },
-            { key: STORAGE_KEYS.NOTIFICATIONS, data: sanitizedData.notifications, schema: SCHEMAS.NOTIFICATION, label: 'notifications' }
+        // Optional arrays.
+        //
+        // Each entry carries the same `encrypt*` mapper its save path uses. Without it this loop
+        // committed customers, quotes, spools, stored files, employees, reviews and notifications
+        // with a bare JSON.stringify, so a restored backup left names, emails, phone numbers,
+        // addresses and project notes sitting readable in localStorage — and, because
+        // `unwrapSecret` passes unprefixed strings straight through, nothing ever looked broken.
+        // The two collections below this loop were already committed encrypted.
+        const optionalImports: Array<{
+            key: string;
+            data: unknown[] | undefined;
+            schema: Record<string, string>;
+            label: string;
+            encrypt: (item: never) => unknown;
+        }> = [
+            { key: STORAGE_KEYS.CUSTOMERS, data: sanitizedData.customers, schema: SCHEMAS.CUSTOMER, label: 'customers', encrypt: encryptCustomer },
+            { key: STORAGE_KEYS.REVIEWS, data: sanitizedData.reviews, schema: SCHEMAS.REVIEW, label: 'reviews', encrypt: encryptReview },
+            { key: STORAGE_KEYS.SPOOLS, data: sanitizedData.spools, schema: SCHEMAS.SPOOL, label: 'spools', encrypt: encryptSpool },
+            { key: STORAGE_KEYS.GCODES, data: sanitizedData.gcodes, schema: SCHEMAS.GCODE, label: 'stored files', encrypt: encryptGcode },
+            { key: STORAGE_KEYS.EMPLOYEES, data: sanitizedData.employees, schema: SCHEMAS.EMPLOYEE, label: 'employees', encrypt: encryptEmployee },
+            { key: STORAGE_KEYS.QUOTES, data: sanitizedData.quotes, schema: SCHEMAS.QUOTE, label: 'quotes', encrypt: encryptQuote },
+            { key: STORAGE_KEYS.NOTIFICATIONS, data: sanitizedData.notifications, schema: SCHEMAS.NOTIFICATION, label: 'notifications', encrypt: encryptNotification },
         ];
 
         // Track anything the validator rejects so the result can say so instead of
@@ -1750,7 +1862,7 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
             if (imp.data) {
                 const validItems = imp.data.filter((item: unknown) => validateSchema(item as Record<string, unknown>, imp.schema));
                 noteDropped(imp.label, imp.data.length, validItems.length);
-                commitMap[imp.key] = JSON.stringify(validItems);
+                commitMap[imp.key] = JSON.stringify(validItems.map(item => imp.encrypt(item as never)));
             }
         }
 
@@ -1784,9 +1896,18 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
             commitMap[STORAGE_KEYS.AI_SETTINGS] = JSON.stringify(normalizedAI);
         }
 
-        // Commit. If a write fails part-way (most likely a storage quota error), report the
-        // partial state honestly rather than claiming a clean failure over half-replaced data.
+        // Commit, and put everything back if any section is refused.
+        //
+        // Reporting a partial replacement honestly was better than claiming a clean failure, but
+        // it still left the shop with a database half from the backup and half from before it:
+        // new quotes beside old materials means dangling materialIds, which the carbon recompute
+        // and every report then read as a missing material. Each key's previous value is kept
+        // first, so a refusal mid-way can be unwound.
         const written: string[] = [];
+        const previousValues = new Map<string, string | null>(
+            Object.keys(commitMap).map(key => [key, localStorage.getItem(key)])
+        );
+
         try {
             for (const [key, value] of Object.entries(commitMap)) {
                 writeStore(key, value);
@@ -1794,11 +1915,29 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
             }
         } catch (writeErr: unknown) {
             console.error("Import commit failed:", writeErr);
+
+            let restored = true;
+            for (const key of written) {
+                const previous = previousValues.get(key);
+                try {
+                    // Remove first, always: the failure that brought us here is a full quota, and
+                    // dropping the oversized value that was just written is what makes room for
+                    // the smaller one being put back.
+                    localStorage.removeItem(key);
+                    if (previous !== null && previous !== undefined) {
+                        localStorage.setItem(key, previous);
+                    }
+                } catch (rollbackErr: unknown) {
+                    restored = false;
+                    console.error(`[Storage] Could not restore "${key}" after a failed import.`, rollbackErr);
+                }
+            }
+
             return {
                 success: false,
-                message: written.length === 0
-                    ? "Failed to import: your browser storage rejected the write (it may be full)."
-                    : `Import stopped part-way: ${written.length} of ${Object.keys(commitMap).length} sections were replaced before storage ran out of space. Please re-import or restore a backup.`
+                message: restored
+                    ? "Nothing was imported: your browser storage rejected the write (it may be full). Your existing data has been left exactly as it was."
+                    : `Import failed part-way and ${written.length} section(s) could not be put back. Please restore a backup from Database Manager.`
             };
         }
 
@@ -2015,11 +2154,15 @@ export const saveNotification = (notification: Omit<Notification, "id" | "timest
     const newNotification: Notification = {
         source: 'SYSTEM', // Default to SYSTEM provenance
         ...notification,
-        title: sanitize(notification.title),
-        message: sanitize(notification.message),
+        title: sanitizeText(notification.title),
+        message: sanitizeText(notification.message),
+        // `sanitizeText`, not `sanitize`, and the metadata matters as much as the text: the
+        // duplicate check in IntelligenceProvider compares a fresh finding's metadata against what
+        // was stored. Stripping characters here but not there meant a material called "Tom's PLA"
+        // never matched its own earlier notification, so the same alert was raised on every pass.
         metadata: notification.metadata ? Object.entries(notification.metadata).reduce((acc, [key, val]) => ({
             ...acc,
-            [key]: typeof val === 'string' ? sanitize(val) : val
+            [key]: typeof val === 'string' ? sanitizeText(val) : val
         }), {}) : undefined,
         id: generateId(),
         timestamp: new Date().toISOString(),
