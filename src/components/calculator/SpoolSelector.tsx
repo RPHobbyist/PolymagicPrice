@@ -22,7 +22,7 @@ import { AlertTriangle, Package, XCircle } from "lucide-react";
 import { getSpools, getMaterialStock } from "@/lib/core/sessionStorage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 interface SpoolSelectorProps {
     materialId: string;
@@ -118,7 +118,7 @@ export function SpoolSelector({
                                         style={{ backgroundColor: selectedSpool.colour }}
                                     />
                                 )}
-                                <span>{sanitize(selectedSpool.name || 'Unnamed')}</span>
+                                <span>{sanitizeText(selectedSpool.name || 'Unnamed')}</span>
                                 <Badge variant="outline">
                                     {selectedSpool.currentWeight.toFixed(0)}{itemUnit} left
                                 </Badge>
@@ -146,7 +146,7 @@ export function SpoolSelector({
                                         />
                                     )}
                                     <span className={`truncate ${!canFulfill ? "line-through opacity-60" : ""}`}>
-                                        {sanitize(spool.name || 'Unnamed')}
+                                        {sanitizeText(spool.name || 'Unnamed')}
                                     </span>
                                     <span className={`text-xs ml-auto ${!canFulfill ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                                         {spool.currentWeight.toFixed(0)}{itemUnit}
@@ -172,7 +172,7 @@ export function SpoolSelector({
                     <XCircle className="h-4 w-4" />
                     <AlertDescription className="ml-2">
                         <strong>Insufficient stock!</strong> Need <strong>{requiredWeight.toFixed(0)}{itemUnit}</strong> but
-                        <strong> {sanitize(selectedSpool.name)}</strong> only has <strong>{selectedSpoolStock.toFixed(0)}{itemUnit}</strong> left.
+                        <strong> {sanitizeText(selectedSpool.name)}</strong> only has <strong>{selectedSpoolStock.toFixed(0)}{itemUnit}</strong> left.
                         <span className="block text-xs mt-1">
                             Shortage: {(requiredWeight - selectedSpoolStock).toFixed(0)}{itemUnit}
                         </span>

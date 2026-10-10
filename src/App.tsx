@@ -31,6 +31,7 @@ import { UIProvider } from "@/contexts/UIContext";
 import { useStorageHealth } from "@/hooks/useStorageHealth";
 
 import Layout from "./components/layout/Layout";
+import { PublicErrorBoundary } from "./components/RouteErrorBoundary";
 
 // Lazy load pages for code splitting
 const Landing = lazy(() => import("./pages/Landing"));
@@ -113,13 +114,16 @@ const App = () => {
                       <Sonner />
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
-                          {/* Standalone Landing Page outside Layout */}
-                          <Route path="/" element={<Landing />} />
+                          {/* Standalone Landing Page outside Layout.
+                              These four sit outside <Layout>, so they are not covered by the
+                              RouteErrorBoundary inside it — a throw here used to reach the root
+                              boundary and blank the whole site for a visitor arriving from search. */}
+                          <Route path="/" element={<PublicErrorBoundary><Landing /></PublicErrorBoundary>} />
 
                           {/* Standalone SEO content guides outside Layout */}
-                          <Route path="/guides/how-to-calculate-3d-printing-cost" element={<GuideHowToCalculateCost />} />
-                          <Route path="/guides/fdm-vs-resin-printing-cost" element={<GuideFdmVsResinCost />} />
-                          <Route path="/guides/filament-cost-per-gram" element={<GuideFilamentCostPerGram />} />
+                          <Route path="/guides/how-to-calculate-3d-printing-cost" element={<PublicErrorBoundary><GuideHowToCalculateCost /></PublicErrorBoundary>} />
+                          <Route path="/guides/fdm-vs-resin-printing-cost" element={<PublicErrorBoundary><GuideFdmVsResinCost /></PublicErrorBoundary>} />
+                          <Route path="/guides/filament-cost-per-gram" element={<PublicErrorBoundary><GuideFilamentCostPerGram /></PublicErrorBoundary>} />
 
                           <Route element={<Layout />}>
                             <Route path="/cost-calculator" element={<Index />} />

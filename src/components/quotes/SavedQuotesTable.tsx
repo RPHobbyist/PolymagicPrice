@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, memo, useCallback, useEffect } from "react";
+import { useState, memo, useCallback, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ import { BambuDevice, PrinterConnection, PrintOptions } from "@/types/printer";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
 import { useCurrency } from "@/hooks/useCurrency";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 // New Hooks & Components
 import { useQuotesFilter } from "@/hooks/useQuotesFilter";
@@ -76,6 +76,18 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
   const [printers, setPrinters] = useState<BambuDevice[]>([]);
   const [connections, setConnections] = useState<Record<string, PrinterConnection>>({});
 
+  /*
+   * How many rows are actually rendered.
+   *
+   * The quote book has no cap — `saveQuote` just unshifts — and the billing page passes all of it
+   * straight in, at roughly sixteen elements per row. A shop with a thousand quotes was building
+   * sixteen thousand elements on every render of this table, including on every keystroke in the
+   * search box. Filtering and sorting still run over the whole set, so search reaches old quotes;
+   * only the rendering is paged.
+   */
+  const PAGE_SIZE = 50;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   // Use Custom Hook for Filtering & Sorting
   const {
     searchQuery,
@@ -86,6 +98,16 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
     setSortOrder,
     filteredAndSortedQuotes
   } = useQuotesFilter(quotes);
+
+  const visibleQuotes = useMemo(
+    () => filteredAndSortedQuotes.slice(0, visibleCount),
+    [filteredAndSortedQuotes, visibleCount]
+  );
+
+  // A new search or sort starts from the top again.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, filterType, sortOrder]);
 
   const fetchPrinters = useCallback(async () => {
     if ('electronAPI' in window) {
@@ -321,7 +343,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
             </TableHeader>
             <TableBody>
               {filteredAndSortedQuotes.length > 0 ? (
-                filteredAndSortedQuotes.map((quote, index) => {
+                visibleQuotes.map((quote, index) => {
                   return (
                     <TableRow
                       key={quote.id || index}
@@ -339,12 +361,12 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
                             </Badge>
                           )}
                           <span className="truncate">
-                            {sanitize(quote.projectName.length > 30 ? quote.projectName.substring(0, 30) + "..." : quote.projectName)}
+                            {sanitizeText(quote.projectName.length > 30 ? quote.projectName.substring(0, 30) + "..." : quote.projectName)}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-black max-w-[200px] break-words whitespace-normal leading-tight" title={quote.clientName || ""}>
-                        {sanitize((quote.clientName || "-").length > 30 ? (quote.clientName || "").substring(0, 30) + "..." : (quote.clientName || "-"))}
+                        {sanitizeText((quote.clientName || "-").length > 30 ? (quote.clientName || "").substring(0, 30) + "..." : (quote.clientName || "-"))}
                       </TableCell>
                         <TableCell>
                           <span className={cn(
@@ -505,6 +527,17 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
               )}
             </TableBody>
           </Table >
+
+          {visibleQuotes.length < filteredAndSortedQuotes.length && (
+            <div className="flex items-center justify-center gap-3 border-t border-border p-4">
+              <span className="text-sm text-muted-foreground">
+                Showing {visibleQuotes.length} of {filteredAndSortedQuotes.length}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setVisibleCount(c => c + PAGE_SIZE)}>
+                Show more
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 

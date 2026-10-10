@@ -62,7 +62,10 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         return 1.0;
     });
 
-    const setCurrency = (newCurrency: Currency) => {
+    // Both setters are wrapped: they are part of the context value, and re-creating them on every
+    // render gave that value a new identity each time, which undid the memo work below and
+    // re-rendered every price in the app.
+    const setCurrency = useCallback((newCurrency: Currency) => {
         setCurrencyState(newCurrency);
         try {
             localStorage.setItem(STORAGE_KEY, newCurrency.code);
@@ -70,9 +73,9 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
             // Storage can be full or blocked (private windows); keep the in-memory choice.
             console.warn("[Currency] Could not persist the selected currency:", err);
         }
-    };
+    }, []);
 
-    const setConversionRate = (rate: number) => {
+    const setConversionRate = useCallback((rate: number) => {
         // Reject zero/negative/non-finite rates: they silently zero out or break every price.
         const safeRate = Number.isFinite(rate) && rate > 0 ? rate : 1;
         setRateState(safeRate);
@@ -81,7 +84,7 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         } catch (err) {
             console.warn("[Currency] Could not persist the conversion rate:", err);
         }
-    };
+    }, []);
 
     const getLocale = useCallback((): string => {
         return resolveLocale(currency.locale);
@@ -104,7 +107,7 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         [formatters]
     );
 
-    const contextValue: CurrencyContextType = {
+    const contextValue: CurrencyContextType = useMemo(() => ({
         currency,
         setCurrency,
         conversionRate,
@@ -112,7 +115,7 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         formatPrice,
         formatNumber,
         getLocale
-    };
+    }), [currency, setCurrency, conversionRate, setConversionRate, formatPrice, formatNumber, getLocale]);
 
     return (
         <CurrencyContext.Provider value={contextValue}>

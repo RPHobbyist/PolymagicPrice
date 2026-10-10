@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { calculateCapacity, analyzeDeadline, formatDate, formatHours } from "@/lib/capacityCalculator";
-import { getMachines, getMaterials, getMaterialStock } from "@/lib/core/sessionStorage";
+import { getMachines, getMaterials, getStockByMaterial } from "@/lib/core/sessionStorage";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 import { useProduction } from "@/hooks/useProduction";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -50,7 +50,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 // Helper to parse "256 x 256 x 256 mm" into [256, 256, 256]
 const parseBoxVolume = (vol?: string) => {
@@ -162,6 +162,13 @@ export default function CapacityPlannerPage() {
     // Filter available materials based on print type
     const availableMaterials = useMemo(() => getMaterials(printType), [printType]);
 
+    /*
+     * One pass over the spool store for the whole dropdown. Rendering `getMaterialStock(m.id)` per
+     * option re-read and re-decrypted every spool on file once per material.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const stockByMaterialId = useMemo(() => getStockByMaterial(), [availableMaterials]);
+
     // Auto-select first material when switching print type
     useEffect(() => {
         if (availableMaterials.length > 0) {
@@ -239,7 +246,7 @@ export default function CapacityPlannerPage() {
             return sum;
         }, 0);
 
-        const stock = getMaterialStock(selectedMaterialId);
+        const stock = stockByMaterialId.get(selectedMaterialId) ?? 0;
         const effectiveStock = Math.max(0, stock - reservedStock);
         const material = availableMaterials.find(m => m.id === selectedMaterialId);
 
@@ -251,7 +258,7 @@ export default function CapacityPlannerPage() {
             isShort: totalNeededForThisJob > effectiveStock,
             materialName: material?.name || "Material"
         };
-    }, [quantity, usagePerUnit, selectedMaterialId, availableMaterials, jobs]);
+    }, [quantity, usagePerUnit, selectedMaterialId, availableMaterials, jobs, stockByMaterialId]);
 
     // Deadline & Recovery Analysis
     const analysis = useMemo(() => {
@@ -484,7 +491,7 @@ export default function CapacityPlannerPage() {
                                                             <div className="flex items-center justify-between w-full pr-6">
                                                                 <span className="font-medium truncate">{m.name}</span>
                                                                 <span className="text-sm text-slate-600 group-focus:text-white font-medium whitespace-nowrap ml-4">
-                                                                    ({getMaterialStock(m.id).toFixed(0)}{printType === "FDM" ? 'gm' : 'ml'} stock)
+                                                                    ({(stockByMaterialId.get(m.id) ?? 0).toFixed(0)}{printType === "FDM" ? 'gm' : 'ml'} stock)
                                                                 </span>
                                                             </div>
                                                         </SelectItem>
@@ -587,7 +594,7 @@ export default function CapacityPlannerPage() {
                                                     (inventoryStats.isShort || filteredMachineIds.length === 0) ? "text-rose-600" : "text-slate-600"
                                                 )}>
                                                     {inventoryStats.isShort 
-                                                        ? `Only ${inventoryStats.stock.toFixed(0)}${printType === "FDM" ? 'g' : 'ml'} of ${sanitize(inventoryStats.materialName)} available.`
+                                                        ? `Only ${inventoryStats.stock.toFixed(0)}${printType === "FDM" ? 'g' : 'ml'} of ${sanitizeText(inventoryStats.materialName)} available.`
                                                         : filteredMachineIds.length === 0
                                                             ? `No ${printType} printers are currently active in your enabled machines.`
                                                             : analysis?.canMeet 
@@ -704,7 +711,7 @@ export default function CapacityPlannerPage() {
                                                         )}
                                                     >
                                                         <div className="flex flex-col min-w-0 flex-1">
-                                                            <span className="text-sm font-medium leading-tight mb-0.5">{sanitize(machine.name)}</span>
+                                                            <span className="text-sm font-medium leading-tight mb-0.5">{sanitizeText(machine.name)}</span>
                                                             {tooSmall && <span className="text-xs font-semibold text-rose-500">Too Small</span>}
                                                         </div>
                                                         {tooSmall && <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />}
@@ -731,7 +738,7 @@ export default function CapacityPlannerPage() {
                                         {result.breakdown.map((b) => (
                                             <div key={b.machineId} className="bg-card p-5 rounded-none border border-border shadow-sm space-y-3">
                                                 <div className="flex justify-between items-start">
-                                                    <p className="text-sm font-medium text-foreground truncate">{sanitize(b.machineName)}</p>
+                                                    <p className="text-sm font-medium text-foreground truncate">{sanitizeText(b.machineName)}</p>
                                                     <span className="text-sm font-medium text-primary">{b.unitsAssigned} units</span>
                                                 </div>
                                                 <div className="flex justify-between text-xs text-slate-600 font-medium">

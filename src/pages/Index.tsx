@@ -30,14 +30,13 @@ import { Link } from "react-router-dom";
 import { QuoteData, FDMFormData, ResinFormData } from "@/types/quote";
 import { useSavedQuotes } from "@/hooks/useSavedQuotes";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
-import { parseGcode } from "@/lib/parsers/gcodeParser";
 import { calculateFDMQuote, calculateResinQuote } from "@/lib/quoteCalculations";
 import { getMaterials, getMachines, getConstants, validateQuoteData } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { AIInsights } from "@/components/ai/AIInsights";
 import { KanbanSquare } from "lucide-react";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
-import { sanitize, sanitizeObject } from "@/lib/sanitization";
+import { sanitizeText, sanitizeObject } from "@/lib/sanitization";
 import { SYSTEM_CONFIG } from "@/lib/core/core-system";
 
 const SavedQuotesTable = lazy(() => import("@/components/quotes/SavedQuotesTable"));
@@ -269,16 +268,25 @@ const Index = memo(() => {
   useEffect(() => {
     if (!('electronAPI' in window)) return;
 
-    const unsubscribe = window.electronAPI.bridge.onFileReceived(({ filename, content }) => {
+    const unsubscribe = window.electronAPI.bridge.onFileReceived(async ({ filename, content }) => {
       try {
         // Strictly sanitize incoming data from bridge socket
-        const safeFilename = sanitize(filename);
+        const safeFilename = sanitizeText(filename);
 
         // Pre-calculation Structural Validation for Bridge Metadata
         if (!content || typeof content !== 'string') {
             throw new Error("Bridge delivered invalid slicer metadata payload (expected string)");
         }
 
+        /*
+         * Fetched on demand, like every other use of the parser.
+         *
+         * A static import here undid the code splitting the upload components were written for:
+         * the parser drags in JSZip and DOMPurify, and this page is the cost calculator, so both
+         * landed in its chunk for every visitor whether or not they ever open a file. This handler
+         * only runs in the desktop build, where the bridge exists.
+         */
+        const { parseGcode } = await import("@/lib/parsers/gcodeParser");
         const parsedData = parseGcode(content);
         
         // DEEP LOGIC: Apply the same strict sanitization to the parsed metadata objects
@@ -309,7 +317,7 @@ const Index = memo(() => {
         // Map to Form Data
         const defaultMarkup = constants.find(c => c.id === 'markup')?.value ?? 20;
         const formData = {
-          projectName: sanitize(safeFilename.replace(/\.gcode$/i, '').substring(0, 100)), // Enforce strict length cap and sanitization
+          projectName: sanitizeText(safeFilename.replace(/\.gcode$/i, '').substring(0, 100)), // Enforce strict length cap and sanitization
           printTime: (gcodeData.printTimeHours as number).toFixed(2),
           filamentWeight: (gcodeData.filamentWeightGrams as number).toFixed(2),
           markupPercentage: String(defaultMarkup),

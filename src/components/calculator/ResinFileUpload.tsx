@@ -72,7 +72,19 @@ const ResinFileUpload = ({ onDataExtracted }: ResinFileUploadProps) => {
     try {
       const data = await parseResinFile(file);
 
-      if (data.printTimeHours === 0 && data.resinVolumeMl === 0) {
+      /*
+       * Keep whatever the file did yield. Several resin formats carry a layer count, a printer
+       * model or a thumbnail but no volume — discarding all of it because two fields were zero
+       * threw away the machine match and the preview along with them.
+       */
+      const hasAnything =
+        data.printTimeHours > 0 ||
+        data.resinVolumeMl > 0 ||
+        !!data.layerCount ||
+        !!data.thumbnail ||
+        !!data.printerModel;
+
+      if (!hasAnything) {
         toast.warning("Could not extract data from file. Please enter values manually.");
       } else {
         const extractedInfo = [];
@@ -81,7 +93,11 @@ const ResinFileUpload = ({ onDataExtracted }: ResinFileUploadProps) => {
         if (data.layerCount) extractedInfo.push(`Layers: ${data.layerCount}`);
         if (data.printerModel) extractedInfo.push(`Printer: ${data.printerModel}`);
 
-        toast.success(`Extracted: ${extractedInfo.join(', ')}`);
+        if (data.printTimeHours === 0 || data.resinVolumeMl === 0) {
+          toast.warning(`Partly extracted: ${extractedInfo.join(', ')}. Enter the rest manually.`);
+        } else {
+          toast.success(`Extracted: ${extractedInfo.join(', ')}`);
+        }
 
         // Clean filename for the Project Name field
         const cleanName = stripFileExtension(file.name);

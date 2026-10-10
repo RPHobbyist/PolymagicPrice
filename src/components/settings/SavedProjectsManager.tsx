@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useStoredGcodes } from "@/hooks/useStoredGcodes";
 import { ThumbnailPreview } from "@/components/shared/ThumbnailPreview";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 const SavedProjectsManager = () => {
     const navigate = useNavigate();
@@ -56,7 +56,7 @@ const SavedProjectsManager = () => {
 
     const filteredGcodes = useMemo(() => {
         if (!searchQuery.trim()) return gcodes;
-        const query = sanitize(searchQuery).toLowerCase();
+        const query = sanitizeText(searchQuery).toLowerCase();
         if (!query) return gcodes;
         
         return gcodes.filter(file => {

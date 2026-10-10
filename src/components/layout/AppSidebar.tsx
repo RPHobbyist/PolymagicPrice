@@ -109,7 +109,7 @@ const NavItem = ({ icon: Icon, label, path, isNotification }: NavItemProps) => {
                         <span className="sr-only">{label}</span>
                     </NavLink>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="z-[100] bg-slate-900 text-white border-slate-700 font-semibold text-[10px] uppercase tracking-wider">
+                <TooltipContent side="right" className="bg-slate-900 text-white border-slate-700 font-semibold text-[10px] uppercase tracking-wider">
                     {label}
                 </TooltipContent>
             </Tooltip>
@@ -120,22 +120,28 @@ const NavItem = ({ icon: Icon, label, path, isNotification }: NavItemProps) => {
 export const AppSidebar = () => {
     return (
         <TooltipProvider>
-            <aside 
+            <aside
                 className="h-full bg-slate-50 border-r border-slate-200 flex flex-col transition-all duration-300 z-50 shrink-0 w-[64px] relative"
             >
-                {/* Unified Navigation Column - Completely Fixed & Compact */}
-                <div className="flex-1 py-5 flex flex-col items-center gap-4 overflow-hidden px-2 relative">
-                    {/* All Navigation Items in a single stable flow */}
-                    <div className="flex flex-col items-center gap-2.5 w-full">
-                        {navItems.map((item) => (
-                            <NavItem key={item.path} {...item} />
-                        ))}
-                    </div>
+                {/*
+                 * The nav list scrolls; Settings does not.
+                 *
+                 * The whole app is pinned to the viewport (`h-[100dvh]`, everything
+                 * `overflow-hidden`), so this column only ever gets `100dvh` minus the 80px
+                 * header and 40px footer. With ten items plus Settings the list needs ~650px,
+                 * which a laptop at any display scaling does not have — and a clipped
+                 * `overflow-hidden` column just dropped Settings off the bottom with nothing to
+                 * scroll and no sign it was ever there. Keeping Settings in a separate,
+                 * unscrolled footer means it is reachable at every window height.
+                 */}
+                <div className="flex-1 min-h-0 py-3 flex flex-col items-center gap-1.5 overflow-y-auto scrollbar-none px-2 relative">
+                    {navItems.map((item) => (
+                        <NavItem key={item.path} {...item} />
+                    ))}
+                </div>
 
-                    {/* Bottom Settings - Separated by mt-auto wrapper for layout stability */}
-                    <div className="mt-auto pb-2 pt-2 border-t border-slate-200/60 w-full flex flex-col items-center gap-2.5">
-                        <NavItem icon={Settings} label="Settings" path="/settings" />
-                    </div>
+                <div className="shrink-0 pb-2 pt-2 border-t border-slate-200/60 w-full flex flex-col items-center px-2">
+                    <NavItem icon={Settings} label="Settings" path="/settings" />
                 </div>
             </aside>
         </TooltipProvider>

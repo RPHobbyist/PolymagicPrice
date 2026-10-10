@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Upload, FileCode, Loader2 } from "lucide-react";
 import { ThumbnailPreview } from "@/components/shared/ThumbnailPreview";
 import { stripFileExtension, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/utils";
-import { GcodeData } from "@/lib/parsers/gcodeParser"; // Type import is fine
+// `import type` so the parser (and JSZip with it) is only ever fetched by the dynamic imports below.
+import type { GcodeData } from "@/lib/parsers/gcodeParser";
 import { toast } from "sonner";
 
 interface GcodeUploadProps {
@@ -103,7 +104,22 @@ const GcodeUpload = ({ onDataExtracted }: GcodeUploadProps) => {
         data = parseGcode(await readGcodeMetadataRegions(file));
       }
 
-      if (data.printTimeHours === 0 && data.filamentWeightGrams === 0) {
+      /*
+       * Bail only when the file yielded nothing at all.
+       *
+       * This used to return whenever print time and weight were both zero, which is the normal
+       * shape of an unsliced 3MF exported from a CAD tool — and that threw away the surface area
+       * computed from the mesh, which is what painting is priced on, along with the thumbnail and
+       * the printer model.
+       */
+      const hasAnything =
+        data.printTimeHours > 0 ||
+        data.filamentWeightGrams > 0 ||
+        (data.surfaceAreaMm2 ?? 0) > 0 ||
+        !!data.thumbnail ||
+        !!data.printerModel;
+
+      if (!hasAnything) {
         toast.warning("Could not extract data from file. Please enter values manually.");
         return;
       }
@@ -125,10 +141,25 @@ const GcodeUpload = ({ onDataExtracted }: GcodeUploadProps) => {
 
       const extractedInfo = [];
       if (data.printTimeHours > 0) extractedInfo.push(`Print Time: ${data.printTimeHours}h`);
-      if (data.filamentWeightGrams > 0) extractedInfo.push(`Filament: ${data.filamentWeightGrams}g`);
+      if (data.filamentWeightGrams > 0) {
+        // A weight the slicer did not state was derived from filament length, and the assumptions
+        // behind it matter to the price — say so rather than presenting it as a measurement.
+        extractedInfo.push(
+          data.weightFromLength
+            ? `Filament: ${data.filamentWeightGrams}g (estimated from length)`
+            : `Filament: ${data.filamentWeightGrams}g`
+        );
+      }
+      if ((data.surfaceAreaMm2 ?? 0) > 0) extractedInfo.push(`Surface: ${(data.surfaceAreaMm2! / 100).toFixed(1)}cm²`);
       if (data.printerModel) extractedInfo.push(`Printer: ${data.printerModel}`);
 
-      toast.success(`Extracted: ${extractedInfo.join(', ')}`);
+      // A file that carried geometry but no slicer metadata is a partial result, not a success:
+      // the shop still has to type the print time in.
+      if (data.printTimeHours === 0 || data.filamentWeightGrams === 0) {
+        toast.warning(`Partly extracted: ${extractedInfo.join(', ')}. Enter the rest manually.`);
+      } else {
+        toast.success(`Extracted: ${extractedInfo.join(', ')}`);
+      }
     } catch (error) {
       console.error('File parsing error:', error);
       toast.error("Failed to parse file");

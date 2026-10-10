@@ -84,4 +84,52 @@ export const RouteErrorBoundary = ({ children }: { children: ReactNode }) => {
     );
 };
 
+/**
+ * The same idea for the pages that sit outside the app shell — the landing page and the three SEO
+ * guides. They had no boundary of their own, so a throw there reached the root boundary and blanked
+ * the site with a stack trace, on exactly the pages a first-time visitor arrives at from search.
+ *
+ * The copy is deliberately not the shop-facing one above: a visitor has no data to back up.
+ */
+export const PublicErrorBoundary = ({ children }: { children: ReactNode }) => {
+    const { pathname } = useLocation();
+
+    const fallback = (
+        <div className="min-h-[60vh] w-full flex items-center justify-center p-6">
+            <Card className="max-w-lg w-full p-6">
+                <div className="flex flex-col items-center text-center gap-4">
+                    <div className="p-3 bg-destructive/10 rounded-full">
+                        <AlertTriangle className="w-7 h-7 text-destructive" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <h2 className="text-xl font-bold">This page ran into a problem</h2>
+                        <p className="text-sm text-muted-foreground">
+                            Sorry — something on this page failed to load. The calculator itself is
+                            unaffected.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-3 pt-1">
+                        <Button asChild variant="default" className="gap-2">
+                            <Link to="/cost-calculator">
+                                <LayoutDashboard className="w-4 h-4" />
+                                Open the calculator
+                            </Link>
+                        </Button>
+                        <Button variant="ghost" className="gap-2" onClick={() => window.location.reload()}>
+                            <RefreshCw className="w-4 h-4" />
+                            Reload
+                        </Button>
+                    </div>
+                </div>
+            </Card>
+        </div>
+    );
+
+    return (
+        <ErrorBoundary key={pathname} fallback={fallback}>
+            {children}
+        </ErrorBoundary>
+    );
+};
+
 export default RouteErrorBoundary;

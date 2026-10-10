@@ -23,7 +23,7 @@ import {
     getConstants,
     getCompanySettings,
     getLowStockMaterials,
-    getMaterialStock,
+    getStockByMaterial,
     getSpools,
     getProductionJobs,
     getProductionSettings,
@@ -86,6 +86,10 @@ export const gatherContext = (): ShopContext => {
 
     const stats = computeQuoteStats(quotes);
     const load = computeShopLoad(quotes, machines, getProductionSettings());
+
+    // One pass over the spool store for every material below. Calling `getMaterialStock` inside
+    // that map re-read and re-decrypted the whole spool store once per material, on every message.
+    const stockByMaterialId = getStockByMaterial();
 
     const findings = sortFindingsBySeverity(analyzeShop({
         quotes,
@@ -155,7 +159,7 @@ export const gatherContext = (): ShopContext => {
             type: m.print_type,
             costPerUnit: m.cost_per_unit,
             unit: m.unit,
-            inStock: getMaterialStock(m.id),
+            inStock: stockByMaterialId.get(m.id) ?? 0,
             co2PerKg: m.co2PerKg,
         })),
         carbon: {

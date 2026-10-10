@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { memo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -65,11 +65,16 @@ export const JobCard = memo(({ job, index, isConnected, onSendFile, printStatus 
     const [failUnits, setFailUnits] = useState<number>(job.quote.quantity);
     const [failScrapGrams, setFailScrapGrams] = useState<number>(0);
 
-    // [ClosedLoop] Pricing Drift Detection
-    const constants = getConstants();
-    const currentLabor = constants.find(c => c.name.includes("Labor"))?.value || 0;
+    // [ClosedLoop] Pricing Drift Detection.
+    // Memoised on the quote's own rate: this read sat in the render body, so every board render
+    // re-read and re-parsed the constants store once per visible card. The same shape as
+    // `OrderListItem`, which already does it this way.
     const quoteLabor = parseFloat(job.quote.parameters.laborRate as string) || 0;
-    const hasDrift = quoteLabor > 0 && Math.abs(currentLabor - quoteLabor) / quoteLabor > 0.15;
+    const hasDrift = useMemo(() => {
+        if (quoteLabor <= 0) return false;
+        const currentLabor = getConstants().find(c => c.name.includes("Labor"))?.value || 0;
+        return Math.abs(currentLabor - quoteLabor) / quoteLabor > 0.15;
+    }, [quoteLabor]);
 
     return (
         <>

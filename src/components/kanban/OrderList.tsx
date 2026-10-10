@@ -25,14 +25,19 @@ import { toast } from 'sonner';
 
 import { useOrderManager } from '@/hooks/useOrderManager';
 import { ChevronRight, ArrowUp, ArrowRight, ArrowDown, RotateCcw } from 'lucide-react';
-import { getEmployee, getConstants } from '@/lib/core/sessionStorage';
+import { getEmployees, getConstants } from '@/lib/core/sessionStorage';
+import type { Employee } from '@/types/quote';
 import { getOrderId } from '@/lib/utils/order-utils';
 import { cn } from "@/lib/utils";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 
 interface OrderListItemProps {
     quote: QuoteData;
+    /** Read once for the whole list rather than once per row. */
+    employeesById: Map<string, Employee>;
+    /** The shop's current labour rate, for the pricing-drift badge. */
+    currentLaborRate: number;
 }
 
 const STAGES: { id: QuoteStatus; label: string }[] = [
@@ -71,26 +76,25 @@ const PriorityBadge = ({ priority }: { priority?: string }) => {
     );
 };
 
-const OrderListItem = memo(({ quote }: OrderListItemProps) => {
+const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderListItemProps) => {
     const { moveQuote } = useOrderManager();
     const [draftOpen, setDraftOpen] = useState(false);
-    
+
     const currentStageIndex = getStageIndex(quote.status);
 
-    // Get assigned employee name
-    const assignedEmployee = useMemo(() => {
-        if (quote.assignedEmployeeId) {
-            return getEmployee(quote.assignedEmployeeId);
-        }
-        return null;
-    }, [quote.assignedEmployeeId]);
+    /*
+     * Both of these used to read storage per row: `getEmployee` decrypts the whole employee store
+     * and `getConstants` re-parses the constants store, so a 200-order list paid for 400 reads to
+     * show 200 rows. The list reads each store once and hands the result down.
+     */
+    const assignedEmployee = quote.assignedEmployeeId
+        ? employeesById.get(quote.assignedEmployeeId) ?? null
+        : null;
 
     const hasPricingDrift = useMemo(() => {
-        const constants = getConstants();
-        const currentLabor = constants.find(c => c.name.includes("Labor"))?.value || 0;
         const quoteLabor = parseFloat(quote.parameters.laborRate as string) || 0;
-        return (quoteLabor > 0 && Math.abs(currentLabor - quoteLabor) / quoteLabor > 0.15);
-    }, [quote.parameters.laborRate]);
+        return (quoteLabor > 0 && Math.abs(currentLaborRate - quoteLabor) / quoteLabor > 0.15);
+    }, [quote.parameters.laborRate, currentLaborRate]);
 
     const handleStageClick = (stageIndex: number) => {
         // Once Post-Processing (index 3) or later, don't allow going back
@@ -116,7 +120,7 @@ const OrderListItem = memo(({ quote }: OrderListItemProps) => {
                         Order ID : <span className="text-foreground/80 ml-1 font-medium">{getOrderId(quote.id)}</span>
                     </span>
                     <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5">
-                        Project : <span className="text-foreground/80 ml-1 font-medium">{sanitize(quote.projectName)}</span>
+                        Project : <span className="text-foreground/80 ml-1 font-medium">{sanitizeText(quote.projectName)}</span>
                     </span>
                 </div>
                 
@@ -131,14 +135,14 @@ const OrderListItem = memo(({ quote }: OrderListItemProps) => {
 
                     {quote.clientName && (
                         <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5">
-                            Client : <span className="text-foreground/80 ml-1 font-medium">{sanitize(quote.clientName)}</span>
+                            Client : <span className="text-foreground/80 ml-1 font-medium">{sanitizeText(quote.clientName)}</span>
                         </span>
                     )}
 
                     {assignedEmployee && (
                         <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5 flex items-center gap-1">
                             Operator : <span className="text-foreground/80 ml-1 font-medium underline underline-offset-4 decoration-primary/20">
-                                {sanitize(assignedEmployee.name)}
+                                {sanitizeText(assignedEmployee.name)}
                             </span>
                         </span>
                     )}
@@ -237,6 +241,17 @@ export const OrderList = memo(() => {
     const { columns } = useOrderManager();
 
     // Combine all quotes from all columns
+    /*
+     * Two storage reads for the whole list instead of two per row. Keyed on `columns`, which is
+     * what changes when an order moves, is assigned or is re-priced.
+     */
+    // `columns` is a cache key rather than an input to either read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const employeesById = useMemo(() => new Map(getEmployees().map(e => [e.id, e])), [columns]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const currentLaborRate = useMemo(() => getConstants().find(c => c.name.includes("Labor"))?.value || 0, [columns]);
+
     const allQuotes = useMemo(() => {
         const quotes = [
             ...columns.PENDING,
@@ -279,7 +294,12 @@ export const OrderList = memo(() => {
     return (
         <div className="space-y-2">
             {allQuotes.map((quote) => (
-                <OrderListItem key={quote.id} quote={quote} />
+                <OrderListItem
+                    key={quote.id}
+                    quote={quote}
+                    employeesById={employeesById}
+                    currentLaborRate={currentLaborRate}
+                />
             ))}
         </div>
     );

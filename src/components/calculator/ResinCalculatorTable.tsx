@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useState, useCallback, useMemo, memo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, memo, useEffect, useRef, lazy, Suspense } from "react";
 import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
 import { QuoteData, ResinFormData, StoredGcode, Employee, QuoteStatus } from "@/types/quote";
@@ -26,8 +26,13 @@ import { QuoteCalculator } from "./QuoteCalculator";
 import { FormFieldRow, TextField, SelectField } from "./FormField";
 import { ConsumablesSelector } from "./ConsumablesSelector";
 import { SpoolSelector } from "./SpoolSelector";
-import ResinFileUpload from "./ResinFileUpload";
-import { ResinFileData } from "@/lib/parsers/resinFileParser";
+/*
+ * Fetched on demand: `ResinFileUpload` statically imports the resin parser, which statically
+ * imports JSZip (~98 KB minified). This table is part of the cost calculator page, so that landed
+ * in the first load for every visitor, including the FDM users who never open a resin file.
+ */
+const ResinFileUpload = lazy(() => import("./ResinFileUpload"));
+import type { ResinFileData } from "@/lib/parsers/resinFileParser";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ClientSelector } from "@/components/shared/ClientSelector";
 import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
@@ -39,6 +44,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import * as sessionStore from "@/lib/core/sessionStorage";
 import { pick } from "@/lib/utils";
+// The one parser for a print-time field: "1:30" is 1.5 h here exactly as it is in the pricing engine.
+import { parseTimeToHours } from "@/lib/utils/time";
 
 interface ResinCalculatorProps {
   onCalculate: (data: QuoteData) => void;
@@ -91,7 +98,7 @@ const initialFormData: ResinFormData = {
 };
 
 const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculatorProps) => {
-  const { materials, machines, constants, loading, getConstantValue } = useCalculatorData({ printType: "Resin" });
+  const { materials, machines, constants, loading, getConstantValue, findConstantValue } = useCalculatorData({ printType: "Resin" });
   const [formData, setFormData] = useState<ResinFormData>(initialFormData);
   
   // Stable ID for the current calculation session
@@ -128,12 +135,18 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
 
   const [isPaintingEnabled, setIsPaintingEnabled] = useState(false);
 
-  // Sync isPaintingEnabled with initial data if needed
+  // Sync isPaintingEnabled with initial data if needed.
+  // A chosen paint counts as painting even with no coat count typed yet, otherwise reopening such
+  // a quote would show the section closed while the paint was still being charged.
   useEffect(() => {
-    if (formData.paintingLayers && parseInt(formData.paintingLayers) > 0 && !isPaintingEnabled) {
+    const hasPainting =
+      (formData.paintingLayers && parseInt(formData.paintingLayers) > 0) ||
+      !!formData.selectedPaintId ||
+      !!formData.selectedPaintId2;
+    if (hasPainting && !isPaintingEnabled) {
       setIsPaintingEnabled(true);
     }
-  }, [formData.paintingLayers, isPaintingEnabled]);
+  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, isPaintingEnabled]);
 
   const updateField = useCallback(<K extends keyof ResinFormData>(field: K, value: ResinFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -270,7 +283,9 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         id: crypto.randomUUID(),
         name: formData.projectName || "Unnamed Resin Project",
         filePath: formData.filePath || "Uploaded File",
-        printTime: parseFloat(formData.printTime) || 0,
+        // parseFloat read "1:30" as 1, so a job saved to the library came back an hour short and
+        // re-priced 33% low. The pricing engine has always used parseTimeToHours; this now matches.
+        printTime: parseTimeToHours(formData.printTime),
         filamentWeight: 0, // Not used for resin
         resinVolume: parseFloat(formData.resinVolume) || 0,
         machineName: machine?.name || "Standard Resin Printer",
@@ -280,11 +295,11 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         createdAt: new Date().toISOString(),
       };
 
+      // `useStoredGcodes.saveGcode` reports both outcomes itself, so neither a success nor an
+      // error toast belongs here — adding them showed the shop two of each.
       await saveGcode(newGcode);
-      toast.success("File saved to library");
     } catch (error) {
-      console.error("Failed to save file", error);
-      toast.error("Failed to save file to library");
+      console.error("[Calculator] Saving to the G-code library failed.", error);
     }
   };
 
@@ -321,8 +336,15 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       return;
     }
 
-    const selectedPaint = formData.selectedPaintId ? constants.find(c => c.id === formData.selectedPaintId) : undefined;
-    const selectedPaint2 = formData.selectedPaintId2 ? constants.find(c => c.id === formData.selectedPaintId2) : undefined;
+    // Only bill for paint while the painting section is actually switched on: the engine charges
+    // for whatever paints it is handed, so the switch has to be honoured here rather than being
+    // inferred from fields that may still hold a previous selection.
+    const selectedPaint = isPaintingEnabled && formData.selectedPaintId
+      ? constants.find(c => c.id === formData.selectedPaintId)
+      : undefined;
+    const selectedPaint2 = isPaintingEnabled && formData.selectedPaintId2
+      ? constants.find(c => c.id === formData.selectedPaintId2)
+      : undefined;
 
     const quoteData = calculateResinQuote({
       formData: {
@@ -335,7 +357,10 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       electricityRate: electricityRate,
       laborRate: laborRate,
       // Carbon: the shop's grid factor, plus the bottle in use when one is selected.
-      gridGPerKWh: getConstantValue("grid_intensity"),
+      // findConstantValue, not getConstantValue: a missing grid factor must stay undefined so the
+      // carbon engine applies its world-average default. A 0 reads as a deliberate figure — a shop
+      // on fully renewable power — and would otherwise report every job as zero-carbon.
+      gridGPerKWh: findConstantValue("grid_intensity"),
       spool: selectedSpoolId ? sessionStore.getSpools().find(s => s.id === selectedSpoolId) : undefined,
       consumables: selectedConsumables,
       paintConsumable: selectedPaint, // Pass the full object
@@ -347,7 +372,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId, thumbnail]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, findConstantValue, onCalculate, calculationId, thumbnail, isPaintingEnabled]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({
@@ -397,7 +422,9 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
               <span className="hidden sm:inline">Save to Library</span>
             </Button>
           )}
-          <ResinFileUpload onDataExtracted={handleResinFileData} />
+          <Suspense fallback={<div className="h-9 w-32 animate-pulse rounded-md bg-muted/50" />}>
+            <ResinFileUpload onDataExtracted={handleResinFileData} />
+          </Suspense>
         </div>
       </div>
 
@@ -685,9 +712,15 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
                   updateField("paintingLayers", "1");
                   updateField("paintingTime", "0.5");
                 } else {
+                  // Clear the WHOLE painting section. Leaving the second paint, its coat count
+                  // and the surface area behind meant an unticked box still billed a coat of the
+                  // secondary paint — invisibly, since the section itself was hidden.
                   updateField("paintingLayers", "");
                   updateField("paintingTime", "");
                   updateField("selectedPaintId", "");
+                  updateField("selectedPaintId2", "");
+                  updateField("paintingLayers2", "");
+                  updateField("surfaceAreaCm2", "");
                 }
               }}
               className="border-slate-300 data-[state=checked]:bg-slate-800"

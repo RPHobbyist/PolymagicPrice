@@ -199,10 +199,27 @@ class OllamaClient {
         let timedOut = false;
         let externalAbort = false;
 
-        const timeout = setTimeout(() => {
+        /*
+         * An idle timeout, not a whole-request one.
+         *
+         * A single timer armed before the fetch aborted the request `requestTimeoutMs` after it
+         * started, however healthy the stream was — so a model answering steadily but slowly, the
+         * normal case for a large model on a laptop, was cut off mid-sentence and reported as a
+         * timeout. What the timeout is for is a server that has stopped responding, so it is
+         * restarted each time a chunk arrives.
+         */
+        let timeout = setTimeout(() => {
             timedOut = true;
             controller.abort();
         }, settings.requestTimeoutMs);
+
+        const resetIdleTimeout = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                timedOut = true;
+                controller.abort();
+            }, settings.requestTimeoutMs);
+        };
 
         // Bridge the caller's signal, and always detach it again — the old
         // listener was never removed, so every message leaked one.
@@ -234,6 +251,9 @@ class OllamaClient {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
+
+                // The server is still answering, so the idle clock starts again.
+                resetIdleTimeout();
 
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split("\n");

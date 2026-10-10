@@ -27,7 +27,10 @@ import { FormFieldRow, TextField, SelectField } from "./FormField";
 import { ConsumablesSelector } from "./ConsumablesSelector";
 import { SpoolSelector } from "./SpoolSelector";
 import GcodeUpload from "./GcodeUpload";
-import { GcodeData } from "@/lib/parsers/gcodeParser";
+import type { GcodeData } from "@/lib/parsers/gcodeParser";
+// The arithmetic only — importing it from the parser would pull JSZip and DOMPurify into this chunk.
+import { filamentWeightFromLength } from "@/lib/parsers/filamentGeometry";
+import { matchMaterialPreset, resolveDensity } from "@/lib/carbon/carbonFactors";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ClientSelector } from "@/components/shared/ClientSelector";
 import { Customer, Employee } from "@/types/quote";
@@ -35,6 +38,8 @@ import { SurfaceAreaUpload } from "./SurfaceAreaUpload";
 import { getEmployees, getSpools } from "@/lib/core/sessionStorage";
 import { useStoredGcodes } from "@/hooks/useStoredGcodes";
 import { pick } from "@/lib/utils";
+// The one parser for a print-time field: "1:30" is 1.5 h here exactly as it is in the pricing engine.
+import { parseTimeToHours } from "@/lib/utils/time";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -91,7 +96,7 @@ const initialFormData: FDMFormData = {
 };
 
 const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProps) => {
-  const { materials, machines, constants, loading, getConstantValue } = useCalculatorData({ printType: "FDM" });
+  const { materials, machines, constants, loading, getConstantValue, findConstantValue } = useCalculatorData({ printType: "FDM" });
   const [formData, setFormData] = useState<FDMFormData>(initialFormData);
   
   // Stable ID for the current calculation session
@@ -128,12 +133,18 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
 
   const [isPaintingEnabled, setIsPaintingEnabled] = useState(false);
 
-  // Sync isPaintingEnabled with initial data if needed (e.g. when editing a quote)
+  // Sync isPaintingEnabled with initial data if needed (e.g. when editing a quote).
+  // A chosen paint counts as painting even with no coat count typed yet, otherwise reopening such
+  // a quote would show the section closed while the paint was still being charged.
   useEffect(() => {
-    if (formData.paintingLayers && parseInt(formData.paintingLayers) > 0 && !isPaintingEnabled) {
+    const hasPainting =
+      (formData.paintingLayers && parseInt(formData.paintingLayers) > 0) ||
+      !!formData.selectedPaintId ||
+      !!formData.selectedPaintId2;
+    if (hasPainting && !isPaintingEnabled) {
       setIsPaintingEnabled(true);
     }
-  }, [formData.paintingLayers, isPaintingEnabled]);
+  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, isPaintingEnabled]);
 
   const updateField = useCallback(<K extends keyof FDMFormData>(field: K, value: FDMFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -195,18 +206,39 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
     // Always populate what was parsed. This block used to sit inside `if (data.printerModel)`,
     // so any slicer output without a printer-model comment filled in nothing at all while the
     // upload component still reported "Extracted: ...".
-    setFormData(prev => ({
-      ...prev,
-      projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
-      printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
-      filamentWeight: data.filamentWeightGrams > 0 ? data.filamentWeightGrams.toString() : prev.filamentWeight,
-      machineId: matchedMachineId || prev.machineId,
-      materialId: matchedMaterialId || prev.materialId,
-      printColour: (data.filamentColour && !data.filamentColour.includes(';')) ? data.filamentColour : prev.printColour,
-      filePath: data.filePath || prev.filePath,
-      // Keep any manually entered surface area when the file does not carry one.
-      surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : prev.surfaceAreaCm2,
-    }));
+    setFormData(prev => {
+      const materialId = matchedMaterialId || prev.materialId;
+
+      /*
+       * When the slicer stated no weight, the parser derived one from filament length using the
+       * file's own diameter and density — and, where the file says nothing (Cura writes only
+       * metres), 1.75 mm PLA. The chosen material's density is a better answer than that default,
+       * and this weight is what the job is priced on, so refine it here where the material is
+       * known. A density the file itself stated is left alone: it describes the actual filament.
+       */
+      let filamentWeightGrams = data.filamentWeightGrams;
+      if (data.weightFromLength && (data.filamentLengthMm ?? 0) > 0 && data.filamentDensityGCm3 === undefined) {
+        const material = materials.find(m => m.id === materialId);
+        if (material) {
+          const density = resolveDensity(material, matchMaterialPreset(material.name, "FDM"));
+          filamentWeightGrams =
+            Math.round(filamentWeightFromLength(data.filamentLengthMm!, data.filamentDiameterMm, density) * 10) / 10;
+        }
+      }
+
+      return {
+        ...prev,
+        projectName: data.fileName ? (data.fileName.lastIndexOf('.') > 0 ? data.fileName.substring(0, data.fileName.lastIndexOf('.')) : data.fileName) : prev.projectName,
+        printTime: data.printTimeHours > 0 ? data.printTimeHours.toString() : prev.printTime,
+        filamentWeight: filamentWeightGrams > 0 ? filamentWeightGrams.toString() : prev.filamentWeight,
+        machineId: matchedMachineId || prev.machineId,
+        materialId,
+        printColour: (data.filamentColour && !data.filamentColour.includes(';')) ? data.filamentColour : prev.printColour,
+        filePath: data.filePath || prev.filePath,
+        // Keep any manually entered surface area when the file does not carry one.
+        surfaceAreaCm2: data.surfaceAreaMm2 ? (data.surfaceAreaMm2 / 100).toString() : prev.surfaceAreaCm2,
+      };
+    });
 
     if (data.thumbnail) {
       setThumbnail(data.thumbnail);
@@ -305,7 +337,9 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       id: crypto.randomUUID(),
       name: formData.projectName || "Unnamed Project",
       filePath: formData.filePath || "Uploaded File",
-      printTime: parseFloat(formData.printTime) || 0,
+      // parseFloat read "1:30" as 1, so a job saved to the library came back an hour short and
+      // re-priced 33% low. The pricing engine has always used parseTimeToHours; this now matches.
+      printTime: parseTimeToHours(formData.printTime),
       filamentWeight: parseFloat(formData.filamentWeight) || 0,
       machineName: machine?.name || "Standard Printer",
       materialName: material?.name || "Standard Material",
@@ -321,8 +355,11 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
 
     try {
       await saveGcode(gcodeToSave);
-    } catch {
-      // Ignore error
+    } catch (err) {
+      // `useStoredGcodes.saveGcode` has already shown the failure — including the shop-readable
+      // quota message that `writeStore` puts on a StorageWriteError — and then re-thrown. This
+      // catch exists only to stop an unhandled rejection; it must never look like a success.
+      console.error("[Calculator] Saving to the G-code library failed.", err);
     }
   };
 
@@ -367,8 +404,15 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       return;
     }
 
-    const selectedPaint = formData.selectedPaintId ? constants.find(c => c.id === formData.selectedPaintId) : undefined;
-    const selectedPaint2 = formData.selectedPaintId2 ? constants.find(c => c.id === formData.selectedPaintId2) : undefined;
+    // Only bill for paint while the painting section is actually switched on: the engine charges
+    // for whatever paints it is handed, so the switch has to be honoured here rather than being
+    // inferred from fields that may still hold a previous selection.
+    const selectedPaint = isPaintingEnabled && formData.selectedPaintId
+      ? constants.find(c => c.id === formData.selectedPaintId)
+      : undefined;
+    const selectedPaint2 = isPaintingEnabled && formData.selectedPaintId2
+      ? constants.find(c => c.id === formData.selectedPaintId2)
+      : undefined;
 
     const quoteData = calculateFDMQuote({
       formData: {
@@ -382,7 +426,10 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
       laborRate: getConstantValue("labor"),
       // Carbon: the shop's grid factor, and the spool being drawn from — a specific spool's
       // published figure beats any generic factor for the material.
-      gridGPerKWh: getConstantValue("grid_intensity"),
+      // findConstantValue, not getConstantValue: a missing grid factor must stay undefined so the
+      // carbon engine applies its world-average default. A 0 reads as a deliberate figure — a shop
+      // on fully renewable power — and would otherwise report every job as zero-carbon.
+      gridGPerKWh: findConstantValue("grid_intensity"),
       spool: selectedSpoolId ? getSpools().find(s => s.id === selectedSpoolId) : undefined,
       consumables: selectedConsumables,
       paintConsumable: selectedPaint,
@@ -394,7 +441,7 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
 
     onCalculate(quoteData);
     toast.success("Quote calculated successfully!");
-  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, onCalculate, calculationId, thumbnail]);
+  }, [formData, selectedSpoolId, materials, machines, constants, getConstantValue, findConstantValue, onCalculate, calculationId, thumbnail, isPaintingEnabled]);
 
   const materialOptions = useMemo(() =>
     materials.map(m => ({
@@ -684,9 +731,15 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
                   updateField("paintingLayers", "1");
                   updateField("paintingTime", "0.5");
                 } else {
+                  // Clear the WHOLE painting section. Leaving the second paint, its coat count
+                  // and the surface area behind meant an unticked box still billed a coat of the
+                  // secondary paint — invisibly, since the section itself was hidden.
                   updateField("paintingLayers", "");
                   updateField("paintingTime", "");
                   updateField("selectedPaintId", "");
+                  updateField("selectedPaintId2", "");
+                  updateField("paintingLayers2", "");
+                  updateField("surfaceAreaCm2", "");
                 }
               }}
               className="border-slate-300 data-[state=checked]:bg-slate-800"

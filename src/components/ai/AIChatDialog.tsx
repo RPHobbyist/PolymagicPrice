@@ -213,8 +213,20 @@ const ChatBody = ({ open, onOpenChange }: AIChatDialogProps) => {
         try {
             let fullResponse = "";
 
-            for await (const token of ollamaClient.chatStream(newHistory, controller.signal)) {
-                fullResponse += token;
+            /*
+             * Repainting is throttled to roughly one frame.
+             *
+             * Redaction and safe-rendering both scan the whole accumulated answer, and the
+             * markdown renderer re-parses it, so doing that per token is quadratic in the length
+             * of the reply: a four-thousand-character answer meant millions of characters
+             * rescanned and around a thousand full parses, which pinned a CPU and made the text
+             * stutter as it arrived. One repaint per frame reads identically and costs a fraction.
+             */
+            let pending = false;
+            const FRAME_MS = 60;
+            let lastPaintedAt = 0;
+
+            const paint = () => {
                 // Redact BEFORE stripping command blocks, matching finalizeAIOutput's
                 // order — reversing it lets renderSafeText splice a phone/card number
                 // flush against the char that followed a [CMD:...] block, which made
@@ -227,7 +239,18 @@ const ChatBody = ({ open, onOpenChange }: AIChatDialogProps) => {
                     updated[updated.length - 1] = { ...updated[updated.length - 1], content: live };
                     return updated;
                 });
+                lastPaintedAt = Date.now();
+                pending = false;
+            };
+
+            for await (const token of ollamaClient.chatStream(newHistory, controller.signal)) {
+                fullResponse += token;
+                pending = true;
+                if (Date.now() - lastPaintedAt >= FRAME_MS) paint();
             }
+
+            // Whatever arrived since the last frame still has to be shown.
+            if (pending) paint();
 
             const finalized = finalizeAIOutput(fullResponse, { redactPII: settings.redactPII });
             if (finalized.findings.length > 0) {

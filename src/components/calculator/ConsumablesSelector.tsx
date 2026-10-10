@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { ChevronDown, Package } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 interface ConsumableItem {
     id: string;
@@ -62,7 +62,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
         if (selectedIds.length === 0) return "Select consumables (optional)";
         if (selectedIds.length === 1) {
             const item = selectedItems[0];
-            return `${sanitize(item.name)}: ${formatPrice(item.value)}`;
+            return `${sanitizeText(item.name)}: ${formatPrice(item.value)}`;
         }
         return `${selectedIds.length} items selected (${formatPrice(totalValue)})`;
     };
@@ -115,7 +115,7 @@ export const ConsumablesSelector = memo(({ items, selectedIds, onChange, id }: C
                                         htmlFor={`${id}-${item.id}`}
                                         className="flex-1 cursor-pointer flex justify-between items-center"
                                     >
-                                        <span className="font-medium">{sanitize(item.name)}</span>
+                                        <span className="font-medium">{sanitizeText(item.name)}</span>
                                         <span className="text-sm text-muted-foreground">
                                             {formatPrice(item.value)}{item.unit && !item.unit.startsWith('%') ? ` ${item.unit}` : ''}
                                         </span>

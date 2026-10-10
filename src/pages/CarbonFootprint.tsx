@@ -37,9 +37,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { FileDown } from "lucide-react";
 import { useSavedQuotes } from "@/hooks/useSavedQuotes";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 import * as sessionStore from "@/lib/core/sessionStorage";
+import { generateShopReport } from "@/lib/reportGenerator";
 import { buildCarbonOverview, computeIdleOverheadKg, selectPooledMachines } from "@/lib/carbon/carbonStats";
 import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 import {
@@ -56,7 +58,7 @@ const SOURCE_COLOURS = ["#0ea5e9", "#10b981", "#f59e0b"];
 
 const CarbonFootprint = () => {
     useDocumentSEO({
-        title: "Carbon Footprint — 3D Printing Emissions Analysis",
+        title: "Carbon Footprint: 3D Printing Emissions Analysis",
         description: "Estimate the carbon footprint of your 3D printing: energy, material and waste per job, per part and per machine.",
         canonical: "/carbon-footprint",
     });
@@ -100,6 +102,18 @@ const CarbonFootprint = () => {
     const handleEolChange = (path: "landfill" | "incineration" | "recycling") => {
         setCarbonSettings(sessionStore.saveCarbonSettings({ defaultEolPath: path }));
         toast.success("Disposal assumption saved. It applies to materials without their own setting.");
+    };
+
+    /*
+     * The carbon report is built by the same `reportGenerator` the assistant uses, so the printed
+     * document and this screen can never disagree. It used to be reachable only by asking the local
+     * assistant for it, which meant a shop on the hosted build — where `isAIAllowed` is false — had
+     * no way to get the figure out of the app at all.
+     */
+    const handleExportReport = () => {
+        const { opened, message } = generateShopReport("CARBON");
+        if (opened) toast.success(message);
+        else toast.error(message);
     };
 
     const [recalcOpen, setRecalcOpen] = useState(false);
@@ -150,6 +164,17 @@ const CarbonFootprint = () => {
             <PageHeader
                 title="Carbon Footprint"
                 subtitle="Estimated Emissions & Energy Analysis"
+                actions={
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportReport}
+                        className="h-8 px-3 bg-background hover:bg-muted text-xs sm:text-sm border-input font-medium whitespace-nowrap"
+                    >
+                        <FileDown className="w-4 h-4 mr-1.5" />
+                        Export Report
+                    </Button>
+                }
             />
 
             <main className="container mx-auto px-6 py-8 max-w-[1600px] space-y-8">
@@ -321,9 +346,9 @@ const CarbonFootprint = () => {
                                                     {job.flagged && <span className="ml-1 text-slate-500" title="No slicer feature data: supports and purge could not be separated">*</span>}
                                                 </TableCell>
                                                 <TableCell className="text-slate-600">{job.machineName}</TableCell>
-                                                <TableCell className="text-slate-600">{job.materialName || "—"}</TableCell>
+                                                <TableCell className="text-slate-600">{job.materialName || "N/A"}</TableCell>
                                                 <TableCell className="text-right tabular-nums">
-                                                    {job.perPart !== undefined ? formatCarbon(job.perPart) : "—"}
+                                                    {job.perPart !== undefined ? formatCarbon(job.perPart) : "N/A"}
                                                 </TableCell>
                                                 <TableCell className="text-right tabular-nums">{formatCarbon(job.kg)}</TableCell>
                                                 <TableCell>
@@ -356,7 +381,7 @@ const CarbonFootprint = () => {
                     <Card className="p-5 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="region">Electricity — your region</Label>
+                                <Label htmlFor="region">Electricity in your region</Label>
                                 <Select value={gridPreset?.id ?? "custom"} onValueChange={handleRegionChange}>
                                     <SelectTrigger id="region">
                                         <SelectValue />
@@ -364,10 +389,10 @@ const CarbonFootprint = () => {
                                     <SelectContent>
                                         {GRID_PRESETS.map(preset => (
                                             <SelectItem key={preset.id} value={preset.id}>
-                                                {preset.label} — {preset.gPerKWh} gCO₂e/kWh
+                                                {preset.label} ({preset.gPerKWh} gCO₂e/kWh)
                                             </SelectItem>
                                         ))}
-                                        {!gridPreset && <SelectItem value="custom">Custom — {gridGPerKWh} gCO₂e/kWh</SelectItem>}
+                                        {!gridPreset && <SelectItem value="custom">Custom ({gridGPerKWh} gCO₂e/kWh)</SelectItem>}
                                     </SelectContent>
                                 </Select>
                                 <p className="text-xs text-slate-600">
@@ -403,8 +428,8 @@ const CarbonFootprint = () => {
                         {!carbonSettings.regionConfirmed && (
                             <p className="text-xs text-slate-600 border-l-2 border-border pl-3">
                                 These figures currently use the world average of {DEFAULT_GRID_G_PER_KWH} gCO₂e/kWh.
-                                Picking your region above is the single biggest accuracy gain after measuring a machine —
-                                national factors range from about 41 to 710.
+                                Picking your region above is the single biggest accuracy gain after measuring a machine.
+                                National factors range from about 41 to 710.
                             </p>
                         )}
 
@@ -436,7 +461,7 @@ const CarbonFootprint = () => {
                                     {staleFactors.length > 0 && (
                                         <>
                                             {staleFactors.length} material factor{staleFactors.length > 1 ? "s are" : " is"} more
-                                            than two years old — worth checking against your supplier's current data.{" "}
+                                            than two years old, worth checking against your supplier's current data.{" "}
                                         </>
                                     )}
                                     {gridIsStale && (

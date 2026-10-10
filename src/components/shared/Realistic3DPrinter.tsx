@@ -292,19 +292,41 @@ export const Realistic3DPrinter = memo(({
   const [tempBed, setTempBed] = useState(60);
   const [headX, setHeadX] = useState(15);
 
+  /*
+   * A decorative loop, so it must cost nothing when it cannot be seen.
+   *
+   * This was a 100 ms `setInterval` writing four pieces of state — a re-render of the whole SVG
+   * ten times a second, for as long as a quote was on screen, and it kept running in a background
+   * tab because setInterval does. requestAnimationFrame is throttled to a stop when the tab is
+   * hidden, and someone who has asked for reduced motion gets a still picture instead.
+   */
   useEffect(() => {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (prefersReducedMotion) return;
+
+    const FRAME_MS = 100;
     const startTime = Date.now();
-    const interval = setInterval(() => {
+    let lastPaintedAt = 0;
+    let frame = requestAnimationFrame(function tick(now: number) {
+      frame = requestAnimationFrame(tick);
+
+      if (now - lastPaintedAt < FRAME_MS) return;
+      lastPaintedAt = now;
+
       const elapsed = Date.now() - startTime;
       setProgress((prev) => (prev >= 100 ? 0 : prev + 0.1));
       setTempNozzle(215 + (Math.random() * 0.4 - 0.2));
       setTempBed(60 + (Math.random() * 0.2 - 0.1));
-      
+
       // Smooth sinusoidal head motion
-      const x = 50 + Math.sin(elapsed / 800) * 35;
-      setHeadX(x);
-    }, 100);
-    return () => clearInterval(interval);
+      setHeadX(50 + Math.sin(elapsed / 800) * 35);
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   // Sync model height with progress and weight

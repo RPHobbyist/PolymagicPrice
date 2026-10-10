@@ -311,7 +311,9 @@ export default function ToolGuidePage() {
                 DO NOT source this data from user input, imports, or CMS without DOMPurify. */}
             <script
                 type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(JSON.stringify(faqSchema)) }}
+                // RETURN_TRUSTED_TYPE so this sink carries its own TrustedHTML rather than
+                // leaning on the default policy, which no longer passes strings through.
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(JSON.stringify(faqSchema), { RETURN_TRUSTED_TYPE: true }) }}
             />
             <PageHeader
                 title="3D Printing Price Guide & FAQ"

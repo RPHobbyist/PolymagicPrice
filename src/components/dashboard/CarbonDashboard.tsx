@@ -37,7 +37,7 @@ export const CarbonDashboard = memo(({ stats }: CarbonDashboardProps) => {
   const intensity = stats.carbonPerKg;
   const energyShare = stats.carbonEnergyShare;
 
-  const dash = "—";
+  const noData = "N/A";
 
   return (
     <div className="space-y-3 animate-fade-in">
@@ -45,21 +45,21 @@ export const CarbonDashboard = memo(({ stats }: CarbonDashboardProps) => {
         <StatsCard
           variant="default"
           title="Total Footprint"
-          value={total !== undefined ? formatCarbon(total) : dash}
+          value={total !== undefined ? formatCarbon(total) : noData}
           subtitle="Completed work"
           icon={Leaf}
         />
         <StatsCard
           variant="default"
           title="Per Part"
-          value={perPart !== undefined ? formatCarbon(perPart) : dash}
+          value={perPart !== undefined ? formatCarbon(perPart) : noData}
           subtitle="Average, estimated"
           icon={Package}
         />
         <StatsCard
           variant="default"
           title="Carbon Intensity"
-          value={intensity !== undefined ? intensity.toFixed(1) : dash}
+          value={intensity !== undefined ? intensity.toFixed(1) : noData}
           subtitle="kgCO₂e per kg printed"
           icon={Gauge}
         />
@@ -68,7 +68,7 @@ export const CarbonDashboard = memo(({ stats }: CarbonDashboardProps) => {
           title="Energy vs Material"
           value={energyShare !== undefined
             ? `${Math.round(energyShare * 100)}% / ${100 - Math.round(energyShare * 100)}%`
-            : dash}
+            : noData}
           subtitle="Share of the total"
           icon={Zap}
         />
@@ -77,7 +77,7 @@ export const CarbonDashboard = memo(({ stats }: CarbonDashboardProps) => {
       {stats.quotedNotPrintedKg !== undefined && (
         <p className="text-xs text-slate-600">
           A further {formatCarbon(stats.quotedNotPrintedKg)} sits in quotes that have not been printed.
-          Estimates only — see the Tool Guide for what they cover.
+          Estimates only. See the Tool Guide for what they cover.
         </p>
       )}
     </div>

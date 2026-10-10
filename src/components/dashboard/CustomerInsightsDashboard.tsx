@@ -21,7 +21,7 @@ import { QuoteStats } from "@/types/quote";
 import { StatsCard } from "./StatsCard";
 import { Users, TrendingUp, Award, UserCheck } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 interface CustomerInsightsDashboardProps {
   stats: QuoteStats;
@@ -76,7 +76,7 @@ export const CustomerInsightsDashboard = memo(({ stats }: CustomerInsightsDashbo
                     #{index + 1}
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-slate-900">{sanitize(customer.name)}</div>
+                    <div className="text-sm font-semibold text-slate-900">{sanitizeText(customer.name)}</div>
                     <div className="text-[11px] font-medium text-slate-500 capitalize">{customer.count} Successful Jobs</div>
                   </div>
                 </div>

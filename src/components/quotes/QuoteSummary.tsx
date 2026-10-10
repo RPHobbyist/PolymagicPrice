@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState, lazy, Suspense } from "react";
 import { summariseQuote } from "@/lib/quoteCalculations";
 import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 import { Card } from "@/components/ui/card";
@@ -31,14 +31,21 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+/*
+ * The chart and the printer animation are the two heaviest things on this screen and neither is
+ * needed to show a price: recharts is 101 KB gzipped and framer-motion (which the animation pulls
+ * in) another 40 KB, on a page whose whole JavaScript was 383 KB. Both are fetched on demand.
+ */
+const MaterialBreakdownChart = lazy(() => import("./MaterialBreakdownChart"));
 import { QuoteData } from "@/types/quote";
 import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { printQuotePDF } from "@/lib/pdfGenerator";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
 import { BatchQuoteManager } from "./BatchQuoteManager";
-import { Realistic3DPrinter } from "@/components/shared/Realistic3DPrinter";
+const Realistic3DPrinter = lazy(() =>
+  import("@/components/shared/Realistic3DPrinter").then(m => ({ default: m.Realistic3DPrinter }))
+);
 
 interface QuoteSummaryProps {
   quoteData: QuoteData | null;
@@ -181,7 +188,7 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
     { name: 'Waste', value: quoteData.featureWeights.waste || 0 },
   ].filter(f => f.value > 0).map((f, i) => ({ ...f, colour: CHART_COLORS[i % CHART_COLORS.length] })) : [];
 
-  const COLORS = featureData.map(f => f.colour);
+  // Each slice carries its own colour, which is all the chart component needs.
 
   // Shared money breakdown (same helper the invoice and quotes table use).
   const summary = useMemo(
@@ -278,12 +285,14 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
       <div className="p-6 space-y-5">
         {/* Realistic Machine Visualization */}
         <div className="mb-2 -mx-2">
-            <Realistic3DPrinter 
-                isCompact 
-                weight={quoteData.parameters?.filamentWeight ? parseFloat(String(quoteData.parameters.filamentWeight)) : 120} 
-                printHours={quoteData.parameters?.printTime ? parseFloat(String(quoteData.parameters.printTime)) : 8} 
-                finalPrice={quoteData.totalPrice} 
-            />
+            <Suspense fallback={<div className="h-[200px] w-full animate-pulse rounded-xl bg-muted/40" />}>
+                <Realistic3DPrinter
+                    isCompact
+                    weight={quoteData.parameters?.filamentWeight ? parseFloat(String(quoteData.parameters.filamentWeight)) : 120}
+                    printHours={quoteData.parameters?.printTime ? parseFloat(String(quoteData.parameters.printTime)) : 8}
+                    finalPrice={quoteData.totalPrice}
+                />
+            </Suspense>
         </div>
 
         <div className="space-y-3">
@@ -340,35 +349,9 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
                   Material Breakdown
                 </h3>
                 <div className="h-[140px] w-full bg-muted/30 rounded-xl border border-border/50 p-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={featureData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={45}
-                        outerRadius={65}
-                        paddingAngle={5}
-                        dataKey="value"
-                        stroke="none"
-                      >
-                        {featureData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          borderColor: 'hsl(var(--border))', 
-                          borderRadius: 'var(--radius)', 
-                          fontSize: '10px' 
-                        }}
-                        itemStyle={{ fontSize: '10px', padding: '0' }}
-                        formatter={(value: number) => [`${value.toFixed(2)}g`, '']}
-                      />
-                      <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <Suspense fallback={<div className="h-full w-full animate-pulse rounded-lg bg-muted/50" />}>
+                    <MaterialBreakdownChart data={featureData} />
+                  </Suspense>
                 </div>
               </div>
             </>

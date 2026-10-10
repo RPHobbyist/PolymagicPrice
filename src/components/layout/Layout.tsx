@@ -3,65 +3,39 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { Footer } from "@/components/layout/Footer";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { useState } from "react";
-import { WhatsNewDialog } from "@/components/feedback/WhatsNewDialog";
-import { FeedbackDialog } from "@/components/feedback/FeedbackDialog";
+import { useState, lazy, Suspense } from "react";
 import { useUI } from "@/contexts/UIContext";
-import { AIChatDialog } from "@/components/ai/AIChatDialog";
-import { 
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { isWhatsNewDue } from "@/components/feedback/whatsNewVersion";
 
 import { useAIStatus } from "@/hooks/useAIStatus";
-import { cn, isAIAllowed } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { isAIAllowed } from "@/lib/utils";
 
-const BOT_POSITION_KEY = "ai_bot_position";
+/*
+ * Everything below loads on demand.
+ *
+ * `Layout` is imported eagerly by App, so anything it imports lands in the entry chunk that every
+ * visitor parses before first paint. That chunk was carrying the whole assistant — react-markdown
+ * and its micromark parser — plus framer-motion, for a chat that only ever renders on desktop or
+ * localhost (`isAIAllowed`), and two dialogs that are closed until someone opens them.
+ */
+const AIChatDialog = lazy(() => import("@/components/ai/AIChatDialog").then(m => ({ default: m.AIChatDialog })));
+const WhatsNewDialog = lazy(() => import("@/components/feedback/WhatsNewDialog").then(m => ({ default: m.WhatsNewDialog })));
+const FeedbackDialog = lazy(() => import("@/components/feedback/FeedbackDialog").then(m => ({ default: m.FeedbackDialog })));
+const AssistantLauncher = lazy(() => import("@/components/ai/AssistantLauncher"));
 
 const Layout = () => {
     const { showWhatsNew, setShowWhatsNew, showFeedback, setShowFeedback } = useUI();
     const [isChatOpen, setIsChatOpen] = useState(false);
     const { status } = useAIStatus();
 
-    // Draggable position state
-    const [botPosition, setBotPosition] = useState(() => {
-        try {
-            const saved = localStorage.getItem(BOT_POSITION_KEY);
-            return saved ? JSON.parse(saved) : { x: 0, y: 0 };
-        } catch {
-            return { x: 0, y: 0 };
-        }
-    });
+    // Once the assistant has been opened it stays mounted for the rest of the session: the
+    // conversation lives in component state unless the shop turned on chat persistence, so
+    // unmounting on close would throw the thread away mid-conversation.
+    const [chatEverOpened, setChatEverOpened] = useState(false);
 
-    const handleDragEnd = (_: unknown, info: { offset: { x: number; y: number } }) => {
-        const newPos = {
-            x: botPosition.x + info.offset.x,
-            y: botPosition.y + info.offset.y
-        };
-        setBotPosition(newPos);
-        localStorage.setItem(BOT_POSITION_KEY, JSON.stringify(newPos));
-    };
-
-    const getStatusColor = () => {
-        switch (status) {
-            case "connected": return "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]";
-            case "disconnected": return "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]";
-            case "disabled": return "bg-slate-300";
-            default: return "bg-slate-400 animate-pulse";
-        }
-    };
-
-    const getStatusTitle = () => {
-        switch (status) {
-            case "connected": return "Print Assistant Online (Local AI Connected)";
-            case "disconnected": return "Ollama Offline - Check if local service is running";
-            case "disabled": return "AI Assistant Disabled in Settings";
-            default: return "Checking connection...";
-        }
-    };
+    // The release notes announce themselves once per version. Deciding that here, from a
+    // localStorage read, means a shop already on this version never downloads the dialog.
+    const [whatsNewDue] = useState(isWhatsNewDue);
 
     return (
         <div className="h-[100dvh] w-full flex flex-col overflow-hidden bg-slate-100/50">
@@ -88,51 +62,12 @@ const Layout = () => {
                             Hidden where local AI cannot run at all (hosted web), so users
                             aren't offered an assistant that can only report "disabled". */}
                         {!isChatOpen && isAIAllowed && (
-                            <motion.div 
-                                drag
-                                dragMomentum={false}
-                                onDragEnd={handleDragEnd}
-                                initial={botPosition}
-                                animate={botPosition}
-                                dragConstraints={{ left: -window.innerWidth + 100, right: 0, top: -window.innerHeight + 100, bottom: 0 }}
-                                className="fixed bottom-28 right-8 z-[60] cursor-grab active:cursor-grabbing select-none"
-                            >
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                onClick={() => setIsChatOpen(true)}
-                                                onPointerDown={(e) => e.stopPropagation()} // Prevent drag start from blocking click
-                                                aria-label="Toggle AI Assistant"
-                                                className="relative group transition-all duration-300 hover:scale-110 active:scale-95 focus:outline-none focus-visible:outline-none active:outline-none ring-0 focus:ring-0 outline-none"
-                                            >
-                                                <div className="relative group">
-                                                    <img 
-                                                        src="/ai-bot-icon.webp" 
-                                                        alt="AI Assistant" 
-                                                        className={cn(
-                                                            "w-16 h-16 rounded-full border-2 shadow-xl group-hover:scale-110 transition-transform duration-300 object-cover",
-                                                            status === "disconnected" ? "border-red-200 grayscale-[20%]" : "border-primary/20"
-                                                        )}
-                                                    />
-                                                    <span 
-                                                        className={cn(
-                                                            "absolute top-0 right-0 w-4 h-4 border-2 border-white rounded-full transition-colors duration-300",
-                                                            getStatusColor()
-                                                        )} 
-                                                    ></span>
-                                                </div>
-                                                
-                                                {/* Invisible Hitbox for better usability */}
-                                                <div className="absolute inset-0 -m-4 rounded-full bg-transparent" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left" className="font-medium">
-                                            {getStatusTitle()}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </motion.div>
+                            <Suspense fallback={null}>
+                                <AssistantLauncher
+                                    status={status}
+                                    onOpen={() => { setChatEverOpened(true); setIsChatOpen(true); }}
+                                />
+                            </Suspense>
                         )}
                     </main>
                 </div>
@@ -141,21 +76,27 @@ const Layout = () => {
             {/* Fixed Industrial Footer - Full Width */}
             <Footer />
 
-            {/* Global Dialogs */}
-            <WhatsNewDialog 
-                externalOpen={showWhatsNew}
-                onExternalOpenChange={setShowWhatsNew}
-            />
-            <FeedbackDialog 
-                open={showFeedback}
-                onOpenChange={setShowFeedback}
-            />
-            {isAIAllowed && (
-                <AIChatDialog
-                    open={isChatOpen}
-                    onOpenChange={setIsChatOpen}
-                />
-            )}
+            {/* Global Dialogs — each fetched only once it is actually wanted. */}
+            <Suspense fallback={null}>
+                {(showWhatsNew || whatsNewDue) && (
+                    <WhatsNewDialog
+                        externalOpen={showWhatsNew}
+                        onExternalOpenChange={setShowWhatsNew}
+                    />
+                )}
+                {showFeedback && (
+                    <FeedbackDialog
+                        open={showFeedback}
+                        onOpenChange={setShowFeedback}
+                    />
+                )}
+                {isAIAllowed && (isChatOpen || chatEverOpened) && (
+                    <AIChatDialog
+                        open={isChatOpen}
+                        onOpenChange={setIsChatOpen}
+                    />
+                )}
+            </Suspense>
         </div>
     );
 };

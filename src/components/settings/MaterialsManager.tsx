@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect, memo } from "react";
+import React, { useState, useEffect, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -377,6 +377,18 @@ interface MaterialsListProps {
 const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: MaterialsListProps) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  /*
+   * One pass over the spool store for the whole table.
+   *
+   * Each row used to call `getMaterialStock`, and every one of those calls re-read, re-parsed and
+   * re-decrypted every spool on file — ~1 ms for 200 spools, so 40 materials cost ~40 ms of
+   * blocked main thread per render, including on every keystroke in the search box above.
+   * Keyed on the material list, which is what changes when a spool is added, used or deleted.
+   */
+  // `materials` is the cache key — it is what changes when stock moves — not an input to the read.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stockByMaterialId = useMemo(() => sessionStore.getStockByMaterial(), [materials]);
+
   const toggleExpand = (id: string) => {
     setExpandedId(prev => prev === id ? null : id);
   };
@@ -403,7 +415,7 @@ const MaterialsList = memo(({ materials, onEdit, onDelete, formatPrice }: Materi
             </TableRow>
           ) : (
             materials.map((material) => {
-              const stock = sessionStore.getMaterialStock(material.id);
+              const stock = stockByMaterialId.get(material.id) ?? 0;
               const isLow = material.lowStockThreshold ? stock < material.lowStockThreshold : stock < 200;
               const isExpanded = expandedId === material.id;
 

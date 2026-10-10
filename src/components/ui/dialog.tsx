@@ -30,6 +30,21 @@ const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
 
+/*
+ * Layer scale — every one of these portals to `document.body`, so they stack against each
+ * other by z-index alone and the numbers have to agree across files:
+ *
+ *   100  app chrome (the sticky AppHeader)
+ *   200  modal surfaces: dialog, alert-dialog, sheet — above the header
+ *   300  popups that open from inside a modal: select, dropdown-menu, popover, hover-card
+ *   400  tooltip — always topmost
+ *
+ * Raising a modal without raising the popups is what breaks: Radix's popper copies the
+ * computed z-index off the content node onto the positioning wrapper it appends to body, so
+ * a `z-50` SelectContent lands under a `z-[200]` overlay and its list opens behind the
+ * black backdrop — invisible and unclickable, with no error to explain it.
+ */
+
 const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>

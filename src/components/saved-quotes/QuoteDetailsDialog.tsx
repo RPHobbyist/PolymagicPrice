@@ -141,27 +141,56 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
                 { header: "Details", key: "val", width: 40 },
             ];
 
-            worksheet.addRows([
+            // Through summariseQuote, exactly like the PDF invoice.
+            //
+            // The breakdown used to be assembled by hand here and left out consumables and
+            // painting, so on any quote that used either, the listed lines did not add up to the
+            // Subtotal printed two rows below them. Money is also written as numbers with a
+            // currency format rather than as pre-formatted text, so the sheet can be summed.
+            const totals = summariseQuote(quote);
+            const money = (amount: number): { value: number } => ({ value: amount * conversionRate });
+
+            const rows: Array<{ desc: string; val: string | { value: number } }> = [
                 { desc: "Project Name", val: quote.projectName },
                 { desc: "Order ID", val: getOrderId(quote.id) },
                 { desc: "Print Type", val: quote.printType },
                 { desc: "Material", val: quote.parameters?.materialName || "-" },
                 { desc: "Client", val: quote.clientName || "Valued Customer" },
+                { desc: "Quantity", val: String(totals.quantity) },
                 { desc: "", val: "" },
                 { desc: "COST BREAKDOWN", val: "" },
-                { desc: "Material Cost", val: formatPrice(quote.materialCost) },
-                { desc: "Machine Time", val: formatPrice(quote.machineTimeCost) },
-                { desc: "Electricity", val: formatPrice(quote.electricityCost) },
-                { desc: "Labor", val: formatPrice(quote.laborCost) },
-                { desc: "Overhead", val: formatPrice(quote.overheadCost) },
-                { desc: "Subtotal", val: formatPrice(quote.subtotal) },
-                { desc: "Profit Markup", val: formatPrice(quote.markup) },
-                { desc: "TOTAL PRICE", val: formatPrice(quote.totalPrice) },
-            ]);
+                { desc: "Material Cost", val: money(quote.materialCost) },
+                { desc: "Machine Time", val: money(quote.machineTimeCost) },
+                { desc: "Electricity", val: money(quote.electricityCost) },
+                { desc: "Consumables", val: money(totals.consumablesTotal) },
+                { desc: "Labor", val: money(totals.labour) },
+                { desc: "Painting & Finishing", val: money(totals.painting) },
+                { desc: "Overhead", val: money(totals.overhead) },
+                { desc: "Subtotal", val: money(totals.subtotal) },
+                { desc: "Profit Markup", val: money(totals.markup) },
+                { desc: "TOTAL PRICE", val: money(totals.total) },
+            ];
+
+            const numberFormat = `"${currency.symbol}"#,##0.00`;
+            rows.forEach(row => {
+                const added = worksheet.addRow({
+                    desc: row.desc,
+                    val: typeof row.val === "string" ? row.val : row.val.value,
+                });
+                if (typeof row.val !== "string") {
+                    added.getCell("val").numFmt = numberFormat;
+                }
+            });
 
             worksheet.getRow(1).font = { bold: true };
-            worksheet.getRow(7).font = { bold: true };
-            worksheet.getRow(15).font = { bold: true };
+            // The breakdown header and the total, found by name rather than by a row number that
+            // silently pointed at the wrong line whenever this list changed.
+            const boldRow = (label: string) => {
+                const index = rows.findIndex(r => r.desc === label);
+                if (index !== -1) worksheet.getRow(index + 2).font = { bold: true };
+            };
+            boldRow("COST BREAKDOWN");
+            boldRow("TOTAL PRICE");
 
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -170,7 +199,7 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
         } catch {
             toast.error("Excel export failed");
         }
-    }, [quote, formatPrice]);
+    }, [quote, currency.symbol, conversionRate]);
 
     const handleExportText = useCallback(() => {
         if (!quote) return;

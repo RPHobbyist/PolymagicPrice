@@ -36,7 +36,7 @@ import { RefreshCw, Timer, Weight } from "lucide-react";
 import { toast } from "sonner";
 import { PrinterConnection, PrintOptions } from "@/types/printer";
 import { QuoteData } from "@/types/quote";
-import { sanitize } from "@/lib/sanitization";
+import { sanitizeText } from "@/lib/sanitization";
 
 // Define a minimal Job interface if not available elsewhere
 export interface PrintJobData {
@@ -144,7 +144,7 @@ export function PrintJobDialog({
                     </div>
 
                     <div className="text-center font-medium">
-                        {sanitize(job.customerName || job.id)}
+                        {sanitizeText(job.customerName || job.id)}
                     </div>
 
                     {/* Printer Selection */}
@@ -160,7 +160,7 @@ export function PrintJobDialog({
                                 ) : (
                                     connectedMachines.map((m) => (
                                         <SelectItem key={m.id} value={m.id}>
-                                            {sanitize(m.name)}
+                                            {sanitizeText(m.name)}
                                         </SelectItem>
                                     ))
                                 )}

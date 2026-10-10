@@ -21,8 +21,7 @@ import { Dialog, DialogContent, DialogTitle, DialogFooter, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { ArrowRight, PlaySquare, X, Layout, Calendar, ReceiptIndianRupee, Bell, BookOpen, Settings, Printer, Calculator, Zap } from "lucide-react";
 
-const CURRENT_VERSION = "2.0.1"; // Time, cost and power-accuracy corrections
-const STORAGE_KEY = "last_seen_version";
+import { CURRENT_VERSION, WHATS_NEW_STORAGE_KEY as STORAGE_KEY } from "./whatsNewVersion";
 
 export const WhatsNewDialog = ({
     trigger,
