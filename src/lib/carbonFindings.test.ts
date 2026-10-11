@@ -113,3 +113,16 @@ describe("recalculateCarbonHistory", () => {
         expect(getQuotes()[0].carbon!.kg).toBeLessThan(999);
     });
 });
+
+import { matchMaterialPreset } from "./carbon/carbonFactors";
+
+describe("matchMaterialPreset", () => {
+    it("never gives a resin a thermoplastic's factor because of its name", () => {
+        expect(matchMaterialPreset("ABS-like Resin", "Resin").id).toBe("resin");
+        expect(matchMaterialPreset("PLA-like Resin", "Resin").id).toBe("resin");
+    });
+    it("does not read TPU out of the middle of a word", () => {
+        expect(matchMaterialPreset("Stripe Silk PLA", "FDM").id).toBe("pla-virgin");
+        expect(matchMaterialPreset("TPU 95A", "FDM").id).toBe("tpu");
+    });
+});

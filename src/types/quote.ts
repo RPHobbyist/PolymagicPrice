@@ -48,6 +48,14 @@ export interface QuoteData {
   totalPrice: number;
   paintingCost?: number; // New: Cost of hand painting
   unitPrice: number;  // Price per single unit
+  /**
+   * Whole-job adjustments applied after markup/margin. Stored as amounts (base currency), only
+   * when non-zero, so a quote saved before they existed reads as "none" and an edit in the details
+   * dialog keeps them: total = subtotal + markup + minimumTopUp - discountAmount + shippingCost.
+   */
+  minimumTopUp?: number;   // lifts a small job up to the shop's minimum charge
+  discountAmount?: number; // taken off the (marked-up) price
+  shippingCost?: number;   // pass-through: billed to the customer, not shop revenue
   quantity: number;   // Number of units
   printType: "FDM" | "Resin";
   projectName: string;
@@ -147,6 +155,12 @@ export interface QuoteCarbon {
   gridGPerKWh: number;   // the grid factor used
   efKgPerKg: number;     // the material factor used
   wattsUsed: number;
+  /**
+   * Hours the job ran, stored because rebuilding them as kWh / watts is wrong for resin (the kWh
+   * includes wash and cure stations at other wattages) and for batches (watts come from one child).
+   * Absent on records written before it existed; readers fall back to the old derivation.
+   */
+  jobHours?: number;
   /** Provenance per input; the badge shows the weakest of the three. */
   src: {
     time: 'estimate' | 'actual';
@@ -268,6 +282,11 @@ export interface FDMFormData {
   status?: QuoteStatus;
   failedUnits?: string;
   thumbnail?: string;
+  /** "markup" (default): price = cost x (1 + m). "margin": price = cost / (1 - m). */
+  pricingMode?: "markup" | "margin";
+  discountType?: "percent" | "amount";
+  discountValue?: string;
+  shippingCost?: string;
 }
 
 export interface ResinFormData {
@@ -304,10 +323,17 @@ export interface ResinFormData {
   status?: QuoteStatus;
   failedUnits?: string;
   thumbnail?: string;
+  /** "markup" (default): price = cost x (1 + m). "margin": price = cost / (1 - m). */
+  pricingMode?: "markup" | "margin";
+  discountType?: "percent" | "amount";
+  discountValue?: string;
+  shippingCost?: string;
 }
 
 export interface QuoteStats {
   totalQuotes: number;
+  revenueQuotes?: number;  // accepted quotes (approved -> delivered): what revenue and averages are over
+  pipelineValue?: number;  // value of quotes still waiting for a yes, kept out of revenue
   totalRevenue: number;
   totalProfit: number;
   avgQuoteValue: number;
@@ -325,6 +351,11 @@ export interface QuoteStats {
   totalElectricityCost: number; // New: Total spent on power
   totalMaterialCost: number; // New: Total spent on materials
   totalOverheadCost: number; // New: Total spent on overhead
+  // Optional like the carbon fields: literal QuoteStats objects elsewhere predate them. Together
+  // with the four above they add up to total revenue less profit, so the breakdown reconciles.
+  totalMachineCost?: number;
+  totalPaintingCost?: number;
+  totalConsumablesCost?: number;
   avgMargin: number; // New: Weighted average margin %
   statusDistribution: Record<string, number>; // New: Count of quotes per status
   // --- Carbon. Optional on purpose: existing callers and test fixtures build this object
@@ -404,6 +435,12 @@ export interface CompanySettings {
   taxId?: string;
   logoUrl?: string; // Optional logo buffer/base64
   footerText?: string;
+  /** Tax added on top of an invoice, as a percentage. Quote totals and revenue stay pre-tax. */
+  taxRate?: number;
+  /** Days an invoice stays valid. Printed in its terms; defaults to 30 when unset. */
+  validityDays?: number;
+  /** Deposit required to start production, as a percentage. 0 omits the line; defaults to 50 when unset. */
+  depositPercent?: number;
   /**
    * Whether an invoice shows the job's estimated footprint.
    *

@@ -184,3 +184,13 @@ describe("parseResinFile — unsupported input", () => {
         warn.mockRestore();
     });
 });
+
+describe("parseResinFile — SL1 layer groups", () => {
+    it("adds the fade, slow and fast layers together", async () => {
+        const zip = new JSZip();
+        zip.file("config.ini", ["printTime = 3600", "usedMaterial = 10", "numFade = 10", "numSlow = 5", "numFast = 800"].join("\n"));
+        const bytes = await zip.generateAsync({ type: "uint8array" });
+        const data = await parseResinFile(asFile("job.sl1", bytes));
+        expect(data.layerCount).toBe(815);
+    });
+});

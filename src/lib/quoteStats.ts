@@ -51,6 +51,27 @@ export const carbonBookingDate = (quote: QuoteData): string | undefined =>
     ?? quote.statusTimeline?.DONE
     ?? quote.createdAt;
 
+/**
+ * Revenue is money the shop has won: a quote the customer accepted, from approval through
+ * delivery. PENDING is an offer nobody has taken up, FAILED produced nothing to invoice, and
+ * CANCELLED was withdrawn. Counting them reported a shop that quotes 100 jobs and wins 10 as
+ * having 10x its real revenue. Offers are tracked separately as `pipelineValue`.
+ */
+const REVENUE_STATUSES = ["APPROVED", "PRINTING", "POST_PROCESSING", "DONE", "DISPATCHED", "DELIVERED"];
+export const isRevenueQuote = (quote: QuoteData): boolean =>
+    REVENUE_STATUSES.includes(quote.status || "PENDING");
+
+/** When the shop won the work: the approval date, falling back to the quote date. */
+export const revenueBookingDate = (quote: QuoteData): string | undefined =>
+    quote.statusTimeline?.APPROVED ?? quote.createdAt;
+
+/** Customers with no name all share one bucket; "repeat customer" is meaningless for it. */
+const isAnonymousCustomer = (quote: QuoteData): boolean => {
+    if (quote.customerId) return false;
+    const name = (quote.clientName || "").trim().toLowerCase();
+    return !name || name === "guest" || name === "valued customer";
+};
+
 export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): QuoteStats {
     const weekAgoTS = now.getTime() - 7 * 24 * 60 * 60 * 1000;
     const thirtyDaysAgoTS = now.getTime() - 30 * 24 * 60 * 60 * 1000;
@@ -58,6 +79,8 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
 
     const accum = {
         totalQuotes: 0,
+        revenueQuotes: 0,
+        pipelineValue: 0,
         totalRevenue: 0,
         totalProfit: 0,
         fdmCount: 0,
@@ -73,6 +96,9 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
         totalElectricityCost: 0,
         totalMaterialCost: 0,
         totalOverheadCost: 0,
+        totalMachineCost: 0,
+        totalPaintingCost: 0,
+        totalConsumablesCost: 0,
         statusDistribution: {} as Record<string, number>,
         customerMap: new Map<string, { id?: string; name: string; count: number; revenue: number }>(),
         // Carbon, counted only over work that actually ran (see `quoteHasRun`).
@@ -80,6 +106,7 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
         carbonEnergyKg: 0,
         carbonParts: 0,
         carbonDeliveredKg: 0,
+        carbonKgWithDelivered: 0, // emissions of only those quotes that report a delivered mass
         quotedNotPrintedKg: 0,
         carbonQuotes: 0,
     };
@@ -92,7 +119,14 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
 
     quotes.forEach(q => {
         const qTime = q.createdAt ? new Date(q.createdAt).getTime() : 0;
+        // Revenue windows follow the approval date, and a date in the future is not "recent".
+        const bookedAt = revenueBookingDate(q);
+        const bookedTime = bookedAt ? new Date(bookedAt).getTime() : 0;
+        const bookedInPast = bookedTime <= now.getTime();
         const isCancelled = q.status === 'CANCELLED';
+        const isRevenue = isRevenueQuote(q);
+
+        if (!isCancelled && q.status !== 'FAILED' && !isRevenue) accum.pipelineValue += Math.max(0, (q.totalPrice || 0) - (q.shippingCost || 0));
 
         accum.totalQuotes++;
 
@@ -100,9 +134,13 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
         const status = q.status || 'PENDING';
         accum.statusDistribution[status] = (accum.statusDistribution[status] || 0) + 1;
 
-        // Only count revenue/costs for non-cancelled quotes
-        if (!isCancelled) {
-            accum.totalRevenue += q.totalPrice || 0;
+        // Only count revenue/costs for accepted work
+        // Shipping is billed to the customer but is a pass-through, not shop revenue or profit.
+        const netPrice = Math.max(0, (q.totalPrice || 0) - (q.shippingCost || 0));
+
+        if (isRevenue) {
+            accum.revenueQuotes++;
+            accum.totalRevenue += netPrice;
 
             // FINANCIAL CLOSED LOOP: Adjust time-dependent costs based on Actual vs Estimated time.
             //
@@ -117,6 +155,8 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
             let laborCost = q.laborCost || 0;
             let electricityCost = q.electricityCost || 0;
             let machineCost = q.machineTimeCost || 0;
+            let overheadCost = q.overheadCost || 0;
+            let rescaled = false;
 
             if (actualTotalHours && estimatedTotalHours > 0) {
                 const ratio = actualTotalHours / estimatedTotalHours;
@@ -125,42 +165,78 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
                     laborCost *= ratio;
                     electricityCost *= ratio;
                     machineCost *= ratio;
+                    rescaled = true;
                 }
             }
 
             // Consumables and painting are real costs inside the quote's subtotal; omitting them
             // here overstated profit and margin on every quote that used them.
             const consumablesCost = parseVal(q.parameters?.consumablesTotal) * (q.quantity || 1);
+            // Overhead is a percentage of the other costs, so when those were rescaled it has to
+            // follow them. Leaving it at the quoted figure overstated overhead on a short job.
+            const overheadPct = parseVal(q.parameters?.overheadPercentage);
+            if (rescaled && overheadPct > 0) {
+                overheadCost = ((q.materialCost || 0) + laborCost + electricityCost + machineCost
+                    + (q.paintingCost || 0) + consumablesCost) * overheadPct / 100;
+            }
             const actualSubtotal = (q.materialCost || 0) + laborCost + electricityCost + machineCost
-                + (q.overheadCost || 0) + (q.paintingCost || 0) + consumablesCost;
-            accum.totalProfit += ((q.totalPrice || 0) - actualSubtotal);
+                + overheadCost + (q.paintingCost || 0) + consumablesCost;
+            accum.totalProfit += ((netPrice) - actualSubtotal);
             accum.totalLaborCost += laborCost;
             accum.totalElectricityCost += electricityCost;
             accum.totalMaterialCost += (q.materialCost || 0);
-            accum.totalOverheadCost += (q.overheadCost || 0);
+            accum.totalOverheadCost += overheadCost;
+            accum.totalMachineCost += machineCost;
+            accum.totalPaintingCost += (q.paintingCost || 0);
+            accum.totalConsumablesCost += consumablesCost;
 
-            if (qTime >= thirtyDaysAgoTS) accum.revenueLast30d += (q.totalPrice || 0);
-            else if (qTime >= sixtyDaysAgoTS) accum.revenuePrev30d += (q.totalPrice || 0);
+            if (bookedInPast) {
+                if (bookedTime >= thirtyDaysAgoTS) accum.revenueLast30d += (netPrice);
+                else if (bookedTime >= sixtyDaysAgoTS) accum.revenuePrev30d += (netPrice);
+            }
         }
 
-        if (qTime >= weekAgoTS) accum.recentQuotes++;
+        if (qTime >= weekAgoTS && qTime <= now.getTime()) accum.recentQuotes++;
+
+        // Counts and material/time totals describe work the shop took on or ran, not every offer.
+        const tookOn = isRevenue || quoteHasRun(q);
+
+        // A batch master carries no print time or material of its own, only its items do.
+        const parts = q.isBatch && q.batchItems?.length ? q.batchItems : [q];
 
         if (q.printType === "FDM") {
             accum.fdmCount++;
-            const estimatedWeight = parseVal(q.parameters?.filamentWeight);
-            const actualWeight = q.actualMaterialUsed ?? (estimatedWeight * (q.quantity || 1));
-            accum.totalFilamentUsed += (actualWeight / 1000); // grams -> kg
         } else {
             accum.resinCount++;
-            const estimatedVolume = parseVal(q.parameters?.resinVolume);
-            const actualVolume = q.actualMaterialUsed ?? (estimatedVolume * (q.quantity || 1));
-            accum.totalResinUsed += (actualVolume / 1000); // ml -> litres
         }
 
-        // The estimate is per unit and needs scaling; `actualPrintTime` is already the whole-job
-        // total and must NOT be multiplied again.
-        const printTime = totalPrintHours(q.parameters?.printTime, q.quantity, q.actualPrintTime);
-        accum.totalPrintTime += printTime;
+        if (tookOn) {
+            parts.forEach(part => {
+                const qty = part.quantity || 1;
+                if (part.printType === "Resin") {
+                    const actualVolume = parts.length === 1 && q.actualMaterialUsed !== undefined
+                        ? q.actualMaterialUsed
+                        : parseVal(part.parameters?.resinVolume) * qty;
+                    accum.totalResinUsed += actualVolume / 1000; // ml -> litres
+                } else {
+                    const actualWeight = parts.length === 1 && q.actualMaterialUsed !== undefined
+                        ? q.actualMaterialUsed
+                        : parseVal(part.parameters?.filamentWeight) * qty;
+                    accum.totalFilamentUsed += actualWeight / 1000; // grams -> kg
+                }
+                // The estimate is per unit and needs scaling; `actualPrintTime` is already the
+                // whole-job total and must NOT be multiplied again.
+                accum.totalPrintTime += totalPrintHours(
+                    part.parameters?.printTime,
+                    qty,
+                    parts.length === 1 ? q.actualPrintTime : part.actualPrintTime
+                );
+            });
+            // A finished batch master holds the summed actuals; prefer them over the estimates.
+            if (parts.length > 1 && q.actualPrintTime) {
+                accum.totalPrintTime += q.actualPrintTime - parts.reduce((acc, part) => acc + totalPrintHours(part.parameters?.printTime, part.quantity || 1, part.actualPrintTime), 0);
+            }
+        }
         accum.failedPrintsCount += (q.failedUnits || 0);
 
         // Carbon. Work that ran counts towards the shop's footprint; anything merely quoted is
@@ -171,21 +247,26 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
                 accum.carbonKg += carbon.kg;
                 accum.carbonEnergyKg += carbon.energyKg || 0;
                 accum.carbonDeliveredKg += carbon.deliveredKg || 0;
-                accum.carbonParts += q.isBatch ? (q.batchItems?.length || 1) : (q.quantity || 1);
+                if ((carbon.deliveredKg || 0) > 0) accum.carbonKgWithDelivered += carbon.kg;
+                accum.carbonParts += q.isBatch && q.batchItems?.length
+                    ? q.batchItems.reduce((n, item) => n + (item.quantity || 1), 0)
+                    : (q.quantity || 1);
                 accum.carbonQuotes++;
             } else if (!isCancelled) {
                 accum.quotedNotPrintedKg += carbon.kg;
             }
         }
 
-        // Customer Tracking
-        const cKey = q.customerId || q.clientName || 'Guest';
+        // Customer tracking follows the same rule as revenue: only won work, and never the shared
+        // anonymous bucket, which would otherwise be a "repeat customer" by construction.
+        if (!isRevenue || isAnonymousCustomer(q)) return;
+        const cKey = q.customerId || (q.clientName || '').trim().toLowerCase();
         const existingC = accum.customerMap.get(cKey) || { id: q.customerId, name: q.clientName || 'Guest', count: 0, revenue: 0 };
         accum.customerMap.set(cKey, {
             id: existingC.id,
             name: existingC.name,
             count: existingC.count + 1,
-            revenue: existingC.revenue + (q.totalPrice || 0)
+            revenue: existingC.revenue + Math.max(0, (q.totalPrice || 0) - (q.shippingCost || 0))
         });
     });
 
@@ -201,7 +282,9 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
         totalQuotes: accum.totalQuotes,
         totalRevenue: accum.totalRevenue,
         totalProfit: accum.totalProfit,
-        avgQuoteValue: accum.totalQuotes > 0 ? accum.totalRevenue / accum.totalQuotes : 0,
+        revenueQuotes: accum.revenueQuotes,
+        pipelineValue: accum.pipelineValue,
+        avgQuoteValue: accum.revenueQuotes > 0 ? accum.totalRevenue / accum.revenueQuotes : 0,
         fdmCount: accum.fdmCount,
         resinCount: accum.resinCount,
         recentQuotes: accum.recentQuotes,
@@ -218,13 +301,18 @@ export function computeQuoteStats(quotes: QuoteData[], now: Date = new Date()): 
         totalElectricityCost: accum.totalElectricityCost,
         totalMaterialCost: accum.totalMaterialCost,
         totalOverheadCost: accum.totalOverheadCost,
+        totalMachineCost: accum.totalMachineCost,
+        totalPaintingCost: accum.totalPaintingCost,
+        totalConsumablesCost: accum.totalConsumablesCost,
         avgMargin: accum.totalRevenue > 0 ? (accum.totalProfit / accum.totalRevenue) * 100 : 0,
         statusDistribution: accum.statusDistribution,
         // Undefined rather than zero when nothing has been printed yet: the dashboard then shows
         // "—" instead of claiming a shop with no completed work has a footprint of exactly zero.
         totalCarbonKg: accum.carbonQuotes > 0 ? accum.carbonKg : undefined,
         carbonPerPart: accum.carbonParts > 0 ? accum.carbonKg / accum.carbonParts : undefined,
-        carbonPerKg: accum.carbonDeliveredKg > 0 ? accum.carbonKg / accum.carbonDeliveredKg : undefined,
+        // Intensity needs a matching numerator and denominator: quotes with no delivered mass
+        // cannot contribute emissions to a per-kg figure they add nothing to.
+        carbonPerKg: accum.carbonDeliveredKg > 0 ? accum.carbonKgWithDelivered / accum.carbonDeliveredKg : undefined,
         carbonEnergyShare: accum.carbonKg > 0 ? accum.carbonEnergyKg / accum.carbonKg : undefined,
         quotedNotPrintedKg: accum.quotedNotPrintedKg > 0 ? accum.quotedNotPrintedKg : undefined,
     };

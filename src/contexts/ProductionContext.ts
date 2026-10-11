@@ -23,7 +23,8 @@ import { ProductionJob, JobStatus, ProductionSettings } from "@/types/production
 export interface ProductionContextType {
     jobs: ProductionJob[];
     settings: ProductionSettings;
-    addJob: (quote: QuoteData, machineId?: string | null) => void;
+    /** Returns the new job id, or undefined for a batch (which creates one job per item). */
+    addJob: (quote: QuoteData, machineId?: string | null) => string | undefined;
     updateJob: (jobId: string, updates: Partial<ProductionJob>) => void;
     moveJob: (jobId: string, newStatus: JobStatus, newMachineId: string | null, newIndex?: number, actualPrintTime?: number) => void;
     removeJob: (jobId: string) => void;

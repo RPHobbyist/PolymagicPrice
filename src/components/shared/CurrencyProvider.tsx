@@ -114,7 +114,8 @@ export const CurrencyProvider = ({ children }: CurrencyProviderProps) => {
         setConversionRate,
         formatPrice,
         formatNumber,
-        getLocale
+        getLocale,
+        inputSymbol: conversionRate === 1 ? currency.symbol : "base currency"
     }), [currency, setCurrency, conversionRate, setConversionRate, formatPrice, formatNumber, getLocale]);
 
     return (

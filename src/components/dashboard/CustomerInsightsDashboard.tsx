@@ -19,7 +19,7 @@
 import { memo } from "react";
 import { QuoteStats } from "@/types/quote";
 import { StatsCard } from "./StatsCard";
-import { Users, TrendingUp, Award, UserCheck } from "lucide-react";
+import { Users, Award } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import { sanitizeText } from "@/lib/sanitization";
 
@@ -35,21 +35,18 @@ export const CustomerInsightsDashboard = memo(({ stats }: CustomerInsightsDashbo
       {/* High-level metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
         <StatsCard
-          variant="default"
           title="Repeat Customer Rate"
           value={`${stats.repeatCustomerRate.toFixed(1)}%`}
           subtitle="Client loyalty metric"
-          icon={UserCheck}
         />
         <StatsCard
-          variant="default"
           title="Revenue Growth"
           value={`${stats.revenueGrowth >= 0 ? '+' : ''}${stats.revenueGrowth.toFixed(1)}%`}
           subtitle="Last 30 vs Prev. 30 Days"
-          icon={TrendingUp}
           trend={{
             value: Math.abs(stats.revenueGrowth),
-            isPositive: stats.revenueGrowth >= 0
+            isPositive: stats.revenueGrowth >= 0,
+            label: "vs previous 30 days"
           }}
         />
       </div>

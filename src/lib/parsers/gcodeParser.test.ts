@@ -18,7 +18,7 @@ vi.mock("dompurify", () => ({
     default: { sanitize: (value: string) => String(value).replace(/<[^>]*>/g, "") },
 }));
 
-import { parseGcode, filamentWeightFromLength, DEFAULT_FILAMENT_DIAMETER_MM } from "./gcodeParser";
+import { parseGcode, filamentWeightFromLength, DEFAULT_FILAMENT_DIAMETER_MM, modelUnitToMm, parseBambuSliceInfo, plateSurfaceArea } from "./gcodeParser";
 
 /** A Cura header: metres of filament, seconds of time, and no weight anywhere. */
 const curaHeader = (metres = 3.5, seconds = 5400) => `;FLAVOR:Marlin
@@ -159,5 +159,70 @@ describe("parseGcode — general robustness", () => {
         expect(
             parseGcode("; estimated printing time (normal mode) = 1d 2h 30m 0s\n").printTimeHours
         ).toBe(26.5);
+    });
+});
+
+describe("parseGcode — multi-extruder and time formats", () => {
+    it("sums the per-extruder weights of a two-colour print", () => {
+        const data = parseGcode("; filament used [g] = 12.3, 4.5\n; estimated printing time (normal mode) = 1h 0m 0s\n");
+        expect(data.filamentWeightGrams).toBeCloseTo(16.8, 5);
+    });
+
+    it("reads clock-style and decimal-second times", () => {
+        expect(parseGcode("; filament used [g] = 5\n; estimated printing time = 01:30:00\n").printTimeHours).toBeCloseTo(1.5, 5);
+        expect(parseGcode("; filament used [g] = 5\n;TIME:5400.5\n").printTimeHours).toBeCloseTo(5400.5 / 3600, 3);
+        expect(parseGcode("; filament used [g] = 5\n;PRINT.TIME:3600\n").printTimeHours).toBeCloseTo(1, 5);
+    });
+});
+
+describe("3MF model units", () => {
+    it("converts every unit the spec allows to millimetres", () => {
+        expect(modelUnitToMm("inch")).toBe(25.4);
+        expect(modelUnitToMm("centimeter")).toBe(10);
+        expect(modelUnitToMm("meter")).toBe(1000);
+        expect(modelUnitToMm("micron")).toBe(0.001);
+        expect(modelUnitToMm(undefined)).toBe(1);
+        expect(modelUnitToMm("furlong")).toBe(1);
+    });
+});
+
+describe("Bambu slice_info.config", () => {
+    it("reads the first plate's time and weight", () => {
+        const xml = `<config><plate>
+          <metadata key="index" value="1"/>
+          <metadata key="prediction" value="7200"/>
+          <metadata key="weight" value="31.5"/>
+          <filament id="1" used_m="10" used_g="20.5"/>
+        </plate><plate><metadata key="prediction" value="999"/><metadata key="weight" value="1"/></plate></config>`;
+        const data = parseBambuSliceInfo(xml);
+        expect(data.printTimeHours).toBe(2);
+        expect(data.filamentWeightGrams).toBe(31.5);
+    });
+    it("falls back to the per-filament figures", () => {
+        const xml = `<plate><metadata key="prediction" value="3600"/><filament used_g="10"/><filament used_g="2.5"/></plate>`;
+        expect(parseBambuSliceInfo(xml).filamentWeightGrams).toBe(12.5);
+    });
+});
+
+describe("3MF plate area", () => {
+    it("counts every copy of an object and applies each item's scale", () => {
+        const objects = new Map([["1", { area: 100, components: [] }]]);
+        // two copies, one at double size (area x4)
+        expect(plateSurfaceArea(objects, [{ objectId: "1", scale: 1 }, { objectId: "1", scale: 2 }])).toBe(500);
+    });
+    it("adds the components of an assembled object and ignores objects not on the plate", () => {
+        const objects = new Map([
+            ["1", { area: 10, components: [{ objectId: "2", scale: 1 }, { objectId: "2", scale: 1 }] }],
+            ["2", { area: 5, components: [] }],
+            ["3", { area: 999, components: [] }],
+        ]);
+        expect(plateSurfaceArea(objects, [{ objectId: "1", scale: 1 }])).toBe(20);
+    });
+    it("survives objects that reference each other", () => {
+        const objects = new Map([
+            ["1", { area: 1, components: [{ objectId: "2", scale: 1 }] }],
+            ["2", { area: 1, components: [{ objectId: "1", scale: 1 }] }],
+        ]);
+        expect(Number.isFinite(plateSurfaceArea(objects, [{ objectId: "1", scale: 1 }]))).toBe(true);
     });
 });

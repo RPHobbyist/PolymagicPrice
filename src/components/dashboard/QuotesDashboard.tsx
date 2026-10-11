@@ -19,7 +19,6 @@
 import { memo } from "react";
 import { QuoteStats } from "@/types/quote";
 import { StatsCard } from "./StatsCard";
-import { FileText, TrendingUp, Printer, Clock } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 
 interface QuotesDashboardProps {
@@ -32,36 +31,28 @@ export const QuotesDashboard = memo(({ stats }: QuotesDashboardProps) => {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in">
       <StatsCard
-        variant="default"
         title="Total Quotes"
         value={stats.totalQuotes}
         subtitle={`${stats.recentQuotes} this week`}
-        icon={FileText}
       />
       <StatsCard
-        variant="default"
         title="Total Revenue"
         value={formatPrice(stats.totalRevenue)}
-        icon={TrendingUp}
+        subtitle={stats.pipelineValue ? `${formatPrice(stats.pipelineValue)} awaiting approval` : "Approved quotes and later"}
       />
       <StatsCard
-        variant="default"
         title="Total Profit"
         value={formatPrice(stats.totalProfit)}
-        subtitle={`${((stats.totalProfit / stats.totalRevenue) * 100 || 0).toFixed(1)}% Margin`}
-        icon={TrendingUp}
+        subtitle={`${stats.avgMargin.toFixed(1)}% Margin`}
       />
       <StatsCard
-        variant="default"
-        title="Avg Quote Value"
+        title="Avg Won Quote"
         value={formatPrice(stats.avgQuoteValue)}
-        icon={Clock}
       />
       <StatsCard
         title="Print Types"
         value={`${stats.fdmCount}/${stats.resinCount}`}
         subtitle="FDM / Resin"
-        icon={Printer}
       />
     </div>
   );

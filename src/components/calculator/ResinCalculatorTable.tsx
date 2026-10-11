@@ -21,8 +21,9 @@ import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
 import { QuoteData, ResinFormData, StoredGcode, Employee, QuoteStatus } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
-import { calculateResinQuote, validateResinForm } from "@/lib/quoteCalculations";
+import { calculateResinQuote, validateResinForm, isFlatConsumable } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
+import { AdjustmentsFields } from "./AdjustmentsFields";
 import { FormFieldRow, TextField, SelectField } from "./FormField";
 import { ConsumablesSelector } from "./ConsumablesSelector";
 import { SpoolSelector } from "./SpoolSelector";
@@ -81,6 +82,10 @@ const initialFormData: ResinFormData = {
   laborHours: "",
   overheadPercentage: "",
   markupPercentage: "20",
+  pricingMode: "markup",
+  discountType: "percent",
+  discountValue: "",
+  shippingCost: "",
   quantity: "1",
   selectedConsumableIds: [],
   paintingTime: "",
@@ -100,13 +105,34 @@ const initialFormData: ResinFormData = {
 const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculatorProps) => {
   const { materials, machines, constants, loading, getConstantValue, findConstantValue } = useCalculatorData({ printType: "Resin" });
   const [formData, setFormData] = useState<ResinFormData>(initialFormData);
+
+  // A brand-new form starts from the shop's own overhead and markup (Settings), not from numbers
+  // hard-coded here. Applied once, and only while the form is still untouched and not a revision
+  // or import: a saved 0 is a deliberate choice and must never be replaced.
+  const shopDefaultsApplied = useRef(false);
+  useEffect(() => {
+    if (loading || shopDefaultsApplied.current) return;
+    shopDefaultsApplied.current = true;
+    if (preFillData) return;
+    const overhead = findConstantValue("overhead");
+    const markup = findConstantValue("markup");
+    setFormData(prev =>
+      prev.overheadPercentage === initialFormData.overheadPercentage && prev.markupPercentage === initialFormData.markupPercentage
+        ? {
+            ...prev,
+            overheadPercentage: overhead !== undefined ? String(overhead) : prev.overheadPercentage,
+            markupPercentage: markup !== undefined ? String(markup) : prev.markupPercentage,
+          }
+        : prev
+    );
+  }, [loading, preFillData, findConstantValue]);
   
   // Stable ID for the current calculation session
   // Resets only when the entire component remounts (facilitated by the key in Index.tsx)
   const calculationId = useMemo(() => crypto.randomUUID(), []);
 
   const [selectedSpoolId, setSelectedSpoolId] = useState<string>("");
-  const { currency, formatPrice } = useCurrency();
+  const { currency, formatPrice, inputSymbol } = useCurrency();
   const { gcodes, saveGcode } = useStoredGcodes();
   const [employees, setEmployees] = useState<Employee[]>([]);
 
@@ -142,11 +168,12 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
     const hasPainting =
       (formData.paintingLayers && parseInt(formData.paintingLayers) > 0) ||
       !!formData.selectedPaintId ||
-      !!formData.selectedPaintId2;
+      !!formData.selectedPaintId2 ||
+      parseFloat(String(formData.paintingTime || "0")) > 0;
     if (hasPainting && !isPaintingEnabled) {
       setIsPaintingEnabled(true);
     }
-  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, isPaintingEnabled]);
+  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, formData.paintingTime, isPaintingEnabled]);
 
   const updateField = useCallback(<K extends keyof ResinFormData>(field: K, value: ResinFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -211,6 +238,10 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         laborHours: pick(preFillData.laborHours, prev.laborHours, ""),
         overheadPercentage: pick(preFillData.overheadPercentage, prev.overheadPercentage, ""),
         markupPercentage: pick(preFillData.markupPercentage, prev.markupPercentage, "20"),
+        pricingMode: preFillData.pricingMode ?? prev.pricingMode,
+        discountType: preFillData.discountType ?? prev.discountType,
+        discountValue: pick(preFillData.discountValue, prev.discountValue, ""),
+        shippingCost: pick(preFillData.shippingCost, prev.shippingCost, ""),
         quantity: pick(preFillData.quantity, prev.quantity, "1"),
         priority: preFillData.priority || prev.priority,
         dueDate: preFillData.dueDate || prev.dueDate,
@@ -350,12 +381,17 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
       formData: {
         ...formData,
         id: formData.id || calculationId, // Use existing ID if editing, otherwise the stable session ID
-        selectedSpoolId: selectedSpoolId || undefined, // Ensure spool ID is passed
+        selectedSpoolId: selectedSpoolId || undefined,
+        // A closed painting section charges nothing: its labour used to be billed regardless.
+        ...(isPaintingEnabled ? {} : { paintingTime: "", paintingLayers: "", paintingLayers2: "" }),
       },
       material: selectedMaterial,
       machine: selectedMachine,
       electricityRate: electricityRate,
       laborRate: laborRate,
+      failureRatePercent: findConstantValue("failRate"),
+      wastePercent: findConstantValue("wastePercent"),
+      minimumCharge: findConstantValue("minimumCharge"),
       // Carbon: the shop's grid factor, plus the bottle in use when one is selected.
       // findConstantValue, not getConstantValue: a missing grid factor must stay undefined so the
       // carbon engine applies its world-average default. A 0 reads as a deliberate figure — a shop
@@ -389,7 +425,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
     })), [machines, formatPrice]);
 
   const consumableItems = useMemo(() =>
-    constants.map(c => ({
+    constants.filter(isFlatConsumable).map(c => ({
       id: c.id,
       name: c.name,
       value: c.value,
@@ -583,7 +619,7 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         />
       </FormFieldRow>
 
-      <FormFieldRow label={`IPA/Cleaning Cost (${currency.symbol})`} htmlFor="isopropyl-cost">
+      <FormFieldRow label={`IPA/Cleaning Cost (${inputSymbol})`} htmlFor="isopropyl-cost">
         <TextField
           id="isopropyl-cost"
           name="isopropylCost"
@@ -625,19 +661,12 @@ const ResinCalculatorTable = memo(({ onCalculate, preFillData }: ResinCalculator
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)" htmlFor="resin-markup-percentage">
-        <TextField
-          id="resin-markup-percentage"
-          name="markupPercentage"
-          type="number"
-          step="0.1"
-          value={formData.markupPercentage}
-          onChange={(v) => updateField("markupPercentage", v)}
-          placeholder="20"
-          min={0}
-          max={100000}
-        />
-      </FormFieldRow>
+      <AdjustmentsFields
+        idPrefix="resin"
+        formData={formData}
+        onChange={updateField}
+        currencySymbol={currency.symbol}
+      />
 
       <FormFieldRow label="Quantity" htmlFor="resin-quantity">
         <TextField

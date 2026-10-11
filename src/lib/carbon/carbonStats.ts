@@ -79,13 +79,27 @@ export interface CarbonOverview {
     meterNext?: string;
 }
 
-const monthKey = (iso?: string): string | undefined => (iso ? iso.slice(0, 7) : undefined);
+// The shop's own calendar month. Slicing the ISO string bucketed by UTC, so a job finished late on
+// the 31st in a timezone east of UTC was booked to the wrong month.
+const monthKey = (iso?: string): string | undefined => {
+    if (!iso) return undefined;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return undefined;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
 
 const monthLabel = (key: string): string => {
     const [year, month] = key.split("-").map(Number);
     if (!year || !month) return key;
     return new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 };
+
+/** Hours a job ran: the stored figure, or the old kWh / watts reconstruction for older records. */
+const hoursOf = (carbon: NonNullable<QuoteData["carbon"]>): number =>
+    typeof carbon.jobHours === "number" ? carbon.jobHours : carbon.wattsUsed > 0 ? (carbon.kWh * 1000) / carbon.wattsUsed : 0;
+
+/** A batch has no single machine, so it is not a fleet member and can never be "meter this next". */
+const MIXED_MACHINES = "Multiple Machines";
 
 const machineNameOf = (quote: QuoteData): string =>
     (quote.parameters?.machineName as string | undefined)?.trim() || "Unassigned";
@@ -123,6 +137,8 @@ export const buildCarbonOverview = (quotes: QuoteData[], monthsBack = 12): Carbo
         sources.wasteKg += carbon.wasteKg;
 
         const name = machineNameOf(q);
+        // A batch is part of the shop total and the jobs list, just not of any one machine's row.
+        if (name !== MIXED_MACHINES) {
         const row = fleet.get(name) ?? {
             machineName: name, jobs: 0, hours: 0, kWh: 0, kg: 0, energyRate: 0,
             wattsSource: carbon.src.watts, unmeasured: true, measuredJobs: 0,
@@ -130,9 +146,10 @@ export const buildCarbonOverview = (quotes: QuoteData[], monthsBack = 12): Carbo
         row.jobs += 1;
         row.kWh += carbon.kWh;
         row.kg += carbon.kg;
-        row.hours += carbon.wattsUsed > 0 ? (carbon.kWh * 1000) / carbon.wattsUsed : 0;
+        row.hours += hoursOf(carbon);
         if (carbon.src.watts === "measured") row.measuredJobs += 1;
         fleet.set(name, row);
+        }
 
         jobs.push({
             id: q.id || "",
@@ -212,7 +229,7 @@ export const computeIdleOverheadKg = (
         if (!date || new Date(date).getTime() < windowStart) return;
 
         const name = machineNameOf(q);
-        const hours = q.carbon.wattsUsed > 0 ? (q.carbon.kWh * 1000) / q.carbon.wattsUsed : 0;
+        const hours = hoursOf(q.carbon);
         runtimeByMachine.set(name, (runtimeByMachine.get(name) || 0) + hours);
     });
 

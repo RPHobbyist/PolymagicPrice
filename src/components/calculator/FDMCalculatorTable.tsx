@@ -21,8 +21,9 @@ import { Calculator, Save } from "lucide-react";
 import { toast } from "sonner";
 import { QuoteData, FDMFormData, StoredGcode, QuoteStatus } from "@/types/quote";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
-import { calculateFDMQuote, validateFDMForm } from "@/lib/quoteCalculations";
+import { calculateFDMQuote, validateFDMForm, isFlatConsumable } from "@/lib/quoteCalculations";
 import { QuoteCalculator } from "./QuoteCalculator";
+import { AdjustmentsFields } from "./AdjustmentsFields";
 import { FormFieldRow, TextField, SelectField } from "./FormField";
 import { ConsumablesSelector } from "./ConsumablesSelector";
 import { SpoolSelector } from "./SpoolSelector";
@@ -77,6 +78,10 @@ const initialFormData: FDMFormData = {
   laborHours: "",
   overheadPercentage: "",
   markupPercentage: "20",
+  pricingMode: "markup",
+  discountType: "percent",
+  discountValue: "",
+  shippingCost: "",
   quantity: "1",
   priority: "Medium",
   dueDate: "",
@@ -98,6 +103,27 @@ const initialFormData: FDMFormData = {
 const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProps) => {
   const { materials, machines, constants, loading, getConstantValue, findConstantValue } = useCalculatorData({ printType: "FDM" });
   const [formData, setFormData] = useState<FDMFormData>(initialFormData);
+
+  // A brand-new form starts from the shop's own overhead and markup (Settings), not from numbers
+  // hard-coded here. Applied once, and only while the form is still untouched and not a revision
+  // or import: a saved 0 is a deliberate choice and must never be replaced.
+  const shopDefaultsApplied = useRef(false);
+  useEffect(() => {
+    if (loading || shopDefaultsApplied.current) return;
+    shopDefaultsApplied.current = true;
+    if (preFillData) return;
+    const overhead = findConstantValue("overhead");
+    const markup = findConstantValue("markup");
+    setFormData(prev =>
+      prev.overheadPercentage === initialFormData.overheadPercentage && prev.markupPercentage === initialFormData.markupPercentage
+        ? {
+            ...prev,
+            overheadPercentage: overhead !== undefined ? String(overhead) : prev.overheadPercentage,
+            markupPercentage: markup !== undefined ? String(markup) : prev.markupPercentage,
+          }
+        : prev
+    );
+  }, [loading, preFillData, findConstantValue]);
   
   // Stable ID for the current calculation session
   // Resets only when the entire component remounts (facilitated by the key in Index.tsx)
@@ -140,11 +166,12 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
     const hasPainting =
       (formData.paintingLayers && parseInt(formData.paintingLayers) > 0) ||
       !!formData.selectedPaintId ||
-      !!formData.selectedPaintId2;
+      !!formData.selectedPaintId2 ||
+      parseFloat(String(formData.paintingTime || "0")) > 0;
     if (hasPainting && !isPaintingEnabled) {
       setIsPaintingEnabled(true);
     }
-  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, isPaintingEnabled]);
+  }, [formData.paintingLayers, formData.selectedPaintId, formData.selectedPaintId2, formData.paintingTime, isPaintingEnabled]);
 
   const updateField = useCallback(<K extends keyof FDMFormData>(field: K, value: FDMFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -273,6 +300,10 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         laborHours: pick(preFillData.laborHours, prev.laborHours, ""),
         overheadPercentage: pick(preFillData.overheadPercentage, prev.overheadPercentage, ""),
         markupPercentage: pick(preFillData.markupPercentage, prev.markupPercentage, "20"),
+        pricingMode: preFillData.pricingMode ?? prev.pricingMode,
+        discountType: preFillData.discountType ?? prev.discountType,
+        discountValue: pick(preFillData.discountValue, prev.discountValue, ""),
+        shippingCost: pick(preFillData.shippingCost, prev.shippingCost, ""),
         quantity: pick(preFillData.quantity, prev.quantity, "1"),
         priority: preFillData.priority || prev.priority,
         dueDate: preFillData.dueDate || prev.dueDate,
@@ -419,11 +450,16 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         ...formData,
         id: formData.id || calculationId, // Use existing ID if editing, otherwise the stable session ID
         selectedSpoolId: selectedSpoolId || undefined,
+        // A closed painting section charges nothing: its labour used to be billed regardless.
+        ...(isPaintingEnabled ? {} : { paintingTime: "", paintingLayers: "", paintingLayers2: "" }),
       },
       material: selectedMaterial,
       machine: selectedMachine,
       electricityRate: getConstantValue("electricity"),
       laborRate: getConstantValue("labor"),
+      failureRatePercent: findConstantValue("failRate"),
+      wastePercent: findConstantValue("wastePercent"),
+      minimumCharge: findConstantValue("minimumCharge"),
       // Carbon: the shop's grid factor, and the spool being drawn from — a specific spool's
       // published figure beats any generic factor for the material.
       // findConstantValue, not getConstantValue: a missing grid factor must stay undefined so the
@@ -458,7 +494,7 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
     })), [machines, formatPrice]);
 
   const consumableItems = useMemo(() =>
-    constants.map(c => ({
+    constants.filter(isFlatConsumable).map(c => ({
       id: c.id,
       name: c.name,
       value: c.value,
@@ -644,19 +680,12 @@ const FDMCalculatorTable = memo(({ onCalculate, preFillData }: FDMCalculatorProp
         />
       </FormFieldRow>
 
-      <FormFieldRow label="Profit Markup (%)" htmlFor="fdm-markup-percentage">
-        <TextField
-          id="fdm-markup-percentage"
-          name="markupPercentage"
-          type="number"
-          step="0.1"
-          value={formData.markupPercentage}
-          onChange={(v) => updateField("markupPercentage", v)}
-          placeholder="20"
-          min={0}
-          max={10000}
-        />
-      </FormFieldRow>
+      <AdjustmentsFields
+        idPrefix="fdm"
+        formData={formData}
+        onChange={updateField}
+        currencySymbol={currency.symbol}
+      />
 
       <FormFieldRow label="Quantity" htmlFor="fdm-quantity">
         <TextField

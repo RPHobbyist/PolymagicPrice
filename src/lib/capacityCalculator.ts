@@ -18,6 +18,26 @@
 
 import { CapacityQuery, CapacityResult, Machine } from "@/types/quote";
 
+/** Slider range of the Capacity Planner's "Print Failure Chance". */
+export const MAX_FAILURE_CHANCE = 50;
+export const DEFAULT_FAILURE_CHANCE = 10;
+
+/**
+ * `ProductionSettings.efficiency` holds a failure/downtime chance (0-50). Installs created before
+ * the slider stored 85 as an efficiency, which no longer fits the range; read it as the default
+ * instead of 85% failures.
+ */
+export function normalizeFailureChance(value: unknown): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_FAILURE_CHANCE;
+    if (value > MAX_FAILURE_CHANCE) return DEFAULT_FAILURE_CHANCE;
+    return Math.max(0, value);
+}
+
+/** Fraction (0.5-1) of a working day that produces good parts. */
+export function failureChanceToEfficiency(value: unknown): number {
+    return (100 - normalizeFailureChance(value)) / 100;
+}
+
 /**
  * Adds days to a date, optionally skipping weekends
  */
@@ -80,7 +100,10 @@ export function calculateCapacity(query: CapacityQuery, machines: Machine[]): Ca
     } = query;
 
     // Filter to selected machines or use all
-    const availableMachines = machineIds && machineIds.length > 0
+    // `undefined` means "no preference: every machine". An explicit empty list means the caller
+    // filtered everything out (wrong type, too small), and must not quietly fall back to the
+    // machines it just excluded.
+    const availableMachines = machineIds
         ? machines.filter(m => machineIds.includes(m.id))
         : machines;
 
@@ -150,6 +173,38 @@ export function calculateCapacity(query: CapacityQuery, machines: Machine[]): Ca
 }
 
 /**
+ * A deadline typed as a date ("2026-03-14") means the end of that day in the shop's own time.
+ * `new Date("2026-03-14")` is UTC midnight, which is already the previous evening west of UTC and
+ * the start of the day east of it, so a job finishing on the deadline day read as late.
+ */
+export function parseLocalDeadline(value: string): Date {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+    if (!m) return new Date(value);
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+}
+
+/** The shop-local calendar date as YYYY-MM-DD (toISOString would give the UTC date). */
+export function toLocalDateString(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Days on which work happens between `start` (exclusive) and `end` (inclusive). */
+export function countWorkingDays(start: Date, end: Date, includeWeekends: boolean): number {
+    let count = 0;
+    const day = new Date(start);
+    day.setHours(0, 0, 0, 0);
+    const last = new Date(end);
+    last.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 3650 && day < last; i++) {
+        day.setDate(day.getDate() + 1);
+        const dow = day.getDay();
+        if (includeWeekends || (dow !== 0 && dow !== 6)) count++;
+    }
+    return count;
+}
+
+/**
  * Check if an order can be completed by a specific deadline and offer recovery
  */
 export function analyzeDeadline(
@@ -160,9 +215,13 @@ export function analyzeDeadline(
     canMeet: boolean; 
     daysNeeded: number; 
     daysAvailable: number;
+    /** Calendar days the finish is past the deadline (0 when it is met). */
+    daysLate: number;
     recoveryPlan?: {
         machinesNeeded: number;
         hoursPerDayNeeded: number;
+        /** True when even 24 h a day on the current machines cannot make it. */
+        hoursPerDayShortfall: boolean;
     }
 } {
     const result = calculateCapacity(query, machines);
@@ -171,7 +230,8 @@ export function analyzeDeadline(
         return {
             canMeet: false,
             daysNeeded: 0,
-            daysAvailable: 0
+            daysAvailable: 0,
+            daysLate: 0
         };
     }
 
@@ -182,24 +242,26 @@ export function analyzeDeadline(
     
     const canMeet = result.completionDate.getTime() <= deadline.getTime();
 
+    const daysLate = canMeet
+        ? 0
+        : Math.max(1, Math.ceil((result.completionDate.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24)));
+
     let recoveryPlan;
     if (!canMeet && daysAvailable > 0) {
-        // 1. Calculate machines needed at CURRENT work hours
-        // Safety: Ensure effectiveHoursPerDay is at least 0.1 to prevent division by zero
-        const effectiveHoursPerDay = Math.max(0.1, query.workHoursPerDay * (query.efficiency || 1.0));
+        const efficiency = query.efficiency || 1.0;
+        const includeWeekends = query.includeWeekends ?? true; // same default as calculateCapacity
+        const effectiveHoursPerDay = Math.max(0.1, query.workHoursPerDay * efficiency);
         const totalLaborHours = query.quantity * (query.printTimePerUnit + (query.turnoverTimePerUnit || 0));
-        
-        // Needed: TotalHours / (DaysAvailable * EffectiveHoursPerDay)
-        // Adjust daysAvailable based on weekend logic for recovery purposes (simplified)
-        const adjustedDaysAvailable = query.includeWeekends ? daysAvailable : Math.max(1, daysAvailable * (5/7));
-        const machinesNeeded = Math.ceil(totalLaborHours / (adjustedDaysAvailable * effectiveHoursPerDay));
-        
-        // 2. Adjust hours needed if we keep machine count
-        const hoursNeeded = totalLaborHours / (result.machineCount * daysAvailable * (query.efficiency || 1.0));
+
+        // Both figures divide by days on which work happens, not calendar days.
+        const workingDays = Math.max(1, countWorkingDays(start, deadline, includeWeekends));
+        const machinesNeeded = Math.ceil(totalLaborHours / (workingDays * effectiveHoursPerDay));
+        const hoursNeeded = totalLaborHours / (result.machineCount * workingDays * efficiency);
 
         recoveryPlan = {
             machinesNeeded: Math.max(result.machineCount + 1, machinesNeeded),
-            hoursPerDayNeeded: Math.min(24, Math.ceil(hoursNeeded))
+            hoursPerDayNeeded: Math.min(24, Math.ceil(hoursNeeded)),
+            hoursPerDayShortfall: hoursNeeded > 24
         };
     }
 
@@ -207,6 +269,7 @@ export function analyzeDeadline(
         canMeet,
         daysNeeded: result.estimatedDays,
         daysAvailable,
+        daysLate,
         recoveryPlan
     };
 }

@@ -32,7 +32,31 @@ interface CalculationParams {
    */
   gridGPerKWh?: number;
   spool?: MaterialSpool;
+  /**
+   * Expected share of prints that fail (0-50 %). Failed prints still consume material, machine
+   * time and power, so those three lines are grossed up by 1 / (1 - rate): the good parts carry
+   * the cost of the bad ones. Omitted or 0 leaves the price exactly as before.
+   */
+  failureRatePercent?: number;
+  /** Extra material (purge, supports, skirts) as a % of the stated weight/volume. 0-50. */
+  wastePercent?: number;
+  /** Smallest job the shop will take, in base currency. 0 / omitted = no minimum. */
+  minimumCharge?: number;
 }
+
+/** Watts to price electricity with: the measured draw when the shop has one, else the rating. */
+export const effectiveWatts = (machine: Pick<Machine, "power_consumption_watts" | "measuredWatts">): number => {
+  const measured = toNum(machine.measuredWatts);
+  return measured > 0 ? measured : toNum(machine.power_consumption_watts);
+};
+
+const wasteFactor = (wastePercent?: number): number => 1 + Math.min(50, Math.max(0, toNum(wastePercent))) / 100;
+
+/** 1 / (1 - rate), with the rate clamped to the range the settings accept. */
+export const failureFactor = (failureRatePercent?: number): number => {
+  const rate = Math.min(50, Math.max(0, toNum(failureRatePercent)));
+  return 1 / (1 - rate / 100);
+};
 
 /**
  * The carbon estimate that rides along with a price.
@@ -46,11 +70,21 @@ const estimateCarbon = (input: CarbonInput): QuoteCarbon | undefined => {
   return breakdown ? toStoredCarbon(breakdown) : undefined;
 };
 
+let warnedNonFinite = false;
 const round = (val: number) => {
   // Never let a non-finite value escape into a stored quote: JSON.stringify turns NaN into
   // null, which silently corrupts totals and every dashboard aggregate downstream.
-  if (!Number.isFinite(val)) return 0;
-  return Math.round((val + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(val)) {
+    if (!warnedNonFinite) {
+      warnedNonFinite = true;
+      console.warn("[quote] A non-finite amount was replaced with 0; check the inputs that produced it.");
+    }
+    return 0;
+  }
+  // Half away from zero on the decimal the user sees: 1.005 is 100.49999999999999 once scaled,
+  // which plain Math.round (and + Number.EPSILON, too small above 1) rounded down to 1.00.
+  const scaled = val * 100;
+  return Math.sign(scaled) * Math.round(Math.abs(scaled) + 1e-9) / 100;
 };
 
 /*
@@ -145,6 +179,13 @@ const toInt = (value: string | number | undefined | null, fallback = 0): number 
  * Materials stored as kg (FDM) or liter (Resin) — every seeded default and the form's own default
  * — convert to themselves, so no existing shop sees a price move.
  */
+const POUND_IN_KG = 0.45359237;
+
+/** Units `costPerBaseUnit` converts exactly. Anything else is priced as-is, so callers can warn. */
+export const isRecognisedMaterialUnit = (unit: string | undefined): boolean =>
+  ["kg", "kilogram", "kilograms", "g", "gram", "grams", "ml", "milliliter", "millilitre", "l", "liter", "litre",
+    "lb", "lbs", "pound", "pounds"].includes(String(unit ?? "").trim().toLowerCase());
+
 export const costPerBaseUnit = (
   material: Pick<Material, "cost_per_unit" | "unit" | "name"> | undefined,
   printType: "FDM" | "Resin"
@@ -175,6 +216,12 @@ export const costPerBaseUnit = (
       case "liter":
       case "litre":
         return usableDensity ? cost / usableDensity : cost;
+      case "lb":
+      case "lbs":
+      case "pound":
+      case "pounds":
+        // A US spool is priced per pound; treating it as per-kg understated the cost 2.2x.
+        return cost / POUND_IN_KG;
       default:
         // kg, and anything unrecognised, is what the engine already assumed.
         return cost;
@@ -194,10 +241,25 @@ export const costPerBaseUnit = (
     case "kilogram":
     case "kilograms":
       return usableDensity ? cost * usableDensity : cost;
+    case "lb":
+    case "lbs":
+    case "pound":
+    case "pounds":
+      return usableDensity ? (cost / POUND_IN_KG) * usableDensity : cost / POUND_IN_KG;
     default:
       // liter, and anything unrecognised, is what the engine already assumed.
       return cost;
   }
+};
+
+/**
+ * Whether a shop constant is a flat amount that can be added to a job as a consumable. Paints are
+ * priced per ml and scaled by surface area, and rates ("%", "/hr", "/kWh") are multipliers: adding
+ * either as a flat figure charged the number printed on its label.
+ */
+export const isFlatConsumable = (constant: { unit?: string }): boolean => {
+  const unit = String(constant.unit ?? "").trim().toLowerCase();
+  return !unit.startsWith("%") && !/\/\s*(?:ml|cm|hr|kwh|kg|g|l|h)(?![a-z])/.test(unit);
 };
 
 interface ConsumableInfo {
@@ -227,6 +289,98 @@ interface ResinCalculationInput extends CalculationParams {
   thumbnail?: string;
 }
 
+
+interface PerUnitLines {
+  materialCost: number;
+  machineTimeCost: number;
+  electricityCost: number;
+  laborCost: number;
+  consumablesTotal: number;
+  paintingCost: number;
+  overheadCost: number;
+  markup: number;
+}
+
+/**
+ * The stored money lines for a whole job, rounded once and then ADDED, so the subtotal is exactly
+ * the sum of the lines shown and the total is exactly subtotal + markup. Rounding each of them
+ * separately from the unrounded sums let a quote's own lines disagree with its total by a cent or
+ * two, which is how the summary, the invoice and the saved-quotes row came to print different
+ * totals for one quote.
+ */
+const buildStoredLines = (u: PerUnitLines, quantity: number) => {
+  const materialCost = round(u.materialCost * quantity);
+  const machineTimeCost = round(u.machineTimeCost * quantity);
+  const electricityCost = round(u.electricityCost * quantity);
+  const laborCost = round(u.laborCost * quantity);
+  const overheadCost = round(u.overheadCost * quantity);
+  const paintingCost = round(u.paintingCost * quantity);
+  const consumablesJob = round(u.consumablesTotal * quantity);
+  const markup = round(u.markup * quantity);
+  const subtotal = round(materialCost + machineTimeCost + electricityCost + laborCost + overheadCost + paintingCost + consumablesJob);
+  return {
+    materialCost,
+    machineTimeCost,
+    electricityCost,
+    laborCost,
+    overheadCost,
+    paintingCost,
+    markup,
+    subtotal,
+    totalPrice: round(subtotal + markup),
+  };
+};
+
+/** Markup per unit over `subtotal`, in either pricing mode. */
+const markupOver = (subtotal: number, percentage: number, mode?: "markup" | "margin"): number => {
+  if (mode === "margin") {
+    // Margin is a share of the SELLING price: price = cost / (1 - m). 90 % caps the multiplier at 10x.
+    const m = Math.min(90, Math.max(0, percentage)) / 100;
+    return subtotal / (1 - m) - subtotal;
+  }
+  return (subtotal * percentage) / 100;
+};
+
+interface Adjustments {
+  minimumTopUp?: number;
+  discountAmount?: number;
+  shippingCost?: number;
+  totalPrice: number;
+  /** Per-unit price after the adjustments that scale with the goods (shipping is per job). */
+  unitPrice?: number;
+}
+
+/**
+ * Whole-job adjustments, in the one order the shop and the customer both read down the invoice:
+ * price (cost + markup/margin) -> minimum charge -> discount -> shipping. Tax is not here: it is
+ * added on the invoice, so quote totals, revenue and profit stay pre-tax.
+ * Returns the stored amounts only when they are non-zero.
+ */
+const applyAdjustments = (
+  base: number,
+  quantity: number,
+  formData: { discountType?: string; discountValue?: string; shippingCost?: string },
+  minimumCharge?: number
+): Adjustments => {
+  const minimum = Math.max(0, toNum(minimumCharge));
+  const minimumTopUp = minimum > base ? round(minimum - base) : 0;
+  const priced = round(base + minimumTopUp);
+
+  const discountInput = Math.max(0, toNum(formData.discountValue));
+  const rawDiscount = formData.discountType === "amount" ? discountInput : (priced * Math.min(100, discountInput)) / 100;
+  const discountAmount = Math.min(priced, round(rawDiscount));
+  const shippingCost = round(Math.max(0, toNum(formData.shippingCost)));
+
+  const touched = minimumTopUp > 0 || discountAmount > 0;
+  return {
+    ...(minimumTopUp > 0 ? { minimumTopUp } : {}),
+    ...(discountAmount > 0 ? { discountAmount } : {}),
+    ...(shippingCost > 0 ? { shippingCost } : {}),
+    totalPrice: round(priced - discountAmount + shippingCost),
+    unitPrice: touched ? round((priced - discountAmount) / quantity) : undefined,
+  };
+};
+
 export const calculateFDMQuote = ({
   formData,
   material,
@@ -234,6 +388,9 @@ export const calculateFDMQuote = ({
   electricityRate,
   laborRate,
   gridGPerKWh,
+  failureRatePercent,
+  wastePercent,
+  minimumCharge,
   spool,
   consumables = [],
   paintConsumable,
@@ -253,10 +410,11 @@ export const calculateFDMQuote = ({
   const quantity = Math.max(1, toInt(formData.quantity, 1));
 
   // Priced per kilogram whatever unit the shop buys in — see costPerBaseUnit.
-  const materialCost = filamentWeightKg * costPerBaseUnit(material, "FDM");
-  const machineTimeCost = printTimeHours * toNum(machine.hourly_cost);
-  const powerConsumptionKw = toNum(machine.power_consumption_watts) / 1000;
-  const electricityCost = printTimeHours * powerConsumptionKw * toNum(electricityRate);
+  const failGross = failureFactor(failureRatePercent);
+  const materialCost = filamentWeightKg * costPerBaseUnit(material, "FDM") * wasteFactor(wastePercent) * failGross;
+  const machineTimeCost = printTimeHours * toNum(machine.hourly_cost) * failGross;
+  const powerConsumptionKw = effectiveWatts(machine) / 1000;
+  const electricityCost = printTimeHours * powerConsumptionKw * toNum(electricityRate) * failGross;
   const laborCost = laborHours * toNum(laborRate);
   const consumablesTotal = consumables.reduce((sum, c) => sum + toNum(c.value), 0);
 
@@ -279,24 +437,24 @@ export const calculateFDMQuote = ({
   const overheadCost = (subtotalBeforeOverhead * overheadPercentage) / 100;
   const subtotal = subtotalBeforeOverhead + overheadCost;
 
-  const markup = (subtotal * markupPercentage) / 100;
+  const markup = markupOver(subtotal, markupPercentage, formData.pricingMode);
   const unitPrice = subtotal + markup;
 
   // Calculate total price based on quantity
-  const totalPrice = unitPrice * quantity;
+  const stored = buildStoredLines(
+    { materialCost, machineTimeCost, electricityCost, laborCost, consumablesTotal, paintingCost, overheadCost, markup },
+    quantity
+  );
+  const adjusted = applyAdjustments(stored.totalPrice, quantity, formData, minimumCharge);
 
   return {
-    materialCost: round(materialCost * quantity),
-    machineTimeCost: round(machineTimeCost * quantity),
-    electricityCost: round(electricityCost * quantity),
-    laborCost: round(laborCost * quantity),
-    overheadCost: round(overheadCost * quantity),
-    subtotal: round(subtotal * quantity),
-    markup: round(markup * quantity),
-    paintingCost: round(paintingCost * quantity),
-    unitPrice: round(unitPrice),
+    ...stored,
+    ...(adjusted.minimumTopUp ? { minimumTopUp: adjusted.minimumTopUp } : {}),
+    ...(adjusted.discountAmount ? { discountAmount: adjusted.discountAmount } : {}),
+    ...(adjusted.shippingCost ? { shippingCost: adjusted.shippingCost } : {}),
+    totalPrice: adjusted.totalPrice,
+    unitPrice: adjusted.unitPrice ?? round(unitPrice),
     quantity,
-    totalPrice: round(totalPrice),
     printType: "FDM",
     projectName: formData.projectName,
     printColour: formData.printColour,
@@ -320,6 +478,7 @@ export const calculateFDMQuote = ({
       // Storing the rate as of pricing is also what a drift comparison needs.
       electricityRate: toNum(electricityRate),
       laborRate: toNum(laborRate),
+      failureRatePercent: toNum(failureRatePercent),
       paintConsumableValue: paintingMaterialCost,
       paintConsumableValue2: paintingMaterialCost2,
     },
@@ -350,6 +509,9 @@ export const calculateResinQuote = ({
   electricityRate,
   laborRate,
   gridGPerKWh,
+  failureRatePercent,
+  wastePercent,
+  minimumCharge,
   spool,
   consumables = [],
   paintConsumable,
@@ -369,11 +531,12 @@ export const calculateResinQuote = ({
   const quantity = Math.max(1, toInt(formData.quantity, 1));
 
   // Priced per litre whatever unit the shop buys in — see costPerBaseUnit.
-  const materialCost = resinVolumeLiters * costPerBaseUnit(material, "Resin") + isopropylCost;
+  const failGross = failureFactor(failureRatePercent);
+  const materialCost = (resinVolumeLiters * costPerBaseUnit(material, "Resin") * wasteFactor(wastePercent) + isopropylCost) * failGross;
   const totalProcessTime = printTimeHours + washingTimeHours + curingTimeHours;
-  const machineTimeCost = totalProcessTime * toNum(machine.hourly_cost);
-  const powerConsumptionKw = toNum(machine.power_consumption_watts) / 1000;
-  const electricityCost = totalProcessTime * powerConsumptionKw * toNum(electricityRate);
+  const machineTimeCost = totalProcessTime * toNum(machine.hourly_cost) * failGross;
+  const powerConsumptionKw = effectiveWatts(machine) / 1000;
+  const electricityCost = totalProcessTime * powerConsumptionKw * toNum(electricityRate) * failGross;
   const laborCost = laborHours * toNum(laborRate);
   const consumablesTotal = consumables.reduce((sum, c) => sum + toNum(c.value), 0);
 
@@ -395,24 +558,24 @@ export const calculateResinQuote = ({
   const overheadCost = (subtotalBeforeOverhead * overheadPercentage) / 100;
   const subtotal = subtotalBeforeOverhead + overheadCost;
 
-  const markup = (subtotal * markupPercentage) / 100;
+  const markup = markupOver(subtotal, markupPercentage, formData.pricingMode);
   const unitPrice = subtotal + markup;
 
   // Calculate total price based on quantity
-  const totalPrice = unitPrice * quantity;
+  const stored = buildStoredLines(
+    { materialCost, machineTimeCost, electricityCost, laborCost, consumablesTotal, paintingCost, overheadCost, markup },
+    quantity
+  );
+  const adjusted = applyAdjustments(stored.totalPrice, quantity, formData, minimumCharge);
 
   return {
-    materialCost: round(materialCost * quantity),
-    machineTimeCost: round(machineTimeCost * quantity),
-    electricityCost: round(electricityCost * quantity),
-    laborCost: round(laborCost * quantity),
-    overheadCost: round(overheadCost * quantity),
-    subtotal: round(subtotal * quantity),
-    markup: round(markup * quantity),
-    paintingCost: round(paintingCost * quantity),
-    unitPrice: round(unitPrice),
+    ...stored,
+    ...(adjusted.minimumTopUp ? { minimumTopUp: adjusted.minimumTopUp } : {}),
+    ...(adjusted.discountAmount ? { discountAmount: adjusted.discountAmount } : {}),
+    ...(adjusted.shippingCost ? { shippingCost: adjusted.shippingCost } : {}),
+    totalPrice: adjusted.totalPrice,
+    unitPrice: adjusted.unitPrice ?? round(unitPrice),
     quantity,
-    totalPrice: round(totalPrice),
     printType: "Resin",
     projectName: formData.projectName,
     printColour: formData.printColour,
@@ -427,6 +590,7 @@ export const calculateResinQuote = ({
       // See the FDM path: these two are read in five places and were never written.
       electricityRate: toNum(electricityRate),
       laborRate: toNum(laborRate),
+      failureRatePercent: toNum(failureRatePercent),
       paintingTime,
       paintingLayers,
       paintingLayers2,
@@ -483,6 +647,20 @@ const validateNumericField = (
   return null;
 };
 
+const validateAdjustments = (formData: {
+  pricingMode?: string; markupPercentage?: string; discountType?: string; discountValue?: string; shippingCost?: string;
+}): string | null => {
+  if (formData.pricingMode === "margin") {
+    const m = parseFloat(formData.markupPercentage ?? "");
+    if (Number.isFinite(m) && (m < 0 || m >= 90)) return "Margin must be between 0% and 90%";
+  }
+  const discountError = formData.discountType === "amount"
+    ? validateNumericField(formData.discountValue, "Discount", 0, 100000000)
+    : validateNumericField(formData.discountValue, "Discount", 0, 100, "%");
+  if (discountError) return discountError;
+  return validateNumericField(formData.shippingCost, "Shipping", 0, 100000000);
+};
+
 export const validateFDMForm = (formData: FDMFormData): string | null => {
   if (!formData.projectName.trim()) return "Project name is required";
   if (formData.projectName.length > 100) return "Project name is too long (max 100 chars)";
@@ -509,6 +687,9 @@ export const validateFDMForm = (formData: FDMFormData): string | null => {
 
   const markupError = validateNumericField(formData.markupPercentage, "Markup", -100, 10000, "%");
   if (markupError) return markupError;
+
+  const adjustmentError = validateAdjustments(formData);
+  if (adjustmentError) return adjustmentError;
 
   const quantity = parseInt(formData.quantity);
   if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
@@ -553,6 +734,9 @@ export const validateResinForm = (formData: ResinFormData): string | null => {
   const markupError = validateNumericField(formData.markupPercentage, "Markup", -100, 10000, "%");
   if (markupError) return markupError;
 
+  const adjustmentError = validateAdjustments(formData);
+  if (adjustmentError) return adjustmentError;
+
   const quantity = parseInt(formData.quantity);
   if (isNaN(quantity) || quantity < 1) return "Quantity must be at least 1";
   if (quantity > 1000000) return "Quantity exceeds maximum (1,000,000)";
@@ -588,6 +772,10 @@ export interface QuoteSummaryTotals {
   overhead: number;
   subtotal: number;
   markup: number;
+  /** Whole-job adjustments applied after markup; 0 for quotes saved before they existed. */
+  minimumTopUp: number;
+  discount: number;
+  shipping: number;
   total: number;
   /**
    * The frozen footprint, surfaced here so the quote summary, the details dialog and the invoice
@@ -617,6 +805,9 @@ export const summariseQuote = (quote: QuoteData): QuoteSummaryTotals => {
 
   const subtotal = manufacturing + labour + painting + overhead;
   const markup = num(quote.markup);
+  const minimumTopUp = num(quote.minimumTopUp);
+  const discount = num(quote.discountAmount);
+  const shipping = num(quote.shippingCost);
 
   const carbonKg = quote.carbon?.kg;
 
@@ -634,7 +825,10 @@ export const summariseQuote = (quote: QuoteData): QuoteSummaryTotals => {
     overhead: round(overhead),
     subtotal: round(subtotal),
     markup: round(markup),
-    total: round(subtotal + markup),
+    minimumTopUp: round(minimumTopUp),
+    discount: round(discount),
+    shipping: round(shipping),
+    total: round(subtotal + markup + minimumTopUp - discount + shipping),
     carbonKg,
     carbonPerPart: carbonKg !== undefined && !quote.isBatch ? carbonKg / quantity : undefined,
     carbonGrade: quote.carbon?.grade,

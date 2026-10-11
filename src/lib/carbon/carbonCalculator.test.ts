@@ -251,3 +251,12 @@ describe("formatCarbon", () => {
         expect(formatCarbon(Number.NaN)).toBe("0 gCO₂e");
     });
 });
+
+describe("formatCarbon boundaries", () => {
+    it("picks the unit from the rounded figure", () => {
+        expect(formatCarbon(0.0999)).toBe("0.10 kgCO₂e");
+        expect(formatCarbon(9.999)).toBe("10.0 kgCO₂e");
+        expect(formatCarbon(999.96)).toBe("1.00 tCO₂e");
+        expect(formatCarbon(0.054)).toBe("54 gCO₂e");
+    });
+});

@@ -37,6 +37,16 @@ export interface ContextFormatters {
  * Returns the user's browser/OS locale (respects Windows Region/Language settings).
  * Falls back to the currency's default locale if navigator.language is unavailable.
  */
+/** Minor-unit digits a currency is written with (JPY 0, USD 2, KWD 3); 2 when unknown. */
+export function currencyDigits(code: string): number {
+    try {
+        const digits = new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions().maximumFractionDigits;
+        return typeof digits === "number" ? digits : 2;
+    } catch {
+        return 2;
+    }
+}
+
 export function resolveLocale(currencyLocale: string): string {
     if (typeof navigator !== "undefined" && navigator.language) {
         return navigator.language;
@@ -91,6 +101,9 @@ export function makeFormatters(currency: Currency, conversionRate: number): Cont
         maximumFractionDigits: 2
     });
 
+    // Yen and won have no minor unit; the dinar family has three. Fixed 2 printed "¥1,234.50".
+    const digits = currencyDigits(currency.code);
+
     const byPrecision = new Map<number, Intl.NumberFormat>([[2, twoDecimals]]);
     const formatterFor = (decimals: number): Intl.NumberFormat => {
         let formatter = byPrecision.get(decimals);
@@ -112,7 +125,7 @@ export function makeFormatters(currency: Currency, conversionRate: number): Cont
         const converted = amount * conversionRate;
         if (isNaN(converted) || !isFinite(converted)) return `${currency.symbol} --`;
 
-        return `${currency.symbol}${twoDecimals.format(converted)}`;
+        return `${currency.symbol}${formatterFor(digits).format(converted)}`;
     };
 
     const number = (value: number, decimals: number = 2): string => {

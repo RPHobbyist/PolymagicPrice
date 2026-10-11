@@ -235,6 +235,7 @@ export const toStoredCarbon = (breakdown: CarbonBreakdown): QuoteCarbon => ({
     gridGPerKWh: breakdown.gridGPerKWh,
     efKgPerKg: breakdown.efKgPerKg,
     wattsUsed: breakdown.wattsUsed,
+    jobHours: breakdown.jobHours,
     src: breakdown.src,
     grade: breakdown.grade,
     ...(breakdown.flags ? { flags: breakdown.flags } : {}),
@@ -274,6 +275,7 @@ export const sumCarbonRecords = (records: (QuoteCarbon | undefined)[]): QuoteCar
         gridGPerKWh: present[0].gridGPerKWh,
         efKgPerKg: present[0].efKgPerKg,
         wattsUsed: present[0].wattsUsed,
+        ...(present.every(r => typeof r.jobHours === "number") ? { jobHours: total(r => r.jobHours as number) } : {}),
         src: weakest.src,
         grade: weakest.grade,
         flags,
@@ -288,8 +290,11 @@ export const sumCarbonRecords = (records: (QuoteCarbon | undefined)[]): QuoteCar
  */
 export const formatCarbon = (kg: number): string => {
     if (!Number.isFinite(kg) || kg <= 0) return "0 gCO₂e";
-    if (kg < 0.1) return `${Math.round(kg * 1000)} gCO₂e`;
-    if (kg < 10) return `${kg.toFixed(2)} kgCO₂e`;
-    if (kg < 1000) return `${kg.toFixed(1)} kgCO₂e`;
+    // Pick the unit from the ROUNDED figure, or 99.96 g prints "100 gCO₂e" under the kg rule and
+    // 9.999 kg prints "10.00 kgCO₂e" with a digit too many.
+    const grams = Math.round(kg * 1000);
+    if (grams < 100) return `${grams} gCO₂e`;
+    if (Number(kg.toFixed(2)) < 10) return `${kg.toFixed(2)} kgCO₂e`;
+    if (Number(kg.toFixed(1)) < 1000) return `${kg.toFixed(1)} kgCO₂e`;
     return `${(kg / 1000).toFixed(2)} tCO₂e`;
 };

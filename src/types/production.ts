@@ -22,7 +22,7 @@ export type JobStatus = 'queued' | 'printing' | 'post_processing' | 'completed';
 export type JobPriority = 'low' | 'normal' | 'high';
 
 export interface ProductionSettings {
-    efficiency: number;      // 0-100
+    efficiency: number;      // print failure chance %, 0-50 (legacy 85 is normalised on read)
     turnoverMinutes: number; // minutes per unit
     workHoursPerDay: number; // hours (e.g., 8, 24)
     enabledMachineIds: string[]; // Machines active in the machine pool
@@ -40,6 +40,12 @@ export interface ProductionJob {
     completedAt?: string; // When the job finished
     spoolId?: string; // Tracks the specific inventory spool used
     inventoryDeducted?: number; // Total grams/ml deducted from inventory
+    /** What the current attempt took off the spool; the only part a revert may give back. */
+    attemptDeducted?: number;
+    /** Failed units whose extra material has already been deducted (reprint or reconciliation). */
+    failedUnitsDeducted?: number;
+    /** Scrap cost already added to the quote's material cost, so re-completing cannot add it twice. */
+    scrapCostBooked?: number;
     /**
      * What this job actually consumed, recorded when it completes.
      *

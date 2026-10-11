@@ -156,7 +156,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
     }
   };
 
-  const { currency, formatPrice } = useCurrency();
+  const { currency, formatPrice, conversionRate } = useCurrency();
   const { jobs, addJob, moveJob } = useProduction();
 
 
@@ -185,6 +185,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
       { header: "Machine Cost", key: "machineTimeCost", width: 15 },
       { header: "Electricity", key: "electricityCost", width: 15 },
       { header: "Labor", key: "laborCost", width: 15 },
+      { header: "Painting", key: "paintingCost", width: 15 },
       { header: "Consumables", key: "consumablesCost", width: 15 },
       { header: "Overhead", key: "overheadCost", width: 15 },
       { header: "Subtotal", key: "subtotal", width: 15 },
@@ -196,6 +197,12 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
       { header: "Notes", key: "notes", width: 30 },
       { header: "Date", key: "createdAt", width: 20 },
     ];
+
+    // Money goes in as numbers (in the display currency) so Excel can sum and sort it; a string
+    // such as "₹1,234.50" cannot be summed.
+    const money = (value: number | undefined) => Math.round((value || 0) * conversionRate * 100) / 100;
+    const moneyKeys = ["materialCost", "machineTimeCost", "electricityCost", "laborCost", "paintingCost", "consumablesCost", "overheadCost", "subtotal", "markup", "totalPrice"];
+    moneyKeys.forEach(key => { worksheet.getColumn(key).numFmt = "#,##0.00"; });
 
     quotes.forEach((quote, index) => {
       // Shared breakdown so the exported consumables/subtotal columns are on the same basis
@@ -212,15 +219,16 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
         printColour: safeCell(quote.printColour),
         materialName: safeCell(quote.parameters?.materialName || "-"),
         machineName: safeCell(quote.parameters?.machineName || "-"),
-        materialCost: formatPrice(quote.materialCost),
-        machineTimeCost: formatPrice(quote.machineTimeCost),
-        electricityCost: formatPrice(quote.electricityCost),
-        laborCost: formatPrice(quote.laborCost),
-        consumablesCost: formatPrice(totals.consumablesTotal),
-        overheadCost: formatPrice(quote.overheadCost),
-        subtotal: formatPrice(totals.subtotal),
-        markup: formatPrice(totals.markup),
-        totalPrice: formatPrice(totals.total),
+        materialCost: money(quote.materialCost),
+        machineTimeCost: money(quote.machineTimeCost),
+        electricityCost: money(quote.electricityCost),
+        laborCost: money(quote.laborCost),
+        paintingCost: money(totals.painting),
+        consumablesCost: money(totals.consumablesTotal),
+        overheadCost: money(quote.overheadCost),
+        subtotal: money(totals.subtotal),
+        markup: money(totals.markup),
+        totalPrice: money(totals.total),
         carbonKg: totals.carbonKg !== undefined ? Number(totals.carbonKg.toFixed(3)) : "",
         carbonGrade: totals.carbonGrade
           ? totals.carbonGrade.charAt(0) + totals.carbonGrade.slice(1).toLowerCase()
@@ -243,7 +251,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
         console.error("Excel Export Failed:", err);
         toast.error("Failed to generate Excel file. Please check your connection or reload the app.");
     }
-  }, [quotes, formatPrice]);
+  }, [quotes, conversionRate]);
 
   const handleEditClick = useCallback((quote: QuoteData) => {
     setEditingId(quote.id || null);
@@ -276,11 +284,8 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
     return (
       <Card className="p-10 shadow-card bg-card border-dashed border-2 border-border animate-fade-in">
         <div className="flex flex-col items-center justify-center text-center gap-5">
-          <div className="p-5 bg-gradient-subtle rounded-2xl shadow-card">
-            <Database className="w-10 h-10 text-slate-600" />
-          </div>
           <div>
-            <h2 className="text-xl font-semibold text-foreground">No Quote History</h2>
+            <h2 className="text-lg font-semibold text-foreground">No saved quotes yet</h2>
             <p className="text-sm text-slate-600 mt-2 max-w-sm">
               Calculate and save quotes to see them here.
             </p>
@@ -404,7 +409,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
                       <TableCell className="max-w-[150px] truncate text-sm" title={quote.notes || ""}>
                         <div className="flex flex-col gap-1">
                           {(quote.failedUnits || 0) > 0 && (
-                            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-100/80 text-red-700 flex items-center gap-1 w-fit animate-pulse">
+                            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-red-100/80 text-red-700 flex items-center gap-1 w-fit">
                               <AlertTriangle className="w-2.5 h-2.5" />
                               {quote.failedUnits} FAILED
                             </span>
@@ -614,7 +619,7 @@ const SavedQuotesTable = memo(({ quotes, onDeleteQuote, onUpdateQuote }: SavedQu
             <Button variant="outline" onClick={() => setEditingId(null)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveNotes} className="bg-gradient-primary text-primary-foreground">
+            <Button onClick={handleSaveNotes}>
               Save Notes
             </Button>
           </DialogFooter>

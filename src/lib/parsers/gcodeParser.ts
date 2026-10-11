@@ -125,21 +125,30 @@ export function parseGcode(content: string): GcodeData {
   let thumbnail = '';
   const featureWeights: Record<string, number> = {};
 
+  // A multi-extruder file lists one figure per extruder ("12.3, 4.5"); the job uses the sum.
+  // Reading only the first number priced a two-colour print as if the second filament were free.
+  const NUM_LIST = String.raw`([\d.]+(?:[ \t]*,[ \t]*[\d.]+)*)`;
+  const sumList = (raw: string): number =>
+    raw.split(',').reduce((acc, part) => {
+      const n = parseFloat(part);
+      return acc + (Number.isFinite(n) ? n : 0);
+    }, 0);
+
   // --- Filament weight patterns (supports various slicer formats) ---
   const weightPatterns = [
-    /total filament weight\s*\[g\]\s*[:=]\s*([\d.]+)/i,
-    /total filament used\s*\[g\]\s*[:=]\s*([\d.]+)/i,
-    /filament used\s*\[g\]\s*[:=]\s*([\d.]+)/i,
+    new RegExp(String.raw`total filament weight\s*\[g\]\s*[:=]\s*` + NUM_LIST, 'i'),
+    new RegExp(String.raw`total filament used\s*\[g\]\s*[:=]\s*` + NUM_LIST, 'i'),
+    new RegExp(String.raw`filament used\s*\[g\]\s*[:=]\s*` + NUM_LIST, 'i'),
     /total filament used\s*[:=]\s*([\d.]+)\s*g/i,
     /filament used\s*[:=]\s*([\d.]+)\s*g/i,
-    /;\s*filament\s*used\s*\[g\]\s*=\s*([\d.]+)/i,
-    /;\s*total\s*filament\s*weight\s*=\s*([\d.]+)/i,
+    new RegExp(String.raw`;\s*filament\s*used\s*\[g\]\s*=\s*` + NUM_LIST, 'i'),
+    new RegExp(String.raw`;\s*total\s*filament\s*weight\s*=\s*` + NUM_LIST, 'i'),
   ];
 
   for (const pattern of weightPatterns) {
     const match = content.match(pattern);
     if (match) {
-      filamentWeight = Math.max(0, parseFloat(match[1]));
+      filamentWeight = Math.max(0, sumList(match[1]));
       break;
     }
   }
@@ -166,7 +175,7 @@ export function parseGcode(content: string): GcodeData {
 
   // --- Filament length patterns ---
   const lengthPatterns = [
-    /filament used\s*\[mm\]\s*=\s*([\d.]+)/i,
+    new RegExp(String.raw`filament used\s*\[mm\]\s*=\s*` + NUM_LIST, 'i'),
     /filament\s*used\s*[:=]\s*([\d.]+)\s*m(?!m)/i, // meters
     /filament\s*used\s*[:=]\s*([\d.]+)\s*mm/i,
   ];
@@ -174,7 +183,7 @@ export function parseGcode(content: string): GcodeData {
   for (const pattern of lengthPatterns) {
     const match = content.match(pattern);
     if (match) {
-      const value = Math.max(0, parseFloat(match[1]));
+      const value = Math.max(0, sumList(match[1]));
       // Check if it's meters (convert to mm) or already mm
       if (pattern.source.includes('m(?!m)')) {
         filamentLengthMm = value * 1000;
@@ -191,6 +200,7 @@ export function parseGcode(content: string): GcodeData {
     /estimated printing time\s*(?:\(normal mode\))?\s*[:=]\s*(.+)/i,
     /estimated time\s*[:=]\s*(.+)/i,
     /;\s*TIME:\s*(\d+)/i, // Cura seconds format
+    /;\s*PRINT\.TIME:\s*(\d+)/i, // Cura 5 header
     /print time\s*[:=]\s*(.+)/i,
   ];
 
@@ -204,8 +214,12 @@ export function parseGcode(content: string): GcodeData {
 
   if (timeString) {
     // Pure seconds format (Cura)
-    if (/^\d+$/.test(timeString)) {
-      timeHours = parseInt(timeString, 10) / 3600;
+    if (/^\d+(?:\.\d+)?$/.test(timeString)) {
+      timeHours = parseFloat(timeString) / 3600;
+    } else if (/^\d+:\d{2}(?::\d{2})?$/.test(timeString)) {
+      // HH:MM:SS (or HH:MM)
+      const [hh, mm, ss] = timeString.split(':').map(Number);
+      timeHours = hh + mm / 60 + (ss || 0) / 3600;
     } else {
       // Format: 1h 1m 13s or 1h 1m or similar
       const h = timeString.match(/(\d+)\s*h/i);
@@ -400,6 +414,64 @@ export function parseGcode(content: string): GcodeData {
  * early `return` in the G-code branch, so the most common export (Bambu/Orca, which does
  * embed G-code) never produced a surface area — the one input paint costing needs.
  */
+/** Millimetres per unit for a 3MF `<model unit>`; anything unknown is read as millimetres. */
+export function modelUnitToMm(unit?: string | null): number {
+  switch ((unit || 'millimeter').toLowerCase()) {
+    case 'micron': return 0.001;
+    case 'centimeter': return 10;
+    case 'meter': return 1000;
+    case 'inch': return 25.4;
+    case 'foot': return 304.8;
+    default: return 1;
+  }
+}
+
+/**
+ * Bambu Studio / Orca write the plate's figures to `Metadata/slice_info.config`, as
+ * `<metadata key="prediction" value="seconds"/>`, `<metadata key="weight" value="grams"/>` and one
+ * `<filament used_g="..."/>` per spool. The generic key regexes below look for names Bambu never
+ * uses, so these files came out as zero time and zero weight. First plate only, like the G-code
+ * the importer reads.
+ */
+export function parseBambuSliceInfo(xml: string): { printTimeHours: number; filamentWeightGrams: number } {
+  const plate = /<plate>([\s\S]*?)<\/plate>/i.exec(xml)?.[1] ?? xml;
+  const meta = (key: string): number => {
+    const number = String.raw`([\d.]+)`;
+    const m = new RegExp(`<metadata[^>]*key="${key}"[^>]*value="${number}"`, 'i').exec(plate)
+      ?? new RegExp(`<metadata[^>]*value="${number}"[^>]*key="${key}"`, 'i').exec(plate);
+    const n = m ? parseFloat(m[1]) : 0;
+    return Number.isFinite(n) ? n : 0;
+  };
+  let weight = meta('weight');
+  if (weight === 0) {
+    weight = Array.from(plate.matchAll(/<filament[^>]*used_g="([\d.]+)"/gi)).reduce((sum, m) => sum + (parseFloat(m[1]) || 0), 0);
+  }
+  return { printTimeHours: meta('prediction') / 3600, filamentWeightGrams: weight };
+}
+
+export interface ModelObject {
+  /** Area of the object's own mesh, in model units. */
+  area: number;
+  components: { objectId: string; scale: number }[];
+}
+
+/**
+ * Surface area of everything on the plate: every build item counts once, scaled by its transform,
+ * and an assembled object adds its components (scaled in turn). Depth is capped so a malformed
+ * file whose components reference each other cannot loop.
+ */
+export function plateSurfaceArea(
+  objects: Map<string, ModelObject>,
+  items: { objectId: string; scale: number }[]
+): number {
+  const areaOf = (id: string, depth: number): number => {
+    const object = objects.get(id);
+    if (!object || depth > 8) return 0;
+    return object.area + object.components.reduce((sum, c) => sum + areaOf(c.objectId, depth + 1) * c.scale * c.scale, 0);
+  };
+  return items.reduce((sum, item) => sum + areaOf(item.objectId, 0) * item.scale * item.scale, 0);
+}
+
 async function computeSurfaceAreaMm2(zip: JSZip, fileNames: string[]): Promise<number> {
   let modelPath = fileNames.find(p => p.toLowerCase().endsWith('3dmodel.model'));
   if (!modelPath) {
@@ -426,10 +498,8 @@ async function computeSurfaceAreaMm2(zip: JSZip, fileNames: string[]): Promise<n
       return matches;
     };
 
-    let totalAreaMm2 = 0;
-    const meshes = getElements(xmlDoc, 'mesh');
-
-    for (const mesh of meshes) {
+    // Area of one <mesh>, in the model's own units.
+    const meshAreaOf = (mesh: Element): number => {
       const vertices = getElements(mesh, 'vertex');
       const triangles = getElements(mesh, 'triangle');
 
@@ -442,6 +512,7 @@ async function computeSurfaceAreaMm2(zip: JSZip, fileNames: string[]): Promise<n
         });
       }
 
+      let area = 0;
       for (let i = 0; i < triangles.length; i++) {
         const v1Index = parseInt(triangles[i].getAttribute('v1') || '0');
         const v2Index = parseInt(triangles[i].getAttribute('v2') || '0');
@@ -460,45 +531,73 @@ async function computeSurfaceAreaMm2(zip: JSZip, fileNames: string[]): Promise<n
           const cy = az * bx - ax * bz;
           const cz = ax * by - ay * bx;
 
-          const area = 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
-          if (Number.isFinite(area)) totalAreaMm2 += area;
+          const triangleArea = 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
+          if (Number.isFinite(triangleArea)) area += triangleArea;
         }
       }
+      return area;
+    };
+
+    // A 3MF transform is a 4x3 row-major matrix: "m00 m01 m02 m10 m11 m12 m20 m21 m22 tx ty tz".
+    // Reading the diagonal is only valid when the object is unrotated — for a rotated object
+    // those entries are cosines, which shrank the area. The per-axis scale is the norm of each ROW.
+    const linearScaleOf = (transform: string | null): number => {
+      if (!transform) return 1;
+      const parts = transform.trim().split(/\s+/).map(parseFloat);
+      if (parts.length < 9 || parts.some(n => !Number.isFinite(n))) return 1;
+      const rowNorm = (x: number, y: number, z: number) => Math.sqrt(x * x + y * y + z * z);
+      const avg = (rowNorm(parts[0], parts[1], parts[2]) + rowNorm(parts[3], parts[4], parts[5]) + rowNorm(parts[6], parts[7], parts[8])) / 3;
+      return Number.isFinite(avg) && avg > 0 ? avg : 1;
+    };
+
+    // Resolve what the plate actually holds: each <item> is one copy of an object, and an object
+    // may be assembled from <component>s of other objects. Counting every mesh once ignored
+    // copies (ten of the same part priced as one) and counted sub-parts that are not on the plate.
+    const objects = new Map<string, ModelObject>();
+    for (const obj of getElements(xmlDoc, 'object')) {
+      const id = obj.getAttribute('id');
+      if (!id) continue;
+      objects.set(id, {
+        area: getElements(obj, 'mesh').reduce((sum, mesh) => sum + meshAreaOf(mesh), 0),
+        components: getElements(obj, 'component').map(c => ({
+          objectId: c.getAttribute('objectid') || '',
+          scale: linearScaleOf(c.getAttribute('transform')),
+        })),
+      });
+    }
+    const buildItems = getElements(xmlDoc, 'item');
+    const plateItems = buildItems.map(item => ({
+      objectId: item.getAttribute('objectid') || '',
+      scale: linearScaleOf(item.getAttribute('transform')),
+    }));
+
+    let totalAreaMm2 = plateSurfaceArea(objects, plateItems);
+    let scaleApplied = totalAreaMm2 > 0;
+
+    if (totalAreaMm2 === 0) {
+      // Objects live in another model file (Bambu/Orca) or the ids do not resolve: fall back to
+      // every mesh in this file, scaled by the average build-item transform.
+      for (const mesh of getElements(xmlDoc, 'mesh')) totalAreaMm2 += meshAreaOf(mesh);
+      scaleApplied = false;
     }
 
     if (totalAreaMm2 === 0) return 0;
 
-    // --- SCALE FACTOR ---
-    // A 3MF transform is a 4x3 row-major matrix: "m00 m01 m02 m10 m11 m12 m20 m21 m22 tx ty tz".
-    // Reading the diagonal (parts[0]/[4]/[8]) is only valid when the object is unrotated — for a
-    // rotated object those entries are cosines, which shrank the area. The correct per-axis scale
-    // is the norm of each matrix ROW.
-    const buildItems = getElements(xmlDoc, 'item');
-    const scales: number[] = [];
+    // --- UNITS ---
+    // A 3MF declares its coordinate unit on <model unit="...">, defaulting to millimetres. A
+    // model saved in inches was read as millimetres, so its area came out 645x too small.
+    const unitFactor = modelUnitToMm(xmlDoc.documentElement?.getAttribute('unit'));
+    totalAreaMm2 *= unitFactor * unitFactor;
 
-    for (const item of buildItems) {
-      const transform = item.getAttribute('transform');
-      if (!transform) continue;
-
-      const parts = transform.trim().split(/\s+/).map(parseFloat);
-      if (parts.length < 9 || parts.some(n => !Number.isFinite(n))) continue;
-
-      const rowNorm = (a: number, b: number, c: number) => Math.sqrt(a * a + b * b + c * c);
-      const sx = rowNorm(parts[0], parts[1], parts[2]);
-      const sy = rowNorm(parts[3], parts[4], parts[5]);
-      const sz = rowNorm(parts[6], parts[7], parts[8]);
-
-      const avgLinearScale = (sx + sy + sz) / 3;
-      if (Number.isFinite(avgLinearScale) && avgLinearScale > 0) {
-        scales.push(avgLinearScale);
+    // --- SCALE FACTOR (fallback path only; the plate walk above already applied each transform) ---
+    if (!scaleApplied) {
+      const scales = plateItems.map(i => i.scale).filter(x => x !== 1);
+      if (scales.length > 0) {
+        // Area scales with the square of the linear scale; averaging is an approximation, but it
+        // no longer lets the LAST item's transform define the whole plate.
+        const meanLinearScale = scales.reduce((sum, x) => sum + x, 0) / scales.length;
+        totalAreaMm2 *= meanLinearScale * meanLinearScale;
       }
-    }
-
-    if (scales.length > 0) {
-      // Area scales with the square of the linear scale. Averaging across build items is an
-      // approximation, but it no longer lets the LAST item's transform define the whole plate.
-      const meanLinearScale = scales.reduce((sum, s) => sum + s, 0) / scales.length;
-      totalAreaMm2 *= meanLinearScale * meanLinearScale;
     }
 
     return totalAreaMm2;
@@ -614,6 +713,12 @@ export async function parse3mf(file: File): Promise<GcodeData> {
       if (lowerFilename.endsWith('.xml') || lowerFilename.endsWith('.config')) {
         try {
           const content = await zip.files[filename].async('string');
+
+          if (lowerFilename.endsWith('slice_info.config')) {
+            const slice = parseBambuSliceInfo(content);
+            if (slice.printTimeHours > 0 && printTimeHours === 0) printTimeHours = slice.printTimeHours;
+            if (slice.filamentWeightGrams > 0 && filamentWeightGrams === 0) filamentWeightGrams = slice.filamentWeightGrams;
+          }
 
           const timeMatch = content.match(/estimated[_-]?time["\s:=>]+(\d+)/i);
           if (timeMatch && printTimeHours === 0) {

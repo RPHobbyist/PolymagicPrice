@@ -22,7 +22,7 @@ import { ProductionJob } from "@/types/production";
 import { Printer, Package, Clock } from "lucide-react";
 import { JobCard } from "./JobCard";
 import { useProduction } from "@/hooks/useProduction";
-import { formatHours } from "@/lib/capacityCalculator";
+import { formatHours, failureChanceToEfficiency } from "@/lib/capacityCalculator";
 
 import { Link2 } from "lucide-react";
 
@@ -58,7 +58,7 @@ export const KanbanColumn = memo(({
         const printTime = parseFloat(printTimeStr) || 0;
         
         // Efficiency adjustment
-        const effectiveTime = printTime / ((settings.efficiency || 100) / 100);
+        const effectiveTime = printTime / failureChanceToEfficiency(settings.efficiency);
         const turnover = ((settings.turnoverMinutes || 0) / 60);
 
         return acc + (effectiveTime * q) + (turnover * q);
@@ -68,9 +68,9 @@ export const KanbanColumn = memo(({
     return (
         <div className="flex flex-col h-full bg-muted/40 rounded-md border border-border/60 min-w-[260px] w-[260px] overflow-hidden">
             {/* Header */}
-            <div className={`px-3 py-2 border-b border-border/60 flex justify-between items-center bg-card/50 backdrop-blur-sm ${isMachine ? '' : 'bg-muted/60'}`}>
+            <div className={`px-3 py-2 border-b border-border/60 flex justify-between items-center bg-card ${isMachine ? '' : 'bg-muted/60'}`}>
                 <div className="flex items-center gap-2 min-w-0">
-                    {isMachine && jobs.length > 0 && <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)] flex-shrink-0" aria-label="Active printer" />}
+                    {isMachine && jobs.length > 0 && <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" aria-label="Active printer" />}
                     {isMachine && jobs.length === 0 && <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" aria-label="Idle printer" />}
 
                     <h2 className="font-normal text-xs uppercase tracking-wide text-foreground/80 truncate" title={title}>
@@ -86,7 +86,7 @@ export const KanbanColumn = memo(({
                                 ? "bg-rose-50 border-rose-200 text-rose-700 shadow-[0_1px_2px_rgba(244,63,94,0.05)]" 
                                 : "bg-white border-slate-200 text-slate-600"
                         }`} title="Total Time to Completion">
-                            <Clock className={`w-3 h-3 ${isOverloaded ? "text-rose-500 animate-pulse-soft" : "text-slate-500"}`} aria-hidden="true" />
+                            <Clock className={`w-3 h-3 ${isOverloaded ? "text-rose-500" : "text-slate-500"}`} aria-hidden="true" />
                             <span className="text-[10px] font-normal tabular-nums">
                                 {formatHours(columnLoad)} TTC
                             </span>

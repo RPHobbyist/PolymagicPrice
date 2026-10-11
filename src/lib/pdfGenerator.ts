@@ -23,18 +23,22 @@ import { getOrderId } from "./utils/order-utils";
 import { summariseQuote } from "./quoteCalculations";
 import { openPrintableHTML } from "./reportGenerator";
 import { formatCarbon } from "@/lib/carbon/carbonCalculator";
+import { currencyDigits } from "@/lib/currencyFormat";
 
 /**
  * Generate a professional invoice HTML template for the quote
  */
-function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionRate: number = 1): string {
-  const date = new Date().toLocaleDateString('en-US', {
+function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionRate: number = 1, currencyCode?: string): string {
+  // The date the quote was made, not today: reprinting an old quote must not re-date it.
+  const issuedAt = quote.createdAt && !Number.isNaN(new Date(quote.createdAt).getTime()) ? new Date(quote.createdAt) : new Date();
+  const date = issuedAt.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   });
 
   const safeCurrency = escapeHTML(currencySymbol);
+  const pdfDigits = currencyCode ? currencyDigits(currencyCode) : 2;
   const locale = typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-US';
   // Amounts are stored in the base currency and converted for display. The PDF used to skip
   // the conversion, so an invoice printed base-currency numbers under the converted symbol.
@@ -42,8 +46,8 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
   const formatPrice = (value: number) => {
     const amount = Number.isFinite(value) ? value * rate : 0;
     const formatted = new Intl.NumberFormat(locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      minimumFractionDigits: pdfDigits,
+      maximumFractionDigits: pdfDigits
     }).format(amount);
     return `${safeCurrency}${formatted}`;
   };
@@ -68,6 +72,15 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
   const safeNotes = escapeHTML(quote.notes || '');
   const safeCompanyName = escapeHTML(company?.name || 'Your Company');
   const safeCompanyAddress = escapeHTML(company?.address || '');
+  const clampNumber = (value: unknown, fallback: number, max: number) => {
+    const n = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    return Number.isFinite(n) && n >= 0 ? Math.min(max, n) : fallback;
+  };
+  const validityDays = Math.round(clampNumber(company?.validityDays, 30, 365));
+  const depositPercent = clampNumber(company?.depositPercent, 50, 100);
+  // Tax goes on top of the saved total at invoice time; the quote, revenue and profit stay pre-tax.
+  const taxRate = clampNumber(company?.taxRate, 0, 100);
+  const taxAmount = Math.round((quote.totalPrice * taxRate) / 100 * 100) / 100;
   const safeFooter = escapeHTML(company?.footerText || 'Thank you for your business!');
 
   return `
@@ -461,7 +474,7 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
       </tr>
       `).join('') : `
       <tr>
-        <td>Manufacturing Cost</td>
+        <td>Manufacturing Cost${totals.quantity > 1 ? ` (${totals.quantity} units)` : ''}</td>
         <td>${formatPrice(totals.manufacturing)}</td>
       </tr>
       <tr>
@@ -487,6 +500,10 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
         <td>+${formatPrice(totals.markup)}</td>
       </tr>
       `}
+      ${!quote.isBatch && totals.minimumTopUp > 0 ? `<tr><td>Minimum charge top-up</td><td>+${formatPrice(totals.minimumTopUp)}</td></tr>` : ''}
+      ${!quote.isBatch && totals.discount > 0 ? `<tr><td>Discount</td><td>-${formatPrice(totals.discount)}</td></tr>` : ''}
+      ${!quote.isBatch && totals.shipping > 0 ? `<tr><td>Shipping</td><td>+${formatPrice(totals.shipping)}</td></tr>` : ''}
+      ${taxAmount > 0 ? `<tr><td>Tax (${taxRate}%)</td><td>+${formatPrice(taxAmount)}</td></tr>` : ''}
     </tbody>
   </table>
 
@@ -494,7 +511,7 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
   <div class="total-container">
     <div class="total-bar">
       <h3>Total Amount Due</h3>
-      <div class="amount">${formatPrice(quote.isBatch ? quote.totalPrice : totals.total)}</div>
+      <div class="amount">${formatPrice(quote.totalPrice + taxAmount)}</div>
     </div>
   </div>
 
@@ -523,8 +540,8 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
   <div class="terms">
     <h4>Terms & Conditions</h4>
     <ul>
-      <li>This invoice is valid for 30 days from the date of issue.</li>
-      <li>50% deposit required to begin production.</li>
+      <li>This invoice is valid for ${validityDays} days from the date of issue.</li>
+      ${depositPercent > 0 ? `<li>${depositPercent}% deposit required to begin production.</li>` : ''}
       <li>Final payment due upon completion and before delivery.</li>
       <li>Prices are subject to material availability.</li>
     </ul>
@@ -543,8 +560,8 @@ function generateQuoteHTML(quote: QuoteData, currencySymbol: string, conversionR
 /**
  * Open quote in a new window for printing/saving as PDF
  */
-export function printQuotePDF(quote: QuoteData, currencySymbol: string, conversionRate: number = 1): void {
-  const html = generateQuoteHTML(quote, currencySymbol, conversionRate);
+export function printQuotePDF(quote: QuoteData, currencySymbol: string, conversionRate: number = 1, currencyCode?: string): void {
+  const html = generateQuoteHTML(quote, currencySymbol, conversionRate, currencyCode);
 
   // SECURITY FIX (H1): Blob URL instead of document.write, so the print window
   // opens in an isolated context with a null window.opener. Shared with the

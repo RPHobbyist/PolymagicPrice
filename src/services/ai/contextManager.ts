@@ -251,8 +251,9 @@ export function renderContext(context: ShopContext, fmt: ContextFormatters, caps
         "BUSINESS",
         `- Quotes: ${stats.totalQuotes} total, ${stats.recentQuotes} in the last 7 days`,
         `- Revenue: ${fmt.money(stats.totalRevenue)} | Profit: ${fmt.money(stats.totalProfit)} | Margin: ${fmt.number(stats.avgMargin, 1)}%`,
-        `- Average quote: ${fmt.money(stats.avgQuoteValue)} | Revenue growth (30d vs prior 30d): ${fmt.number(stats.revenueGrowth, 1)}%`,
-        `- Cost split — material ${fmt.money(stats.totalMaterialCost)}, labor ${fmt.money(stats.totalLaborCost)}, electricity ${fmt.money(stats.totalElectricityCost)}, overhead ${fmt.money(stats.totalOverheadCost)}`,
+        `- Revenue counts accepted quotes only (approved through delivered). Quotes still awaiting approval: ${fmt.money(stats.pipelineValue ?? 0)}`,
+        `- Average accepted quote: ${fmt.money(stats.avgQuoteValue)} | Revenue growth (30d vs prior 30d): ${fmt.number(stats.revenueGrowth, 1)}%`,
+        `- Cost split — material ${fmt.money(stats.totalMaterialCost)}, machine time ${fmt.money(stats.totalMachineCost ?? 0)}, labor ${fmt.money(stats.totalLaborCost)}, electricity ${fmt.money(stats.totalElectricityCost)}, painting ${fmt.money(stats.totalPaintingCost ?? 0)}, consumables ${fmt.money(stats.totalConsumablesCost ?? 0)}, overhead ${fmt.money(stats.totalOverheadCost)}`,
         `- Failed units: ${stats.failedPrintsCount} | Repeat customer rate: ${fmt.number(stats.repeatCustomerRate, 0)}%`,
         `- Orders by status: ${Object.entries(stats.statusDistribution).map(([s, c]) => `${s} ${c}`).join(", ") || "none"}`,
     ].join("\n"));
@@ -321,7 +322,11 @@ export function renderContext(context: ShopContext, fmt: ContextFormatters, caps
     if (caps.constants > 0 && context.constants.length > 0) {
         parts.push([
             "SHOP RATES & CONSUMABLES",
-            listWithOverflow(context.constants, caps.constants, c => `- ${c.name}: ${c.value}${c.unit || ""}`),
+            listWithOverflow(context.constants, caps.constants, c => `- ${c.name}: ${
+                // Rates priced per hour / kWh / ml are money, and the prompt promises the model that all
+                // money is already in the display currency; "%" and gCO2e figures are not money.
+                c.unit?.startsWith("/") ? `${fmt.money(c.value)}${c.unit}` : `${c.value}${c.unit || ""}`
+            }`),
         ].join("\n"));
     }
 

@@ -147,7 +147,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
       unit: formData.unit,
       print_type: formData.print_type,
       description: formData.description || undefined,
-      lowStockThreshold: parseFloat(formData.lowStockThreshold) || 200,
+      lowStockThreshold: Number.isFinite(parseFloat(formData.lowStockThreshold)) ? Math.max(0, parseFloat(formData.lowStockThreshold)) : 200,
       co2PerKg,
       co2Source: co2PerKg !== undefined && formData.co2Source ? formData.co2Source : undefined,
       densityGCm3: formData.densityGCm3 ? parseFloat(formData.densityGCm3) : undefined,
@@ -224,6 +224,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="kg">Kilogram (kg)</SelectItem>
+                <SelectItem value="lb">Pound (lb)</SelectItem>
                 <SelectItem value="liter">Liter (L)</SelectItem>
                 <SelectItem value="g">Gram (g)</SelectItem>
                 <SelectItem value="ml">Milliliter (ml)</SelectItem>
@@ -358,7 +359,7 @@ const MaterialsForm = ({ initialData, onSubmit, onCancel, currencySymbol }: Mate
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" className="bg-gradient-accent">
+        <Button type="submit">
           {initialData ? "Update" : "Add"} Material
         </Button>
       </DialogFooter>
@@ -501,7 +502,7 @@ const MaterialsManager = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const { currency, formatPrice } = useCurrency();
+  const { formatPrice, inputSymbol } = useCurrency();
 
   useEffect(() => {
     fetchMaterials();
@@ -613,7 +614,7 @@ const MaterialsManager = () => {
               aria-label="Search materials by name or type"
             />
           </div>
-          <Button onClick={handleAddNew} className="bg-gradient-accent">
+          <Button onClick={handleAddNew}>
             <Plus className="w-4 h-4 mr-2" />
             Add Material
           </Button>
@@ -638,7 +639,7 @@ const MaterialsManager = () => {
             initialData={editingMaterial}
             onSubmit={handleFormSubmit}
             onCancel={handleCancelEdit}
-            currencySymbol={currency.symbol}
+            currencySymbol={inputSymbol}
           />
         </DialogContent>
       </Dialog>

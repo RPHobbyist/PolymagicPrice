@@ -135,9 +135,9 @@ describe("a working store", () => {
 describe("customer statistics", () => {
     beforeEach(() => {
         localStorage.clear();
-        saveQuote({ ...aQuote(), id: "q-1", customerId: "cust-a", totalPrice: 100, createdAt: "2026-01-01T00:00:00.000Z" });
-        saveQuote({ ...aQuote(), id: "q-2", customerId: "cust-a", totalPrice: 50, createdAt: "2026-03-01T00:00:00.000Z" });
-        saveQuote({ ...aQuote(), id: "q-3", customerId: "cust-b", totalPrice: 25, createdAt: "2026-02-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-1", status: "DONE", customerId: "cust-a", totalPrice: 100, createdAt: "2026-01-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-2", status: "DELIVERED", customerId: "cust-a", totalPrice: 50, createdAt: "2026-03-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-3", status: "APPROVED", customerId: "cust-b", totalPrice: 25, createdAt: "2026-02-01T00:00:00.000Z" });
     });
 
     it("reads the quote book once for the whole customer list", () => {
@@ -167,8 +167,35 @@ describe("customer statistics", () => {
         expect(all["cust-a"].lastOrderDate).toBe("2026-03-01T00:00:00.000Z");
     });
 
+    it("does not count quotes that were never accepted", () => {
+        saveQuote({ ...aQuote(), id: "q-4", status: "PENDING", customerId: "cust-a", totalPrice: 999, createdAt: "2026-04-01T00:00:00.000Z" });
+        saveQuote({ ...aQuote(), id: "q-5", status: "CANCELLED", customerId: "cust-a", totalPrice: 999, createdAt: "2026-05-01T00:00:00.000Z" });
+        const a = getCustomerStats("cust-a");
+        expect(a.totalSpent).toBe(150);
+        expect(a.orderCount).toBe(2);
+        expect(a.lastOrderDate).toBe("2026-03-01T00:00:00.000Z");
+        expect(a.quotes).toHaveLength(4);
+    });
+
     it("has nothing to say about a customer who has never ordered", () => {
         expect(getAllCustomerStats()["cust-nobody"]).toBeUndefined();
         expect(getCustomerStats("cust-nobody").orderCount).toBe(0);
+    });
+});
+
+import { timelineAfterStatusChange } from "./sessionStorage";
+
+describe("status timeline", () => {
+    it("drops later stamps when a quote moves backwards", () => {
+        const next = timelineAfterStatusChange(
+            { PENDING: "a", APPROVED: "b", DONE: "c", DELIVERED: "d" },
+            "PRINTING",
+            "now"
+        );
+        expect(next).toEqual({ PENDING: "a", APPROVED: "b", PRINTING: "now" });
+    });
+    it("keeps everything for a forward move and leaves FAILED/CANCELLED additive", () => {
+        expect(timelineAfterStatusChange({ PENDING: "a" }, "APPROVED", "now")).toEqual({ PENDING: "a", APPROVED: "now" });
+        expect(timelineAfterStatusChange({ PENDING: "a", DONE: "c" }, "FAILED", "now")).toEqual({ PENDING: "a", DONE: "c", FAILED: "now" });
     });
 });

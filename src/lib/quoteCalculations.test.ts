@@ -11,6 +11,9 @@ import {
     calculateFDMQuote,
     calculateResinQuote,
     costPerBaseUnit,
+    isRecognisedMaterialUnit,
+    isFlatConsumable,
+    effectiveWatts,
     summariseQuote,
     validateFDMForm,
     validateResinForm,
@@ -358,5 +361,187 @@ describe("form validation", () => {
         expect(validateFDMForm(fdmForm({ filamentWeight: "0" }))).toMatch(/greater than 0/i);
         expect(validateFDMForm(fdmForm({ quantity: "0" }))).toMatch(/at least 1/i);
         expect(validateResinForm(resinForm({ resinVolume: "-3" }))).toMatch(/greater than 0/i);
+    });
+});
+
+describe("failure rate", () => {
+    const base = {
+        material: filament(),
+        machine: printer(),
+        electricityRate: 0.15,
+        laborRate: 18,
+    };
+
+    it("leaves the price untouched at 0 %", () => {
+        const a = calculateFDMQuote({ formData: fdmForm(), ...base });
+        const b = calculateFDMQuote({ formData: fdmForm(), ...base, failureRatePercent: 0 });
+        expect(b.totalPrice).toBe(a.totalPrice);
+    });
+
+    it("grosses material, machine and power up by 1 / (1 - rate) and leaves labour alone", () => {
+        const a = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base });
+        const b = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, failureRatePercent: 10 });
+        expect(b.materialCost).toBeCloseTo(a.materialCost / 0.9, 2);
+        expect(b.machineTimeCost).toBeCloseTo(a.machineTimeCost / 0.9, 2);
+        expect(b.electricityCost).toBeCloseTo(a.electricityCost / 0.9, 2);
+        expect(b.laborCost).toBe(a.laborCost);
+        expect(b.totalPrice).toBeGreaterThan(a.totalPrice);
+    });
+
+    it("applies to resin and clamps absurd rates", () => {
+        const a = calculateResinQuote({ formData: resinForm(), ...base, material: resin() });
+        const b = calculateResinQuote({ formData: resinForm(), ...base, material: resin(), failureRatePercent: 500 });
+        // clamped to 50 % -> exactly double on the three grossed lines
+        expect(b.machineTimeCost).toBeCloseTo(a.machineTimeCost * 2, 2);
+    });
+});
+
+describe("stored totals agree with their own lines", () => {
+    it("summariseQuote reproduces the stored subtotal and total across quantities and rates", () => {
+        for (const qty of [1, 2, 3, 7, 13, 250]) {
+            for (const markup of ["0", "17.5", "33", "40"]) {
+                const q = calculateFDMQuote({
+                    formData: fdmForm({ quantity: String(qty), markupPercentage: markup, filamentWeight: "17.3", printTime: "2.37", laborHours: "0.33", overheadPercentage: "7.5" }),
+                    material: filament({ cost_per_unit: 23.17 }),
+                    machine: printer({ hourly_cost: 1.37, power_consumption_watts: 137 }),
+                    electricityRate: 0.137,
+                    laborRate: 13.3,
+                    consumables: [{ name: "Glue", value: 0.37 }],
+                });
+                const s = summariseQuote(q);
+                expect(s.subtotal).toBe(q.subtotal);
+                expect(s.total).toBe(q.totalPrice);
+                const resinQuote = calculateResinQuote({
+                    formData: resinForm({ quantity: String(qty), markupPercentage: markup }),
+                    material: resin(),
+                    machine: printer({ hourly_cost: 1.37, power_consumption_watts: 137 }),
+                    electricityRate: 0.137,
+                    laborRate: 13.3,
+                });
+                expect(summariseQuote(resinQuote).total).toBe(resinQuote.totalPrice);
+            }
+        }
+    });
+});
+
+describe("costPerBaseUnit units", () => {
+    it("prices a per-pound spool per kilogram", () => {
+        expect(costPerBaseUnit(filament({ cost_per_unit: 10, unit: "lb" }), "FDM")).toBeCloseTo(22.0462, 3);
+    });
+    it("flags units it does not convert", () => {
+        expect(isRecognisedMaterialUnit("lb")).toBe(true);
+        expect(isRecognisedMaterialUnit("spool")).toBe(false);
+    });
+});
+
+describe("isFlatConsumable", () => {
+    it("keeps flat amounts and drops per-ml paints and rates", () => {
+        expect(isFlatConsumable({ unit: "" })).toBe(true);
+        expect(isFlatConsumable({ unit: "each" })).toBe(true);
+        expect(isFlatConsumable({ unit: "/ml" })).toBe(false);
+        expect(isFlatConsumable({ unit: "%" })).toBe(false);
+        expect(isFlatConsumable({ unit: "/hr" })).toBe(false);
+    });
+});
+
+describe("pricing adjustments", () => {
+    const base = { material: filament(), machine: printer(), electricityRate: 0.15, laborRate: 18 };
+    const plain = calculateFDMQuote({ formData: fdmForm({ quantity: "2" }), ...base });
+
+    it("leaves a quote untouched when no adjustment is set", () => {
+        expect(plain.minimumTopUp).toBeUndefined();
+        expect(plain.discountAmount).toBeUndefined();
+        expect(plain.shippingCost).toBeUndefined();
+        expect(plain.totalPrice).toBe(51.17);
+    });
+
+    it("margin mode prices at cost / (1 - margin), markup mode is unchanged", () => {
+        const markup = calculateFDMQuote({ formData: fdmForm({ quantity: "1", markupPercentage: "40" }), ...base });
+        const margin = calculateFDMQuote({ formData: fdmForm({ quantity: "1", markupPercentage: "40", pricingMode: "margin" }), ...base });
+        expect(margin.subtotal).toBe(markup.subtotal);
+        // 40 % margin: price = subtotal / 0.6, so markup = subtotal * 2/3
+        expect(margin.markup).toBeCloseTo((margin.subtotal * 2) / 3, 1);
+        expect(margin.markup).toBeGreaterThan(markup.markup);
+        expect(margin.markup / margin.totalPrice).toBeCloseTo(0.4, 2);
+    });
+
+    it("applies a percentage discount to the marked-up price", () => {
+        const q = calculateFDMQuote({ formData: fdmForm({ quantity: "2", discountType: "percent", discountValue: "10" }), ...base });
+        expect(q.discountAmount).toBe(5.12);
+        expect(q.totalPrice).toBe(46.05);
+    });
+
+    it("applies a fixed discount, never below zero", () => {
+        const q = calculateFDMQuote({ formData: fdmForm({ discountType: "amount", discountValue: "999999" }), ...base });
+        expect(q.totalPrice).toBe(0);
+    });
+
+    it("adds shipping after the discount", () => {
+        const q = calculateFDMQuote({ formData: fdmForm({ quantity: "2", discountType: "percent", discountValue: "10", shippingCost: "4.5" }), ...base });
+        expect(q.shippingCost).toBe(4.5);
+        expect(q.totalPrice).toBe(50.55);
+    });
+
+    it("tops a small job up to the minimum charge, before any discount", () => {
+        const q = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, minimumCharge: 100 });
+        const one = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base });
+        expect(q.minimumTopUp).toBe(+(100 - one.totalPrice).toFixed(2));
+        expect(q.totalPrice).toBe(100);
+        const above = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, minimumCharge: 10 });
+        expect(above.minimumTopUp).toBeUndefined();
+    });
+
+    it("summariseQuote reproduces the stored total with every adjustment in play", () => {
+        for (const qty of [1, 3, 11]) {
+            for (const mode of ["markup", "margin"] as const) {
+                const q = calculateFDMQuote({
+                    formData: fdmForm({ quantity: String(qty), pricingMode: mode, markupPercentage: "35", discountType: "percent", discountValue: "7.5", shippingCost: "3.2" }),
+                    ...base,
+                    minimumCharge: 60,
+                });
+                const s = summariseQuote(q);
+                expect(s.total).toBe(q.totalPrice);
+                expect(s.discount).toBe(q.discountAmount ?? 0);
+                expect(s.shipping).toBe(3.2);
+            }
+        }
+    });
+
+    it("validates the new inputs", () => {
+        expect(validateFDMForm(fdmForm({ discountValue: "120" }))).toMatch(/Discount/);
+        expect(validateFDMForm(fdmForm({ shippingCost: "-1" }))).toMatch(/Shipping/);
+        expect(validateFDMForm(fdmForm({ pricingMode: "margin", markupPercentage: "95" }))).toMatch(/Margin/);
+        expect(validateFDMForm(fdmForm({ pricingMode: "margin", markupPercentage: "40" }))).toBeNull();
+    });
+});
+
+describe("measured watts and waste", () => {
+    const base = { material: filament(), electricityRate: 0.15, laborRate: 18 };
+
+    it("prices electricity from measured watts when present, rated watts otherwise", () => {
+        const rated = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, machine: printer() });
+        const measured = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, machine: printer({ measuredWatts: 60 }) });
+        expect(measured.electricityCost).toBeLessThan(rated.electricityCost);
+        expect(effectiveWatts(printer())).toBe(120);
+        expect(effectiveWatts(printer({ measuredWatts: 60 }))).toBe(60);
+        expect(effectiveWatts(printer({ measuredWatts: 0 }))).toBe(120);
+    });
+
+    it("adds waste to material only", () => {
+        const a = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, machine: printer() });
+        const b = calculateFDMQuote({ formData: fdmForm({ quantity: "1" }), ...base, machine: printer(), wastePercent: 10 });
+        expect(b.materialCost).toBeCloseTo(a.materialCost * 1.1, 2);
+        expect(b.machineTimeCost).toBe(a.machineTimeCost);
+    });
+});
+
+describe("round", () => {
+    it("rounds half away from zero on the visible decimal", () => {
+        const q = (cost: number) => calculateFDMQuote({
+            formData: fdmForm({ quantity: "1", printTime: "0.000001", laborHours: "0", overheadPercentage: "0", markupPercentage: "0", filamentWeight: String((cost / 25) * 1000) }),
+            material: filament(), machine: printer({ hourly_cost: 0, power_consumption_watts: 0 }), electricityRate: 0, laborRate: 0,
+        }).materialCost;
+        expect(q(1.005)).toBe(1.01);
+        expect(q(2.675)).toBe(2.68);
     });
 });

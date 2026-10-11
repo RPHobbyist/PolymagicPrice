@@ -63,7 +63,10 @@ export interface GridPreset {
  * currency is unreliable (the euro alone spans factors from ~40 to ~600), so the app asks once.
  */
 export const GRID_PRESETS: GridPreset[] = [
-    { id: "world", label: "World average", gPerKWh: 473, boundary: "generation", source: "Ember Global Electricity Review", year: 2025 },
+    // 473 is the 2024 world figure from Ember's 2025 review; the 2026 review (April 2026) gives 458 for
+    // 2025. Left as shipped so no existing default moves silently. Ember's gCO2e series counts
+    // lifecycle emissions, so the boundary is lifecycle, not generation.
+    { id: "world", label: "World average", gPerKWh: 473, boundary: "lifecycle", source: "Ember Global Electricity Review 2025 (2024 data)", year: 2024 },
     { id: "in", label: "India", gPerKWh: 710, boundary: "generation", source: "CEA CO2 Baseline Database v21.0 (FY 2024-25)", year: 2025 },
     { id: "cn", label: "China", gPerKWh: 526, boundary: "lifecycle", source: "Ember", year: 2025 },
     { id: "au", label: "Australia", gPerKWh: 525, boundary: "lifecycle", source: "Ember", year: 2025 },
@@ -71,7 +74,9 @@ export const GRID_PRESETS: GridPreset[] = [
     { id: "us", label: "United States", gPerKWh: 350, boundary: "generation", source: "EPA eGRID", year: 2023 },
     { id: "de", label: "Germany", gPerKWh: 330, boundary: "lifecycle", source: "Ember", year: 2025 },
     { id: "ca", label: "Canada", gPerKWh: 191, boundary: "lifecycle", source: "Ember", year: 2025 },
-    { id: "uk", label: "United Kingdom", gPerKWh: 131, boundary: "generation", source: "DEFRA", year: 2025 },
+    // 0.131 is the 2026 DESNZ/DEFRA set (0.131 kg/kWh, down from 0.177 in the 2025 set), so it was
+    // mislabelled 2025. Generation only: transmission and distribution losses are a separate factor.
+    { id: "uk", label: "United Kingdom", gPerKWh: 131, boundary: "generation", source: "DESNZ/DEFRA GHG conversion factors 2026 (excl. T&D)", year: 2026 },
     { id: "br", label: "Brazil", gPerKWh: 110, boundary: "lifecycle", source: "Ember", year: 2025 },
     { id: "fr", label: "France", gPerKWh: 41, boundary: "lifecycle", source: "Ember", year: 2025 },
 ];
@@ -147,6 +152,10 @@ export const getMaterialPreset = (presetId: string | undefined): MaterialPreset 
  * Carbon-fibre variants are matched on their base polymer; the filler is a small part of the mass.
  */
 export const matchMaterialPreset = (name: string | undefined, printType?: "FDM" | "Resin"): MaterialPreset => {
+    // The process decides first: "ABS-like resin" or "PLA-like resin" is a photopolymer, and the
+    // thermoplastic its name borrows would give the wrong factor, density and thermal class.
+    if (printType === "Resin") return getMaterialPreset("resin")!;
+
     const haystack = (name || "").trim();
     if (haystack) {
         for (const { pattern, presetId } of MATERIAL_NAME_PATTERNS) {
@@ -157,9 +166,7 @@ export const matchMaterialPreset = (name: string | undefined, printType?: "FDM" 
         }
     }
     // Unknown name: fall back on the process, never on nothing.
-    return printType === "Resin"
-        ? getMaterialPreset("resin")!
-        : getMaterialPreset("pla-virgin")!;
+    return getMaterialPreset("pla-virgin")!;
 };
 
 export interface ResolvedMaterialFactor {

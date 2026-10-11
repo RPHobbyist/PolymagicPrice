@@ -18,12 +18,13 @@
 
 import { memo, useCallback, useMemo, useState, lazy, Suspense } from "react";
 import { summariseQuote } from "@/lib/quoteCalculations";
+import { buildQuoteText, quoteBreakdownRows } from "@/lib/quoteExportRows";
 import { formatCarbon } from "@/lib/carbon/carbonCalculator";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FileText, Download, Save, FileDown, Package, PieChart as PieChartIcon, Copy, FileSpreadsheet, ChevronDown, Share2 } from "lucide-react";
+import { Download, Save, FileDown, Package, Copy, FileSpreadsheet, ChevronDown, Share2 } from "lucide-react";
 import { saveAs } from "file-saver";
 import {
     DropdownMenu,
@@ -43,9 +44,6 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { printQuotePDF } from "@/lib/pdfGenerator";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
 import { BatchQuoteManager } from "./BatchQuoteManager";
-const Realistic3DPrinter = lazy(() =>
-  import("@/components/shared/Realistic3DPrinter").then(m => ({ default: m.Realistic3DPrinter }))
-);
 
 interface QuoteSummaryProps {
   quoteData: QuoteData | null;
@@ -63,28 +61,7 @@ const QuoteSummary = memo(({ quoteData, onSaveQuote }: QuoteSummaryProps) => {
   const handleExport = useCallback(() => {
     if (!quoteData) return;
 
-    const quoteText = `
-3D PRINT QUOTE - ${quoteData.printType} Printing
-==========================================
-Project: ${quoteData.projectName}
-Colour: ${quoteData.printColour || "N/A"}
-
-COST BREAKDOWN:
-- Material Cost:        ${formatPrice(quoteData.materialCost)}
-- Machine Time:         ${formatPrice(quoteData.machineTimeCost)}
-- Electricity:          ${formatPrice(quoteData.electricityCost)}
-- Labor:                ${formatPrice(quoteData.laborCost)}
-- Overhead:             ${formatPrice(quoteData.overheadCost)}
-
-SUBTOTAL:               ${formatPrice(quoteData.subtotal)}
-Profit Markup:          ${formatPrice(quoteData.markup)}
-
-==========================================
-TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
-==========================================
-
-Generated: ${new Date().toLocaleString()}
-    `.trim();
+    const quoteText = buildQuoteText(quoteData, formatPrice, new Date());
 
     const blob = new Blob([quoteText], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -102,26 +79,7 @@ Generated: ${new Date().toLocaleString()}
   const handleCopyToClipboard = useCallback(() => {
     if (!quoteData) return;
 
-    const quoteText = `
-3D PRINT QUOTE - ${quoteData.printType} Printing
-==========================================
-Project: ${quoteData.projectName}
-Colour: ${quoteData.printColour || "N/A"}
-
-COST BREAKDOWN:
-- Material Cost:        ${formatPrice(quoteData.materialCost)}
-- Machine Time:         ${formatPrice(quoteData.machineTimeCost)}
-- Electricity:          ${formatPrice(quoteData.electricityCost)}
-- Labor:                ${formatPrice(quoteData.laborCost)}
-- Overhead:             ${formatPrice(quoteData.overheadCost)}
-
-SUBTOTAL:               ${formatPrice(quoteData.subtotal)}
-Profit Markup:          ${formatPrice(quoteData.markup)}
-
-==========================================
-TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
-==========================================
-    `.trim();
+    const quoteText = buildQuoteText(quoteData, formatPrice);
 
     navigator.clipboard.writeText(quoteText);
     toast.success("Quote copied to clipboard!");
@@ -149,15 +107,10 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
         { desc: "Machine", val: quoteData.parameters.machineName || "-" },
         { desc: "Colour", val: quoteData.printColour || "-" },
         { desc: "", val: "" },
-        { desc: "COST BREAKDOWN", val: "" },
-        { desc: "Material Cost", val: formatPrice(quoteData.materialCost) },
-        { desc: "Machine Time", val: formatPrice(quoteData.machineTimeCost) },
-        { desc: "Electricity", val: formatPrice(quoteData.electricityCost) },
-        { desc: "Labor", val: formatPrice(quoteData.laborCost) },
-        { desc: "Overhead", val: formatPrice(quoteData.overheadCost) },
-        { desc: "Subtotal", val: formatPrice(quoteData.subtotal) },
-        { desc: "Profit Markup", val: formatPrice(quoteData.markup) },
-        { desc: "TOTAL PRICE", val: formatPrice(quoteData.totalPrice) },
+        { desc: "Quantity", val: summariseQuote(quoteData).quantity },
+        { desc: `COST BREAKDOWN (${currency.code}, whole job)`, val: "" },
+        // Numbers, not formatted strings, so the sheet can be summed and sorted.
+        ...quoteBreakdownRows(quoteData).map(r => ({ desc: r.label, val: Math.round(r.amount * conversionRate * 100) / 100 })),
         // Carbon last and clearly labelled, so nothing in the money column above changes shape.
         // Read through the shared summary rather than the record, like every other surface, and
         // called here so the callback keeps `quoteData` as its only data dependency.
@@ -167,8 +120,12 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
       ]);
 
       worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(7).font = { bold: true };
-      worksheet.getRow(15).font = { bold: true };
+      // Bold by content rather than by row number, which drifted every time a line was added.
+      worksheet.eachRow(row => {
+        const label = String(row.getCell(1).value ?? "");
+        if (label.startsWith("COST BREAKDOWN") || ["Subtotal", "TOTAL PRICE"].includes(label)) row.font = { bold: true };
+        if (typeof row.getCell(2).value === "number" && label !== "Quantity") row.getCell(2).numFmt = "#,##0.00";
+      });
 
 
       const buffer = await workbook.xlsx.writeBuffer();
@@ -179,7 +136,7 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
       console.error("Excel export failed:", err);
       toast.error("Failed to generate Excel file");
     }
-  }, [quoteData, formatPrice]);
+  }, [quoteData, currency, conversionRate]);
 
   const featureData = quoteData?.featureWeights ? [
     { name: 'Walls', value: quoteData.featureWeights.walls || 0 },
@@ -224,13 +181,13 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
   const handlePDF = useCallback(() => {
     if (!quoteData) return;
     try {
-      printQuotePDF(quoteData, currency.symbol, conversionRate);
+      printQuotePDF(quoteData, currency.symbol, conversionRate, currency.code);
       toast.success("PDF opened for printing. Use 'Save as PDF' in print dialog.");
     } catch (error) {
       console.error("PDF error:", error);
       toast.error("Failed to generate PDF. Please allow popups.");
     }
-  }, [quoteData, currency.symbol, conversionRate]);
+  }, [quoteData, currency.symbol, currency.code, conversionRate]);
 
   const handleAddToBatch = useCallback(() => {
     if (!quoteData) return;
@@ -242,14 +199,11 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
 
   if (!quoteData) {
     return (
-      <Card className="p-6 shadow-card bg-card border-dashed border-2 border-border animate-fade-in">
+      <Card className="p-6 shadow-card bg-card border-dashed border-2 border-border">
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="bg-gradient-subtle rounded-2xl p-5 mb-5 shadow-card">
-            <FileText className="w-10 h-10 text-muted-foreground" />
-          </div>
-          <h2 className="text-lg font-semibold text-foreground mb-2">No Quote Yet</h2>
-          <p className="text-sm text-muted-foreground max-w-[200px]">
-            Fill in the parameters and click Calculate to generate a quote
+          <h2 className="text-base font-semibold text-foreground mb-1">No quote yet</h2>
+          <p className="text-sm text-muted-foreground max-w-[220px]">
+            Fill in the details and click Calculate Quote.
           </p>
         </div>
       </Card>
@@ -257,46 +211,44 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
   }
 
   return (
-    <Card className="shadow-elevated bg-card overflow-hidden animate-scale-in hover-glow">
-      <div className="bg-gradient-primary p-6 text-primary-foreground relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary-foreground/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="relative">
-          <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-xl font-semibold">Quote Summary</h2>
-          </div>
-          <p className="text-sm font-medium">{quoteData.printType} Printing</p>
-          <p className="text-sm mt-1">Project: {quoteData.projectName}</p>
+    <Card className="shadow-elevated bg-card overflow-hidden">
+      <div className="bg-primary p-5 text-primary-foreground">
+        <h2 className="text-xl font-semibold">Quote Summary</h2>
+        <p
+          className="text-sm font-medium mt-1 break-words"
+          title={quoteData.projectName}
+        >
+          {quoteData.projectName}
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          <span className="inline-flex items-center rounded-full bg-primary-foreground/15 px-2.5 py-0.5 text-xs font-medium">
+            {quoteData.printType} Printing
+          </span>
           {quoteData.parameters?.materialName && (
-            <p className="text-sm mt-1">Material: {quoteData.parameters.materialName}</p>
+            <span className="inline-flex items-center rounded-full bg-primary-foreground/15 px-2.5 py-0.5 text-xs font-medium">
+              {quoteData.parameters.materialName}
+            </span>
           )}
           {quoteData.printColour && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm">Colour:</span>
-              <div
-                className="w-5 h-5 rounded-full border-2 border-white/30"
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/15 px-2.5 py-0.5 text-xs font-medium"
+              title={quoteData.printColour}
+            >
+              Colour
+              <span
+                role="img"
+                aria-label={`Colour ${quoteData.printColour}`}
+                className="w-3.5 h-3.5 rounded-full border border-white/40"
                 style={{ backgroundColor: quoteData.printColour.split(';')[0] || quoteData.printColour }}
-                title={quoteData.printColour}
               />
-            </div>
+            </span>
           )}
         </div>
       </div>
 
-      <div className="p-6 space-y-5">
-        {/* Realistic Machine Visualization */}
-        <div className="mb-2 -mx-2">
-            <Suspense fallback={<div className="h-[200px] w-full animate-pulse rounded-xl bg-muted/40" />}>
-                <Realistic3DPrinter
-                    isCompact
-                    weight={quoteData.parameters?.filamentWeight ? parseFloat(String(quoteData.parameters.filamentWeight)) : 120}
-                    printHours={quoteData.parameters?.printTime ? parseFloat(String(quoteData.parameters.printTime)) : 8}
-                    finalPrice={quoteData.totalPrice}
-                />
-            </Suspense>
-        </div>
-
+      <div className="p-5 space-y-5">
         <div className="space-y-3">
-          <h3 className="font-semibold text-foreground text-sm uppercase tracking-wide">Cost Breakdown</h3>
+          <h3 className="font-semibold text-foreground text-sm">Cost breakdown</h3>
 
           <div className="space-y-3">
             <CostRow label="Material Cost" value={quoteData.materialCost} />
@@ -315,39 +267,17 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
             {quoteData.overheadCost > 0 && (
               <CostRow label="Overhead" value={quoteData.overheadCost} />
             )}
-            {quoteData.paintingCost && quoteData.paintingCost > 0 && (
+            {/* `paintingCost && …` rendered a stray "0" under Overhead whenever painting was 0. */}
+            {(quoteData.paintingCost ?? 0) > 0 && (
               <CostRow label="Painting (Beta)" value={quoteData.paintingCost} />
             )}
           </div>
-
-          {/* Carbon sits below the money, never inside it. The line is simply absent when the
-              footprint could not be computed — an estimate is never worth breaking a quote for. */}
-          {quoteData.carbon && (
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-muted-foreground">Carbon Footprint</span>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] font-medium uppercase tracking-wide">
-                  {quoteData.carbon.grade === "MEASURED" ? "Measured"
-                    : quoteData.carbon.grade === "ACTUAL" ? "Actual" : "Estimate"}
-                </Badge>
-                <span className="font-medium text-foreground tabular-nums">
-                  {formatCarbon(summary?.carbonPerPart ?? quoteData.carbon.kg)}
-                  {summary?.carbonPerPart !== undefined && (
-                    <span className="text-muted-foreground font-normal"> / part</span>
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
 
           {featureData.length > 0 && (
             <>
               <Separator className="my-4" />
               <div className="space-y-4">
-                <h3 className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-widest">
-                  <PieChartIcon className="w-3.5 h-3.5" />
-                  Material Breakdown
-                </h3>
+                <h3 className="font-semibold text-foreground text-sm">Material breakdown</h3>
                 <div className="h-[140px] w-full bg-muted/30 rounded-xl border border-border/50 p-2">
                   <Suspense fallback={<div className="h-full w-full animate-pulse rounded-lg bg-muted/50" />}>
                     <MaterialBreakdownChart data={featureData} />
@@ -361,48 +291,84 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
 
           <div className="flex justify-between text-sm">
             <span className="font-medium text-foreground">Subtotal</span>
-            <span className="font-semibold text-foreground">{formatPrice(quoteData.subtotal)}</span>
+            <span className="font-semibold text-foreground tabular-nums">{formatPrice(quoteData.subtotal)}</span>
           </div>
 
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>Profit Markup</span>
-            <span className="font-medium text-foreground">+{formatPrice(quoteData.markup)}</span>
+            <span className="font-medium text-foreground tabular-nums">+{formatPrice(quoteData.markup)}</span>
           </div>
+          {!!quoteData.minimumTopUp && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Minimum charge top-up</span>
+              <span className="font-medium text-foreground tabular-nums">+{formatPrice(quoteData.minimumTopUp)}</span>
+            </div>
+          )}
+          {!!quoteData.discountAmount && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Discount</span>
+              <span className="font-medium text-foreground tabular-nums">-{formatPrice(quoteData.discountAmount)}</span>
+            </div>
+          )}
+          {!!quoteData.shippingCost && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Shipping</span>
+              <span className="font-medium text-foreground tabular-nums">+{formatPrice(quoteData.shippingCost)}</span>
+            </div>
+          )}
 
           {quoteData.quantity > 1 && (
             <>
               <Separator className="my-4" />
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Quantity</span>
-                <span className="font-medium text-foreground">{quoteData.quantity} units</span>
+                <span className="font-medium text-foreground tabular-nums">{quoteData.quantity} units</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Unit Price</span>
-                <span className="font-medium text-foreground">{formatPrice(quoteData.unitPrice)}</span>
+                <span className="font-medium text-foreground tabular-nums">{formatPrice(quoteData.unitPrice)}</span>
               </div>
             </>
           )}
 
-          <Separator className="my-4" />
-
-          <div className="bg-gradient-accent rounded-xl p-4 shadow-card">
-            <div className="flex justify-between items-center">
-              <span className="text-accent-foreground font-semibold">
+          <div className="bg-accent rounded-lg px-4 py-3.5 !mt-4">
+            <div className="flex justify-between items-center gap-3">
+              <span className="text-sm text-accent-foreground font-medium">
                 {quoteData.quantity > 1 ? `Total (${quoteData.quantity} units)` : 'Total Price'}
               </span>
-              <span className="text-2xl font-semibold text-accent-foreground">
+              <span className="text-3xl font-semibold tabular-nums text-accent-foreground">
                 {formatPrice(quoteData.totalPrice)}
               </span>
             </div>
           </div>
+
+          {/* Carbon sits below the money, never inside it. The line is simply absent when the
+              footprint could not be computed — an estimate is never worth breaking a quote for. */}
+          {quoteData.carbon && (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-2">
+                Carbon footprint
+                <Badge variant="outline" className="text-[11px] font-normal">
+                  {quoteData.carbon.grade === "MEASURED" ? "Measured"
+                    : quoteData.carbon.grade === "ACTUAL" ? "Actual" : "Estimate"}
+                </Badge>
+              </span>
+              <span className="font-medium text-foreground tabular-nums whitespace-nowrap">
+                {formatCarbon(summary?.carbonPerPart ?? quoteData.carbon.kg)}
+                {summary?.carbonPerPart !== undefined && (
+                  <span className="text-muted-foreground font-normal"> / part</span>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2.5 pt-2">
           <Button
             onClick={handleSave}
-            className="w-full bg-primary hover:bg-primary/90 transition-all shadow-card hover:shadow-md hover:scale-[1.02] duration-200"
+            className="w-full"
           >
-            <Save className="w-4 h-4 mr-2" />
+            <Save className="w-4 h-4" />
             {batchItems.length > 0 ? `Save Batch (${batchItems.length})` : "Save Quote"}
           </Button>
 
@@ -410,44 +376,42 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
             <Button
               onClick={handleAddToBatch}
               variant="outline"
-              className="w-full hover:scale-[1.02] transition-all duration-200"
+              className="w-full"
             >
-              <Package className="w-4 h-4 mr-2" />
+              <Package className="w-4 h-4" />
               Add to Batch
             </Button>
 
             <Button
               onClick={() => setIsBatchOpen(true)}
-              variant="secondary"
-              className="w-full hover:scale-[1.02] transition-all duration-200 font-bold bg-primary/5 text-primary border-primary/20 hover:bg-primary/10"
+              variant="outline"
+              className="w-full"
               disabled={batchItems.length === 0}
             >
-              <Package className="w-4 h-4 mr-2" />
+              <Package className="w-4 h-4" />
               View Batch {batchItems.length > 0 && `(${batchItems.length})`}
             </Button>
           </div>
-
-
 
           <div className="grid grid-cols-2 gap-2">
             <Button
               onClick={handleCopyToClipboard}
               variant="outline"
-              className="w-full hover:scale-[1.02] transition-all duration-200"
+              className="w-full"
             >
-              <Copy className="w-4 h-4 mr-2" />
+              <Copy className="w-4 h-4" />
               Copy
             </Button>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full hover:scale-[1.02] transition-all duration-200"
+                  className="w-full"
                 >
-                  <Share2 className="w-4 h-4 mr-2" />
+                  <Share2 className="w-4 h-4" />
                   Export
-                  <ChevronDown className="w-4 h-4 ml-2 opacity-50" />
+                  <ChevronDown className="w-4 h-4 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[180px]">
@@ -469,7 +433,6 @@ TOTAL PRICE:            ${formatPrice(quoteData.totalPrice)}
         </div>
       </div>
 
-
       <BatchQuoteManager open={isBatchOpen} onOpenChange={setIsBatchOpen} onSaveQuote={onSaveQuote} />
     </Card>
   );
@@ -484,8 +447,8 @@ QuoteSummary.displayName = "QuoteSummary";
 const CostRow = memo(({ label, value, display }: { label: string; value: number; display?: string }) => {
   const { formatPrice } = useCurrency();
   return (
-    <div className="flex justify-between text-muted-foreground group">
-      <span className="group-hover:text-foreground transition-colors">{label}</span>
+    <div className="flex justify-between text-sm text-muted-foreground">
+      <span>{label}</span>
       <span className="font-medium text-foreground tabular-nums">{display ?? formatPrice(value)}</span>
     </div>
   );

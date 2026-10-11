@@ -608,7 +608,7 @@ const MachinesList = memo(({ machines, onEdit, onDelete, onMaintain, formatPrice
                         <div 
                           className={cn(
                             "h-full transition-all duration-500",
-                            sessionStore.isMachineMaintenanceDue(machine) ? "bg-destructive animate-pulse" : "bg-primary"
+                            sessionStore.isMachineMaintenanceDue(machine) ? "bg-destructive" : "bg-primary"
                           )}
                           style={{ width: `${Math.min(100, ((machine.totalRuntimeHours || 0) - (machine.lastMaintenanceHours || 0)) / machine.maintenanceIntervalHours * 100)}%` }}
                         />
@@ -633,7 +633,7 @@ const MachinesList = memo(({ machines, onEdit, onDelete, onMaintain, formatPrice
                       variant="outline"
                       className={cn(
                         "hover:bg-primary/10 hover:text-primary transition-colors",
-                        sessionStore.isMachineMaintenanceDue(machine) && "border-destructive/50 text-destructive bg-destructive/5 animate-pulse-soft"
+                        sessionStore.isMachineMaintenanceDue(machine) && "border-destructive/50 text-destructive bg-destructive/5"
                       )}
                       onClick={() => onMaintain(machine.id)}
                       title="Mark Maintenance as Complete"
@@ -670,7 +670,7 @@ const MachinesManager = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const { currency, formatPrice } = useCurrency();
+  const { formatPrice, inputSymbol } = useCurrency();
 
   useEffect(() => {
     fetchMachines();
@@ -779,7 +779,7 @@ const MachinesManager = () => {
               aria-label="Search machines by name or type"
             />
           </div>
-          <Button onClick={handleAddNew} className="bg-gradient-accent">
+          <Button onClick={handleAddNew}>
             <Plus className="w-4 h-4 mr-2" />
             Add Machine
           </Button>
@@ -803,7 +803,7 @@ const MachinesManager = () => {
             initialData={editingMachine}
             onSubmit={handleFormSubmit}
             onCancel={handleCancelEdit}
-            currencySymbol={currency.symbol}
+            currencySymbol={inputSymbol}
           />
         </DialogContent>
       </Dialog>

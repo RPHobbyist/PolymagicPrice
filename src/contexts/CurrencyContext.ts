@@ -27,6 +27,12 @@ export interface CurrencyContextType {
     formatPrice: (amount: number) => string;
     formatNumber: (value: number, decimals?: number) => string;
     getLocale: () => string;
+    /**
+     * What to print beside a field whose value is STORED as typed (rates, costs). Amounts are saved
+     * in the base currency and multiplied by the conversion rate only for display, so with a rate
+     * other than 1 the display symbol would mislabel what the user is typing.
+     */
+    inputSymbol: string;
 }
 
 export const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);

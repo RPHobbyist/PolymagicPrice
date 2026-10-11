@@ -20,6 +20,7 @@ import { useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
 import { QuoteData } from '@/types/quote';
 import { BatchQuoteContext, BatchQuoteContextType } from '@/contexts/BatchQuoteContext';
 import { getQuotes, generateShortQuoteId, getBatchItems, saveBatchItems } from '@/lib/core/sessionStorage';
+import { sumCarbonRecords } from '@/lib/carbon/carbonCalculator';
 
 export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
     const [batchItems, setBatchItems] = useState<QuoteData[]>(() => getBatchItems());
@@ -89,6 +90,9 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
                     CLAMP
                 ),
                 totalMarkup: Math.min(acc.totalMarkup + num(item.markup), CLAMP),
+                totalMinimumTopUp: Math.min(acc.totalMinimumTopUp + num(item.minimumTopUp), CLAMP),
+                totalDiscount: Math.min(acc.totalDiscount + num(item.discountAmount), CLAMP),
+                totalShipping: Math.min(acc.totalShipping + num(item.shippingCost), CLAMP),
                 grandTotal: Math.min(acc.grandTotal + num(item.totalPrice), CLAMP),
             };
         },
@@ -103,11 +107,19 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             totalPaintingCost: 0,
             totalConsumablesCost: 0,
             totalMarkup: 0,
+            totalMinimumTopUp: 0,
+            totalDiscount: 0,
+            totalShipping: 0,
             grandTotal: 0,
         }
     ), [batchItems]);
 
     const saveBatchAsQuote = useCallback((projectName?: string): QuoteData => {
+        // Sums of two-decimal figures carry float debris (37.650000000000006); the master is
+        // stored the way every other quote is, to the cent.
+        const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+        const sumOf = (pick: (i: QuoteData) => number | undefined) =>
+            batchItems.reduce((acc, i) => acc + (Number.isFinite(pick(i)) ? (pick(i) as number) : 0), 0);
         if (batchItems.length === 0) {
             throw new Error("No items in batch to save");
         }
@@ -127,25 +139,32 @@ export const BatchQuoteProvider = ({ children }: { children: ReactNode }) => {
             clientName: batchItems[0]?.clientName || "Valued Customer",
             printType: batchItems.every(i => i.printType === batchItems[0].printType) ? batchItems[0].printType : "FDM", // Default to FDM if mixed
             printColour: batchItems.length === 1 ? batchItems[0].printColour : "Multiple",
-            materialCost: batchTotals.totalMaterialCost,
-            machineTimeCost: batchTotals.totalMachineTimeCost,
-            electricityCost: batchTotals.totalElectricityCost,
-            laborCost: batchTotals.totalLaborCost,
-            overheadCost: batchTotals.totalOverheadCost,
-            markup: batchTotals.totalMarkup,
-            paintingCost: batchTotals.totalPaintingCost,
+            materialCost: cents(batchTotals.totalMaterialCost),
+            machineTimeCost: cents(batchTotals.totalMachineTimeCost),
+            electricityCost: cents(batchTotals.totalElectricityCost),
+            laborCost: cents(batchTotals.totalLaborCost),
+            overheadCost: cents(batchTotals.totalOverheadCost),
+            markup: cents(batchTotals.totalMarkup),
+            paintingCost: cents(batchTotals.totalPaintingCost),
             // Painting and consumables were missing here, so the master quote's subtotal
             // did not account for costs that were already inside each item's total.
-            subtotal: batchTotals.totalMaterialCost
+            subtotal: cents(batchTotals.totalMaterialCost
                 + batchTotals.totalMachineTimeCost
                 + batchTotals.totalElectricityCost
                 + batchTotals.totalLaborCost
                 + batchTotals.totalPaintingCost
                 + batchTotals.totalConsumablesCost
-                + batchTotals.totalOverheadCost,
-            totalPrice: batchTotals.grandTotal,
+                + batchTotals.totalOverheadCost),
+            ...(batchTotals.totalMinimumTopUp > 0 ? { minimumTopUp: cents(batchTotals.totalMinimumTopUp) } : {}),
+            ...(batchTotals.totalDiscount > 0 ? { discountAmount: cents(batchTotals.totalDiscount) } : {}),
+            ...(batchTotals.totalShipping > 0 ? { shippingCost: cents(batchTotals.totalShipping) } : {}),
+            totalPrice: cents(batchTotals.grandTotal),
             quantity: 1, // The batch itself is 1 order
-            unitPrice: batchTotals.grandTotal,
+            unitPrice: cents(batchTotals.grandTotal),
+            // The master's footprint is the sum of its items'. Without it every batch was
+            // invisible to the carbon dashboard until production finished each child.
+            carbon: sumCarbonRecords(batchItems.map(i => i.carbon)),
+            failedUnits: sumOf(i => i.failedUnits) || undefined,
             parameters: {
                 materialName: "Batch Consists of Multiple Materials",
                 machineName: "Multiple Machines",

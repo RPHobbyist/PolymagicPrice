@@ -16,7 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { isPrintFinished } from "@/lib/printerState";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useProduction } from "@/hooks/useProduction";
 import { useCalculatorData } from "@/hooks/useCalculatorData";
@@ -64,6 +65,8 @@ const PrintManager = () => {
 
     // Printer Connection State
     const [connections, setConnections] = useState<Record<string, PrinterConnection>>({});
+    const connectionsRef = useRef(connections);
+    connectionsRef.current = connections;
 
     // Typed state for print job
     const [printJob, setPrintJob] = useState<{ job: PrintJobData; machineId: string } | null>(null);
@@ -89,32 +92,28 @@ const PrintManager = () => {
             nozzleTemp?: number;
             bedTemp?: number;
         }) => {
+            // Decide on completion from the last committed state, outside the state updater:
+            // updaters must be pure (StrictMode runs them twice, which duplicated the toast).
+            const current = connectionsRef.current;
+            const finishedId = Object.keys(current).find(key => current[key].ip === data.ip);
+            if (finishedId && isPrintFinished(current[finishedId].printState, data.state, data.progress, current[finishedId].progress)) {
+                const activeJob = getJobsByMachine(finishedId).find(j => j.status === 'printing');
+                const machineName = machines.find(m => m.id === finishedId)?.name || 'Printer';
+                if (activeJob) {
+                    console.log(`[ClosedLoop] Auto-completing job ${activeJob.id} on machine ${finishedId}`);
+                    moveJob(activeJob.id, 'completed', finishedId);
+                    toast.success(`Print Finished & Job Logged!`, {
+                        description: `${activeJob.quote.projectName} on ${machineName}`,
+                        duration: 10000,
+                    });
+                } else {
+                    toast.success(`Print Finished on ${machineName}!`);
+                }
+            }
+
             setConnections(prev => {
                 const machineId = Object.keys(prev).find(key => prev[key].ip === data.ip);
                 if (machineId) {
-                    const prevState = prev[machineId].printState;
-                    
-                    // Norming finish states across drivers to trigger closed-loop completion
-                    const finishStates = ['FINISH', 'Operational', 'complete', 'READY', 'IDLE', 'FINISHED', 'completed', 'idle', 'standby'];
-                    const isFinished = finishStates.includes(data.state);
-
-                    if (prevState === 'RUNNING' && isFinished) {
-                        const machineJobs = getJobsByMachine(machineId);
-                        const activeJob = machineJobs.find(j => j.status === 'printing') || machineJobs[0];
-                        
-                        if (activeJob) {
-                            console.log(`[ClosedLoop] Auto-completing job ${activeJob.id} on machine ${machineId}`);
-                            moveJob(activeJob.id, 'completed', machineId);
-                            
-                            toast.success(`Print Finished & Job Logged!`, {
-                                description: `${activeJob.quote.projectName} on ${machines.find(m => m.id === machineId)?.name || 'Printer'}`,
-                                duration: 10000,
-                            });
-                        } else {
-                            toast.success(`Print Finished on ${machines.find(m => m.id === machineId)?.name || 'Printer'}!`);
-                        }
-                    }
-
                     return {
                         ...prev,
                         [machineId]: {
@@ -291,6 +290,14 @@ const PrintManager = () => {
             }
         }
 
+        // The Queue column only lists queued jobs. Dropping a printing or post-processing job
+        // there kept its status but removed its machine, so it vanished from the board with its
+        // stock still deducted.
+        if (!targetMachineId && (movedJob.status === 'printing' || movedJob.status === 'post_processing')) {
+            toast.error('A job that is printing cannot go back to the queue. Mark it failed, or finish it first.');
+            return;
+        }
+
         if (movedJob) {
             moveJob(draggableId, movedJob.status, targetMachineId, destination.index);
         }
@@ -300,7 +307,7 @@ const PrintManager = () => {
         <div className="h-full bg-slate-50 flex flex-col font-sans text-slate-900 animate-fade-in overflow-hidden">
             <PageHeader 
                 title="Print Manager" 
-                subtitle="Manage your Print Queue"
+                subtitle="Manage your print queue"
                 actions={null}
             />
 

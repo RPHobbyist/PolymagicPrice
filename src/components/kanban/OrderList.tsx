@@ -51,6 +51,8 @@ const STAGES: { id: QuoteStatus; label: string }[] = [
 ];
 
 const getStageIndex = (status?: QuoteStatus) => {
+    // A failed order failed while printing; showing it as "Quoted" hid how far it had got.
+    if (status === 'FAILED') return STAGES.findIndex(s => s.id === 'PRINTING');
     const idx = STAGES.findIndex(s => s.id === status);
     return idx >= 0 ? idx : 0;
 };
@@ -116,17 +118,17 @@ const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderLis
             {/* Order Info */}
             <div className="flex-1 min-w-[200px]">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-2">
-                    <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5">
-                        Order ID : <span className="text-foreground/80 ml-1 font-medium">{getOrderId(quote.id)}</span>
+                    <span className="text-sm font-medium text-foreground">
+                        {sanitizeText(quote.projectName)}
                     </span>
-                    <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5">
-                        Project : <span className="text-foreground/80 ml-1 font-medium">{sanitizeText(quote.projectName)}</span>
+                    <span className="text-xs text-muted-foreground">
+                        Order <span className="font-mono text-foreground/80">{getOrderId(quote.id)}</span>
                     </span>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 border-t border-slate-100">
                     <span className={cn(
-                        "px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase transition-colors",
+                        "px-2 py-0.5 rounded-sm text-[11px] font-medium transition-colors",
                         quote.printType === "FDM" ? "bg-primary/10 text-primary border border-primary/20" : "bg-purple-500/10 text-purple-600 border border-purple-500/20"
                     )}>
                         {quote.printType}
@@ -134,14 +136,14 @@ const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderLis
                     <PriorityBadge priority={quote.priority} />
 
                     {quote.clientName && (
-                        <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5">
-                            Client : <span className="text-foreground/80 ml-1 font-medium">{sanitizeText(quote.clientName)}</span>
+                        <span className="text-xs text-muted-foreground">
+                            Client <span className="ml-1 text-sm text-foreground">{sanitizeText(quote.clientName)}</span>
                         </span>
                     )}
 
                     {assignedEmployee && (
-                        <span className="text-foreground text-[10px] uppercase font-bold tracking-widest pl-0.5 flex items-center gap-1">
-                            Operator : <span className="text-foreground/80 ml-1 font-medium underline underline-offset-4 decoration-primary/20">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            Operator <span className="ml-1 text-sm text-foreground">
                                 {sanitizeText(assignedEmployee.name)}
                             </span>
                         </span>
@@ -149,23 +151,26 @@ const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderLis
                 </div>
             </div>
 
-            {/* AI Draft & Warnings */}
+            {/* Email draft & warnings */}
             <div className="flex items-center gap-3 mx-2">
                 {(quote.status === 'FAILED' || (quote.failedUnits || 0) > 0) && quote.status !== 'PRINTING' && currentStageIndex < 4 && (
                     <Button
                         variant="outline"
                         onClick={() => moveQuote(quote.id!, 'PRINTING')}
-                        className="h-8 px-2 py-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors text-xs font-bold border-amber-200 hover:border-amber-300 whitespace-nowrap animate-pulse-soft"
+                        className="h-8 px-2 py-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-colors text-xs font-medium border-amber-200 hover:border-amber-300 whitespace-nowrap"
                         title="Return to production queue"
                     >
                         <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
                         Reprint
                     </Button>
                 )}
+                {quote.status === 'CANCELLED' && (
+                    <div className="px-2 py-1 bg-muted border border-border text-muted-foreground rounded-md text-xs font-medium">Cancelled</div>
+                )}
                 {hasPricingDrift && (
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-md animate-pulse-soft" title="Labor rates have drifted >15% since this quote was created.">
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-md" title="Labor rates have drifted >15% since this quote was created.">
                         <ArrowUp className="w-3 h-3 text-amber-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-tight">Price Drift</span>
+                        <span className="text-xs font-medium">Price drift</span>
                     </div>
                 )}
                 <Button
@@ -174,7 +179,7 @@ const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderLis
                     className="h-8 px-2 py-1.5 text-primary hover:text-primary hover:bg-primary/10 transition-colors text-xs font-medium border border-transparent hover:border-primary/20 whitespace-nowrap"
                     title="Generate professional status email"
                 >
-                    DRAFT EMAIL
+                    Draft email
                 </Button>
             </div>
 
@@ -182,7 +187,7 @@ const OrderListItem = memo(({ quote, employeesById, currentLaborRate }: OrderLis
             <div className="flex items-center gap-1">
                 {STAGES.map((stage, index) => {
                     const isPrintDone = (stage.id === 'PRINTING' && currentStageIndex > index) || (stage.id === 'PRINTING' && quote.status === 'POST_PROCESSING');
-                    const displayLabel = isPrintDone ? "PRINT DONE" : stage.label.toUpperCase();
+                    const displayLabel = isPrintDone ? "Print done" : stage.label;
 
                     return (
                         <div key={stage.id} className="flex items-center">
@@ -250,7 +255,7 @@ export const OrderList = memo(() => {
     const employeesById = useMemo(() => new Map(getEmployees().map(e => [e.id, e])), [columns]);
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const currentLaborRate = useMemo(() => getConstants().find(c => c.name.includes("Labor"))?.value || 0, [columns]);
+    const currentLaborRate = useMemo(() => (() => { const cs = getConstants(); return (cs.find(c => c.id === "labor") ?? cs.find(c => c.name.includes("Labor")))?.value || 0; })(), [columns]);
 
     const allQuotes = useMemo(() => {
         const quotes = [
@@ -262,6 +267,7 @@ export const OrderList = memo(() => {
             ...(columns.DISPATCHED || []),
             ...(columns.DELIVERED || []),
             ...(columns.FAILED || []),
+            ...(columns.CANCELLED || []),
         ];
 
         // Sort by Priority: High > Medium > Low > Undefined
@@ -270,8 +276,8 @@ export const OrderList = memo(() => {
 
         return quotes.sort((a, b) => {
             // Rule 1: Delivered items go to the bottom
-            const isDeliveredA = a.status === 'DELIVERED';
-            const isDeliveredB = b.status === 'DELIVERED';
+            const isDeliveredA = a.status === 'DELIVERED' || a.status === 'CANCELLED';
+            const isDeliveredB = b.status === 'DELIVERED' || b.status === 'CANCELLED';
 
             if (isDeliveredA && !isDeliveredB) return 1;
             if (!isDeliveredA && isDeliveredB) return -1;

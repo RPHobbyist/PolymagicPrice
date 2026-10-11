@@ -36,6 +36,12 @@ export interface ResinFileData {
  * leading slice is read into memory instead of the whole file.
  */
 const HEADER_SLICE_BYTES = 8 * 1024 * 1024; // 8 MB
+// 100 h. No resin print runs longer; a header reading above this is a misread field and is left
+// for manual entry rather than priced on.
+const MAX_PRINT_SECONDS = 100 * 3600;
+// An SL1 is a zip of every layer image and is loaded whole; refuse something absurd rather than
+// freezing the tab.
+const MAX_SL1_BYTES = 1024 * 1024 * 1024;
 
 async function readHeaderBuffer(file: File): Promise<ArrayBuffer> {
   const slice = file.size > HEADER_SLICE_BYTES ? file.slice(0, HEADER_SLICE_BYTES) : file;
@@ -258,7 +264,7 @@ async function parseCxdlpv4(buffer: ArrayBuffer): Promise<ResinFileData> {
     }
 
     // Validate and return
-    const printTimeHours = printTimeSeconds > 0 && printTimeSeconds < 360000
+    const printTimeHours = printTimeSeconds > 0 && printTimeSeconds < MAX_PRINT_SECONDS
       ? Math.round((printTimeSeconds / 3600) * 100) / 100
       : 0;
 
@@ -444,7 +450,7 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
     }
 
     // Validate values
-    const validPrintTime = printTimeSeconds > 0 && printTimeSeconds < 360000;
+    const validPrintTime = printTimeSeconds > 0 && printTimeSeconds < MAX_PRINT_SECONDS;
     const printTimeHours = validPrintTime ? Math.round((printTimeSeconds / 3600) * 100) / 100 : 0;
 
     return {
@@ -467,15 +473,14 @@ async function parseCtbFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
  */
 async function parsePhotonFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
   try {
-    const dataView = new DataView(buffer);
     const uint8Array = new Uint8Array(buffer);
 
     // Check for "ANYCUBIC" text marker
     const textDecoder = new TextDecoder('ascii');
     const headerText = textDecoder.decode(uint8Array.slice(0, 64));
 
-    let printTimeSeconds = 0;
-    let layerCount = 0;
+    const printTimeSeconds = 0;
+    const layerCount = 0;
     // Not derived from the file: see the note on the offset scan below.
     const resinVolumeMl = 0;
     let printerModel = '';
@@ -493,22 +498,9 @@ async function parsePhotonFormat(buffer: ArrayBuffer): Promise<ResinFileData> {
     //     "1200 seconds" AND "1200 layers" simultaneously.
     //  2. Volume is not guessed at all. Scanning for "the first float that looks plausible"
     //     returned things like the bed width and presented them as a resin volume.
-    const offsets = [24, 28, 32, 48, 52, 56, 60, 64, 68, 72, 76, 80];
-
-    for (const offset of offsets) {
-      if (offset + 4 > buffer.byteLength) continue;
-      const val = dataView.getUint32(offset, true);
-
-      if (printTimeSeconds === 0 && val >= 60 && val <= 360000) {
-        printTimeSeconds = val;
-        continue; // do not let the same field also become the layer count
-      }
-
-      if (layerCount === 0 && val >= 10 && val <= 50000) {
-        layerCount = val;
-      }
-    }
-
+    // Neither print time nor layer count is read from this header any more. Taking "the first
+    // uint32 that falls in a plausible range" picked up resolution and exposure fields and
+    // reported them as a print time the quote was then priced on. 0 makes the form ask the user.
     return {
       printTimeHours: printTimeSeconds > 0 ? Math.round((printTimeSeconds / 3600) * 100) / 100 : 0,
       // Left at 0 so the UI asks the user for it rather than showing an invented number.
@@ -581,6 +573,7 @@ function parseGenericBinary(buffer: ArrayBuffer): ResinFileData {
  */
 async function parseSl1Format(file: File): Promise<ResinFileData> {
   try {
+    if (file.size > MAX_SL1_BYTES) return { printTimeHours: 0, resinVolumeMl: 0 };
     const zip = await JSZip.loadAsync(file);
     const configEntry =
       zip.file('config.ini') ||
@@ -603,7 +596,8 @@ async function parseSl1Format(file: File): Promise<ResinFileData> {
 
     const printTimeSeconds = readValue('printTime');
     const usedMaterialMl = readValue('usedMaterial'); // millilitres
-    const layerCount = readValue('numFade') > 0 ? readValue('numSlow') + readValue('numFast') : readValue('numFast');
+    // SL1 splits its layers into fade, slow and fast exposure groups; the job has all of them.
+    const layerCount = readValue('numFade') + readValue('numSlow') + readValue('numFast');
 
     const printerModelMatch = config.match(/^\s*printerModel\s*=\s*(.+)$/im);
     const printerModel = printerModelMatch ? cleanBinaryString(printerModelMatch[1]) : '';

@@ -43,6 +43,7 @@ export const OrderManagerProvider = ({ children, quotes, onQuoteUpdate }: OrderM
             DONE: [],
             DISPATCHED: [],
             DELIVERED: [],
+            FAILED: [],
             CANCELLED: [],
         };
 
@@ -64,6 +65,10 @@ export const OrderManagerProvider = ({ children, quotes, onQuoteUpdate }: OrderM
         const quote = quotes.find(q => q.id === quoteId);
         const existingJob = jobs.find(j => j.quote.id === quoteId);
         const isReprint = (newStatus === 'APPROVED' || newStatus === 'PRINTING') && (quote?.status === 'FAILED' || (quote?.failedUnits || 0) > 0);
+
+        const SHIPPED = ['DISPATCHED', 'DELIVERED'];
+        const NOT_PRINTED = ['PENDING', 'APPROVED', 'PRINTING', 'FAILED', undefined];
+        const skipsPrinting = SHIPPED.includes(newStatus) && NOT_PRINTED.includes(quote?.status);
 
         // 2. Perform Storage Updates
         sessionStore.updateQuoteStatus(quoteId, newStatus);
@@ -93,14 +98,25 @@ export const OrderManagerProvider = ({ children, quotes, onQuoteUpdate }: OrderM
             if (!isReprint) {
                 toast.info(`Started production for ${quote?.projectName || 'Item'}`);
             }
-        } else if (newStatus === 'DONE' || newStatus === 'POST_PROCESSING') {
+        } else if (newStatus === 'DONE' || newStatus === 'POST_PROCESSING' || skipsPrinting) {
+            // Jumping straight to Dispatched/Delivered still means the job was printed: finish it
+            // so stock, runtime and actuals are booked, then restore the status that was asked for.
+            const targetStatus = (newStatus === 'POST_PROCESSING' ? 'post_processing' : 'completed') as JobStatus;
             if (existingJob) {
-                const targetStatus = newStatus === 'DONE' ? 'completed' : 'post_processing';
-                moveProductionJob(existingJob.id, targetStatus as JobStatus, existingJob.machineId);
+                moveProductionJob(existingJob.id, targetStatus, existingJob.machineId);
+            } else if (quote && !quote.isBatch) {
+                // Finishing an order that never went through the board still has to take its
+                // material off the spool and book the machine hours; otherwise the status says
+                // done while stock, runtime and actuals say nothing happened.
+                const newJobId = addJob(quote);
+                if (newJobId) moveProductionJob(newJobId, targetStatus, null);
             }
         } else if (newStatus === 'FAILED') {
             toast.error("Order Failed", { description: "Marked as failed. Ready for reprint or cancellation." });
         }
+
+        // Completing a skipped-ahead job rewrites the quote as DONE; put back what was requested.
+        if (skipsPrinting) sessionStore.updateQuoteStatus(quoteId, newStatus);
 
         // 4. Final step: REFETCH UI
         onQuoteUpdate();

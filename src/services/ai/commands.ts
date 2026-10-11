@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { sanitizeObject, sanitize } from "@/lib/sanitization";
 import { generateShopReport, ShopReportType } from "@/lib/reportGenerator";
 import { findCommandBlocks } from "./commandBlocks";
+import { RATE_STORAGE_KEY } from "@/lib/currencyFormat";
 
 /** Maximum CMD blocks the AI is allowed to emit per single response */
 export const MAX_COMMANDS_PER_RESPONSE = 3;
@@ -42,6 +43,8 @@ const COMMAND_LIMITS: Record<string, { min: number; max: number; description: st
     overhead: { min: 0, max: 100, description: "Overhead percentage (%)" },
     markup: { min: 0, max: 500, description: "Markup percentage (%)" },
     failRate: { min: 0, max: 50, description: "Fail rate (%)" },
+    wastePercent: { min: 0, max: 50, description: "Material waste (%)" },
+    minimumCharge: { min: 0, max: 100000, description: "Minimum job charge" },
     // The ceiling is above the dirtiest national grid on record, and 0 is allowed only because a
     // shop running entirely on its own generation can legitimately claim it.
     grid_intensity: { min: 0, max: 1200, description: "Grid emission factor (gCO2e/kWh)" },
@@ -223,6 +226,28 @@ export function recordCommandRejection(command: string): void {
     appendAIAudit({ event: 'REJECTED', command, detail: 'Rejected by user' });
 }
 
+/** Constants whose value is an amount of money; the rest are percentages or emission factors. */
+const MONEY_CONSTANTS = ["labor", "electricity", "minimumCharge"];
+
+/**
+ * The assistant and the user speak in the display currency, but constants are stored in the base
+ * currency and multiplied by the conversion rate for display. Without this, "set labor to 15"
+ * under a rate of 2 would show back as 30.
+ */
+export function displayToBaseMoney(id: string, value: number, conversionRate: number): number {
+    if (!MONEY_CONSTANTS.includes(id)) return value;
+    const rate = Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1;
+    return Math.round((value / rate) * 1e6) / 1e6;
+}
+
+function storedConversionRate(): number {
+    try {
+        return parseFloat(localStorage.getItem(RATE_STORAGE_KEY) ?? "") || 1;
+    } catch {
+        return 1;
+    }
+}
+
 function executeSetConstant(payload: Record<string, unknown>, addNotification?: AddNotification): CommandResult {
     const { id, value } = payload;
 
@@ -268,7 +293,7 @@ function executeSetConstant(payload: Record<string, unknown>, addNotification?: 
         return { executed: false, command: "SET_CONSTANT", message: msg };
     }
 
-    saveConstant({ ...payload, value: val } as unknown as CostConstant);
+    saveConstant({ ...payload, value: displayToBaseMoney(id, val, storedConversionRate()) } as unknown as CostConstant);
 
     if (addNotification) {
         addNotification({

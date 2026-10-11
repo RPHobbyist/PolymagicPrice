@@ -20,7 +20,7 @@ import { useState, useCallback, memo, lazy, Suspense, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Printer, RotateCcw, Loader2, Bot } from "lucide-react";
+import { Printer, RotateCcw, Loader2, ClipboardList, History as HistoryIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import FDMCalculatorTable from "@/components/calculator/FDMCalculatorTable";
 import ResinCalculatorTable from "@/components/calculator/ResinCalculatorTable";
@@ -30,11 +30,10 @@ import { Link } from "react-router-dom";
 import { QuoteData, FDMFormData, ResinFormData } from "@/types/quote";
 import { useSavedQuotes } from "@/hooks/useSavedQuotes";
 import { useBatchQuote } from "@/hooks/useBatchQuote";
-import { calculateFDMQuote, calculateResinQuote } from "@/lib/quoteCalculations";
+import { calculateFDMQuote, calculateResinQuote, validateFDMForm, validateResinForm } from "@/lib/quoteCalculations";
 import { getMaterials, getMachines, getConstants, validateQuoteData } from "@/lib/core/sessionStorage";
 import { toast } from "sonner";
 import { AIInsights } from "@/components/ai/AIInsights";
-import { KanbanSquare } from "lucide-react";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 import { sanitizeText, sanitizeObject } from "@/lib/sanitization";
 import { SYSTEM_CONFIG } from "@/lib/core/core-system";
@@ -138,6 +137,18 @@ const Index = memo(() => {
 
       const gridGPerKWh = constants.find(c => c.id === 'grid_intensity')?.value;
 
+      // Same gate as the calculator form. A file missing its weight or time otherwise priced to
+      // $0.00 (the engine turns NaN into 0) and looked like a real quote.
+      const importError = !material || !machine
+        ? `Add at least one ${type} material and machine in Settings first.`
+        : type === "FDM"
+          ? validateFDMForm(baseFormData as unknown as FDMFormData)
+          : validateResinForm(baseFormData as unknown as ResinFormData);
+      if (importError) {
+        toast.error(`Could not price ${gcodeData.name}: ${importError}`);
+        return;
+      }
+
       const quote = type === "FDM"
         ? calculateFDMQuote({
             formData: baseFormData as unknown as FDMFormData,
@@ -146,6 +157,9 @@ const Index = memo(() => {
             electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
             laborRate: constants.find(c => c.id === 'labor')?.value || 0,
             gridGPerKWh,
+            failureRatePercent: constants.find(c => c.id === 'failRate')?.value,
+            wastePercent: constants.find(c => c.id === 'wastePercent')?.value,
+            minimumCharge: constants.find(c => c.id === 'minimumCharge')?.value,
           })
         : calculateResinQuote({
             formData: baseFormData as unknown as ResinFormData,
@@ -154,6 +168,9 @@ const Index = memo(() => {
             electricityRate: constants.find(c => c.id === 'electricity')?.value || 0,
             laborRate: constants.find(c => c.id === 'labor')?.value || 0,
             gridGPerKWh,
+            failureRatePercent: constants.find(c => c.id === 'failRate')?.value,
+            wastePercent: constants.find(c => c.id === 'wastePercent')?.value,
+            minimumCharge: constants.find(c => c.id === 'minimumCharge')?.value,
           });
 
       setQuoteData({
@@ -306,11 +323,21 @@ const Index = memo(() => {
         
         const material = fdmMaterials[0];
         const machine = fdmMachines[0];
-        const electricityRate = constants.find(c => c.id === 'electricity')?.value || 0.12;
-        const laborRate = constants.find(c => c.id === 'labor')?.value || 15;
+        const electricityRate = constants.find(c => c.id === 'electricity')?.value;
+        const laborRate = constants.find(c => c.id === 'labor')?.value;
 
         if (!material || !machine) {
           toast.error("Bridge Error: Please configure at least one FDM material and machine in settings.");
+          return;
+        }
+
+        // No invented rates: pricing a job at made-up electricity and labor figures is worse than asking.
+        if (electricityRate === undefined || laborRate === undefined) {
+          toast.error("Bridge Error: Electricity and labor rates are missing. Set them in Settings → Constants.");
+          return;
+        }
+        if (!Number.isFinite(gcodeData.printTimeHours) || !Number.isFinite(gcodeData.filamentWeightGrams)) {
+          toast.error("Bridge Error: The file has no print time or filament weight. Enter them in the calculator.");
           return;
         }
 
@@ -342,6 +369,9 @@ const Index = memo(() => {
           electricityRate,
           laborRate,
           gridGPerKWh: constants.find(c => c.id === 'grid_intensity')?.value,
+          failureRatePercent: constants.find(c => c.id === 'failRate')?.value,
+            wastePercent: constants.find(c => c.id === 'wastePercent')?.value,
+            minimumCharge: constants.find(c => c.id === 'minimumCharge')?.value,
           consumables: []
         });
 
@@ -354,10 +384,9 @@ const Index = memo(() => {
         // Switch tab to FDM
         setActiveTab("fdm");
         
-        toast.success(`Received ${safeFilename} via Polymagic Bridge!`, {
-            description: "Quote calculated instantly from slicer data.",
+        toast.success(`Quote filled in from ${safeFilename}`, {
+            description: "Sent from your slicer through Polymagic Bridge.",
             duration: 5000,
-            icon: <Bot className="w-4 h-4 text-indigo-500" />
         });
 
       } catch (err: unknown) {
@@ -375,29 +404,25 @@ const Index = memo(() => {
         title="3D Printing Cost Calculator"
         subtitle="Free FDM & Resin price estimator with G-code auto-fill"
       />
-      {/* Glow effect */}
-      <div className="fixed inset-0 bg-gradient-glow pointer-events-none" />
 
       <main className="mx-auto px-4 py-4 pb-20 sm:px-6 lg:px-8 max-w-[1800px] w-full animate-fade-in stagger-1 relative z-10">
         <div className="grid lg:grid-cols-[1fr_380px] gap-4 sm:gap-6">
           {/* Calculator Section */}
           <div className="space-y-6 animate-fade-in">
-            <Card className="shadow-elevated border-border bg-card overflow-hidden hover-glow">
+            <Card className="shadow-elevated border-border bg-card overflow-hidden">
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <div className="border-b border-border px-3 sm:px-6 pt-4 sm:pt-6 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <TabsList className="bg-secondary p-1 sm:p-1.5 rounded-xl w-full sm:w-auto">
                     <TabsTrigger
                       value="fdm"
-                      className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-6 py-2 sm:py-2.5 transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none"
+                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-lg px-3 sm:px-6 py-2 sm:py-2.5 transition-colors duration-200 text-xs sm:text-sm flex-1 sm:flex-none"
                     >
-                      <Printer className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                       FDM Printing
                     </TabsTrigger>
                     <TabsTrigger
                       value="resin"
-                      className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-card rounded-lg px-3 sm:px-6 py-2 sm:py-2.5 transition-all duration-200 text-xs sm:text-sm flex-1 sm:flex-none"
+                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-lg px-3 sm:px-6 py-2 sm:py-2.5 transition-colors duration-200 text-xs sm:text-sm flex-1 sm:flex-none"
                     >
-                      <Printer className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" aria-hidden="true" />
                       Resin Printing
                     </TabsTrigger>
                   </TabsList>
@@ -429,7 +454,7 @@ const Index = memo(() => {
             <QuoteSummary quoteData={quoteData} onSaveQuote={handleSaveQuote} />
             
             {quoteData && (
-                <Suspense fallback={<div className="h-40 bg-primary/5 rounded-xl border border-dashed animate-pulse" />}>
+                <Suspense fallback={<div className="h-40 bg-muted/50 rounded-lg animate-pulse" />}>
                     <AIInsights quoteData={quoteData} />
                 </Suspense>
             )}
@@ -444,21 +469,21 @@ const Index = memo(() => {
               <p className="text-sm font-normal text-slate-600">Your recently calculated quotes</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" asChild className="shadow-sm hover:shadow-md transition-all">
+              <Button variant="outline" size="sm" asChild>
                 <Link to="/print-manager">
-                  <KanbanSquare className="w-4 h-4 mr-2 text-slate-700" aria-hidden="true" />
+                  <Printer className="w-4 h-4 mr-2" aria-hidden="true" />
                   Print Manager
                 </Link>
               </Button>
               <Button variant="outline" size="sm" asChild className="hidden sm:flex">
                 <Link to="/order-manager">
-                  <Printer className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <ClipboardList className="w-4 h-4 mr-2" aria-hidden="true" />
                   Order Manager
                 </Link>
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <Link to="/billing-analysis">
-                  <RotateCcw className="w-4 h-4 mr-2" aria-hidden="true" />
+                  <HistoryIcon className="w-4 h-4 mr-2" aria-hidden="true" />
                   View History
                 </Link>
               </Button>
@@ -493,9 +518,9 @@ const Index = memo(() => {
               />
               {quotes.length > 5 && (
                 <div className="mt-6 flex justify-center">
-                  <Button variant="ghost" asChild className="text-primary hover:text-primary/80 hover:bg-primary/5 gap-2 group transition-all duration-200">
+                  <Button variant="ghost" asChild className="text-primary hover:text-primary/80 hover:bg-primary/5 gap-2 transition-colors">
                     <Link to="/billing-analysis">
-                      <RotateCcw className="w-4 h-4 group-hover:rotate-[-45deg] transition-transform duration-300" />
+                      <HistoryIcon className="w-4 h-4" aria-hidden="true" />
                       View Full History ({quotes.length} total)
                     </Link>
                   </Button>

@@ -271,6 +271,46 @@ const CompanySettings = () => {
                         />
                     </div>
 
+                    <div className="space-y-2">
+                        <Label htmlFor="taxRate">Tax added to invoices (%)</Label>
+                        <Input
+                            id="taxRate"
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={formData.taxRate ?? 0}
+                            onChange={(e) => setFormData(prev => ({ ...prev, taxRate: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)) }))}
+                        />
+                        <p className="text-xs text-slate-600">Added on top at invoice time. Saved quote totals, revenue and profit stay before tax. 0 shows no tax line.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="validityDays">Invoice valid for (days)</Label>
+                            <Input
+                                id="validityDays"
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={formData.validityDays ?? 30}
+                                onChange={(e) => setFormData(prev => ({ ...prev, validityDays: Math.min(365, Math.max(1, parseInt(e.target.value) || 30)) }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="depositPercent">Deposit required (%)</Label>
+                            <Input
+                                id="depositPercent"
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={formData.depositPercent ?? 50}
+                                onChange={(e) => setFormData(prev => ({ ...prev, depositPercent: Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)) }))}
+                            />
+                            <p className="text-xs text-slate-600">0 leaves the deposit line off the invoice.</p>
+                        </div>
+                    </div>
+
                     <div className="flex items-start justify-between gap-4 pt-2">
                         <div className="space-y-0.5">
                             <Label htmlFor="showCarbonOnInvoice">Show carbon footprint on invoices</Label>

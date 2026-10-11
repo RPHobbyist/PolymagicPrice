@@ -37,6 +37,9 @@ export interface BatchQuoteContextType {
         totalPaintingCost: number;
         totalConsumablesCost: number;
         totalMarkup: number;
+        totalMinimumTopUp: number;
+        totalDiscount: number;
+        totalShipping: number;
         grandTotal: number;
     };
 }

@@ -18,7 +18,8 @@
 
 import { Machine, QuoteData } from "@/types/quote";
 import { ProductionSettings } from "@/types/production";
-import { calculateCapacity } from "@/lib/capacityCalculator";
+import { calculateCapacity, failureChanceToEfficiency } from "@/lib/capacityCalculator";
+import { totalPrintHours } from "@/lib/utils/time";
 
 export interface ShopLoad {
     queuedOrders: number;
@@ -31,14 +32,8 @@ export interface ShopLoad {
     bottleneck: { machineName: string; hoursOccupied: number } | null;
 }
 
-const OPEN_STATUSES = (status?: string) =>
-    status !== 'DONE' && status !== 'CANCELLED' && status !== 'DELIVERED';
-
-const parseHours = (value: unknown): number => {
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') return parseFloat(value) || 0;
-    return 0;
-};
+/** Committed, still-to-print work. PENDING is an unaccepted quote; POST_PROCESSING is already printed. */
+const OPEN_STATUSES = (status?: string) => status === 'APPROVED' || status === 'PRINTING';
 
 /**
  * Turns the open order book into a real capacity picture using the same engine
@@ -62,9 +57,9 @@ export function computeShopLoad(
 
     openQuotes.forEach(q => {
         const quantity = q.quantity || 1;
-        const perUnitHours = q.actualPrintTime || parseHours(q.parameters?.printTime);
         queuedUnits += quantity;
-        queuedPrintHours += perUnitHours * quantity;
+        // `actualPrintTime` is the whole-job total, so it must not be multiplied by quantity again.
+        queuedPrintHours += totalPrintHours(q.parameters?.printTime, quantity, q.actualPrintTime);
     });
 
     const enabledIds = settings.enabledMachineIds?.length ? settings.enabledMachineIds : undefined;
@@ -85,8 +80,7 @@ export function computeShopLoad(
 
     if (queuedUnits <= 0 || queuedPrintHours <= 0 || machineCount === 0) return empty;
 
-    const failureChance = Math.min(50, Math.max(0, settings.efficiency || 0));
-    const efficiency = Math.min(1.0, Math.max(0.1, (100 - failureChance) / 100));
+    const efficiency = failureChanceToEfficiency(settings.efficiency);
 
     const result = calculateCapacity(
         {

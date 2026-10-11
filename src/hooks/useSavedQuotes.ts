@@ -120,6 +120,9 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
   const updateQuote = useCallback(async (id: string, updates: Partial<QuoteData>) => {
     try {
       sessionStore.updateQuote(id, updates);
+      // A cancelled order has no more production: drop its job so it stops reserving material
+      // and capacity, and give back anything a print in progress had taken off the spool.
+      if (updates.status === 'CANCELLED') removeJobByQuoteId(id);
       await fetchQuotes();
       toast.success("Quote updated successfully!");
     } catch (err) {
@@ -127,7 +130,7 @@ export const useSavedQuotes = (): UseSavedQuotesReturn => {
       toast.error(error.message || "Failed to update quote");
       throw err;
     }
-  }, [fetchQuotes]);
+  }, [fetchQuotes, removeJobByQuoteId]);
 
   return {
     quotes,

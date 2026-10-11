@@ -30,7 +30,7 @@ import {
     SelectValue 
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { calculateCapacity, analyzeDeadline, formatDate, formatHours } from "@/lib/capacityCalculator";
+import { calculateCapacity, analyzeDeadline, formatDate, formatHours, failureChanceToEfficiency, normalizeFailureChance, parseLocalDeadline, toLocalDateString } from "@/lib/capacityCalculator";
 import { getMachines, getMaterials, getStockByMaterial } from "@/lib/core/sessionStorage";
 import { useDocumentSEO } from "@/hooks/useDocumentSEO";
 import { useProduction } from "@/hooks/useProduction";
@@ -66,7 +66,6 @@ interface Recommendation {
     id: string;
     label: string;
     description: string;
-    reviewInsight: string;
     matchCriteria: (machine: Machine) => boolean;
 }
 
@@ -75,42 +74,36 @@ const RECOMMENDATIONS: Recommendation[] = [
         id: "energy",
         label: "Energy Efficient",
         description: "Printers with low power footprints and optimized thermal management.",
-        reviewInsight: "Prusa and A1 series lead in watt-per-hour efficiency benchmarks.",
         matchCriteria: (m) => ["Ender 3", "Prusa i3 MK3S+", "Prusa MK4", "Bambu Lab A1 Mini"].some(name => m.name.includes(name))
     },
     {
         id: "speed",
         label: "High Speed",
-        description: "Optimized for maximum throughput using CoreXY or CoreXZ motion.",
-        reviewInsight: "Bambu X1/P1 and Creality K1 series routinely hit 500mm/s reliably.",
+        description: "Machines built for fast printing.",
         matchCriteria: (m) => ["X1 Carbon", "P1S", "K1", "V3", "A1", "Voron", "QIDI"].some(name => m.name.includes(name))
     },
     {
         id: "quality",
         label: "High Quality",
         description: "Printers renowned for dimensional accuracy and surface finish.",
-        reviewInsight: "Prusa CORE and Bambu X1C provide industry-leading 0.05mm tolerances.",
         matchCriteria: (m) => ["MK4", "CORE One", "X1 Carbon"].some(name => m.name.includes(name)) || m.print_type === "Resin"
     },
     {
         id: "prototype",
         label: "Prototyping",
         description: "Ideal for rapid testing with multi-material support.",
-        reviewInsight: "Bambu AMS and Prusa XL multi-tool systems allow complex geometries with ease.",
         matchCriteria: (m) => ["X1 Carbon", "P1S", "XL"].some(name => m.name.includes(name))
     },
     {
         id: "engineering",
         label: "Engineering Parts",
         description: "Equipped for high-temp materials like ABS, ASA, and Polycarbonate.",
-        reviewInsight: "QIDI Plus 4 and X1C feature chambers required for structural warp-prevention.",
         matchCriteria: (m) => ["X1 Carbon", "X-Max", "K1 Max", "CORE One", "K2 Plus"].some(name => m.name.includes(name))
     },
     {
         id: "flexible",
         label: "Flexible (TPU)",
         description: "Direct-drive systems that handle soft filaments without jamming.",
-        reviewInsight: "Direct-drive extruders in the MK4 and Bambu series are best for shore 85A-95A TPUs.",
         matchCriteria: (m) => ["MK4", "X1 Carbon", "P1S", "A1", "K1", "Sidewinder"].some(name => m.name.includes(name))
     }
 ];
@@ -146,7 +139,7 @@ export default function CapacityPlannerPage() {
     const [deadline, setDeadline] = useState<string>(() => {
         const d = new Date();
         d.setDate(d.getDate() + 7);
-        return d.toISOString().split('T')[0];
+        return toLocalDateString(d);
     });
 
     // Part Dimensions
@@ -182,7 +175,7 @@ export default function CapacityPlannerPage() {
 
     // Production Settings (from Global Context)
     const turnoverMinutes = settings.turnoverMinutes;
-    const efficiencyValue = settings.efficiency;
+    const efficiencyValue = normalizeFailureChance(settings.efficiency);
     const workHoursPerDay = settings.workHoursPerDay;
 
     const setEfficiency = (val: number[]) => updateSettings({ efficiency: val[0] });
@@ -193,7 +186,10 @@ export default function CapacityPlannerPage() {
         const oy = parseFloat(objY) || 0;
         const oz = parseFloat(objZ) || 0;
 
-        return settings.enabledMachineIds.filter(id => {
+        // Nothing ticked yet means every machine is a candidate; the type and size filters below
+        // still apply. An empty result then really does mean "no machine fits".
+        const candidateIds = settings.enabledMachineIds.length > 0 ? settings.enabledMachineIds : allMachines.map(m => m.id);
+        return candidateIds.filter(id => {
             const machine = allMachines.find(m => m.id === id);
             if (!machine || machine.print_type !== printType) return false;
             
@@ -210,7 +206,7 @@ export default function CapacityPlannerPage() {
         const t = Math.max(0, parseFloat(printTimePerUnit) || 0);
         const tt = Math.max(0, (turnoverMinutes || 0) / 60); 
         const h = Math.max(0.1, workHoursPerDay || 8); 
-        const eff = Math.min(1.0, Math.max(0.1, (100 - (efficiencyValue || 0)) / 100));
+        const eff = failureChanceToEfficiency(efficiencyValue);
 
         if (q <= 0 || t <= 0) return null;
 
@@ -238,7 +234,9 @@ export default function CapacityPlannerPage() {
         const reservedStock = jobs.reduce((sum, job) => {
             const jobMaterialId = job.quote.parameters.materialId;
 
-            if (job.status !== 'completed' && jobMaterialId === selectedMaterialId) {
+            // Only queued jobs still hold material back: once a job is printing or finished its
+            // grams have already come off the spool, and counting them again double-subtracts.
+            if (job.status === 'queued' && jobMaterialId === selectedMaterialId) {
                 const jobQty = job.quote.quantity || 1;
                 const jobWeight = parseFloat(job.quote.parameters.filamentWeight as string || job.quote.parameters.resinVolume as string || "0") || 0;
                 return sum + (jobQty * jobWeight);
@@ -268,7 +266,7 @@ export default function CapacityPlannerPage() {
         const t = Math.max(0, parseFloat(printTimePerUnit) || 0);
         const tt = Math.max(0, (turnoverMinutes || 0) / 60);
         const h = Math.max(0.1, workHoursPerDay || 8);
-        const eff = Math.min(1.0, Math.max(0.1, (100 - (efficiencyValue || 0)) / 100));
+        const eff = failureChanceToEfficiency(efficiencyValue);
 
         return analyzeDeadline(
             {
@@ -281,7 +279,7 @@ export default function CapacityPlannerPage() {
                 includeWeekends: includeWeekends
             },
             allMachines,
-            new Date(deadline)
+            parseLocalDeadline(deadline)
         );
     }, [result, deadline, quantity, printTimePerUnit, turnoverMinutes, efficiencyValue, workHoursPerDay, filteredMachineIds, allMachines, includeWeekends]);
 
@@ -335,7 +333,7 @@ export default function CapacityPlannerPage() {
             <div className="h-full bg-background flex flex-col overflow-hidden">
                 <PageHeader 
                     title="Capacity Planner" 
-                    subtitle="Industrial Production Forecasting & Resource Scheduling"
+                    subtitle="Check an order fits before its deadline"
                 />
                 
                 <main className="flex-1 overflow-hidden">
@@ -374,7 +372,7 @@ export default function CapacityPlannerPage() {
                                         }} placeholder="0" maxLength={6} className="h-9 px-3 font-medium tabular-nums text-foreground" />
                                     </div>
                                 </div>
-                                <p className="text-xs text-slate-600 font-medium italic">Automated machine compatibility filtering enabled.</p>
+                                <p className="text-xs text-slate-600 font-medium italic">Printers smaller than the part are greyed out.</p>
                             </div>
 
                             {/* 1.5 Print Type Selection */}
@@ -465,7 +463,7 @@ export default function CapacityPlannerPage() {
                                             value={deadline} 
                                             onChange={(e) => setDeadline(e.target.value)} 
                                             onClick={(e) => e.currentTarget.showPicker?.()}
-                                            min={new Date().toISOString().split('T')[0]}
+                                            min={toLocalDateString(new Date())}
                                             className="h-9 font-medium text-foreground cursor-pointer" 
                                         />
                                     </div>
@@ -599,7 +597,7 @@ export default function CapacityPlannerPage() {
                                                             ? `No ${printType} printers are currently active in your enabled machines.`
                                                             : analysis?.canMeet 
                                                                 ? `Completion estimated for ${formatDate(result.completionDate)}` 
-                                                                : `Missing target by ${(analysis?.daysNeeded - analysis?.daysAvailable).toFixed(1)} days`}
+                                                                : analysis ? `Finishes ${analysis.daysLate} day${analysis.daysLate === 1 ? "" : "s"} after the deadline` : `Completion estimated for ${formatDate(result.completionDate)}`}
                                                 </p>
                                             </div>
                                         </div>
@@ -652,8 +650,8 @@ export default function CapacityPlannerPage() {
                                      {/* Smart Suggester - Simple Box */}
                                      <div className="flex flex-col gap-3 p-4 bg-slate-50 border border-slate-200 rounded-none mt-1">
                                          <div className="flex items-center gap-2">
-                                             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Optimized Suggestions:</span>
-                                             <span className="text-[10px] text-slate-400 italic font-medium">(Click to auto-select machines)</span>
+                                             <span className="text-xs font-medium text-slate-600">Quick select</span>
+                                             <span className="text-xs text-slate-500">Picks the matching printers for you</span>
                                          </div>
                                          <div className="flex flex-wrap gap-2">
                                              {RECOMMENDATIONS.map((rec) => (
@@ -664,22 +662,18 @@ export default function CapacityPlannerPage() {
                                                              size="sm"
                                                              onClick={() => applyRecommendation(rec)}
                                                              className={cn(
-                                                                 "h-8 px-4 text-xs font-bold rounded-none border-slate-300 bg-white transition-all shadow-sm",
-                                                                 "hover:bg-primary hover:border-primary hover:text-primary-foreground hover:shadow-md active:scale-95"
+                                                                 "h-8 px-4 text-xs font-medium rounded-none border-slate-300 bg-white transition-colors",
+                                                                 "hover:bg-primary hover:border-primary hover:text-primary-foreground"
                                                              )}
                                                          >
                                                              {rec.label}
                                                          </Button>
                                                      </TooltipTrigger>
-                                                     <TooltipContent className="max-w-[300px] p-4 space-y-3 shadow-xl border-primary/20">
-                                                         <div className="space-y-1">
-                                                             <p className="font-extrabold text-sm text-primary uppercase tracking-tight">{rec.label}</p>
-                                                             <p className="text-xs font-medium text-slate-600 leading-snug">{rec.description}</p>
-                                                         </div>
-                                                         <div className="pt-3 border-t border-slate-100">
-                                                             <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Industry Review Insight:</p>
-                                                             <p className="text-xs leading-relaxed italic text-slate-700">"{rec.reviewInsight}"</p>
-                                                         </div>
+                                                     <TooltipContent className="max-w-[300px] p-3 space-y-2">
+                                                         <p className="text-xs leading-snug">{rec.description}</p>
+                                                         <p className="text-xs leading-snug text-muted-foreground">
+                                                             Selects: {allMachines.filter(rec.matchCriteria).map(m => sanitizeText(m.name)).join(", ") || "no printers in your list"}
+                                                         </p>
                                                      </TooltipContent>
                                                  </Tooltip>
                                              ))}
@@ -717,11 +711,11 @@ export default function CapacityPlannerPage() {
                                                         {tooSmall && <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />}
                                                     </div>
                                                 </TooltipTrigger>
-                                                <TooltipContent className="text-xs font-bold p-3">
+                                                <TooltipContent className="text-xs p-3">
                                                     <div className="space-y-1.5">
                                                         <p className="uppercase opacity-70 border-b border-white/20 pb-1 mb-1">{machine.print_type}</p>
                                                         <p>Build Vol: {machine.buildVolume || "Unknown"}</p>
-                                                        {tooSmall && <p className="text-rose-400 font-extrabold border-t border-rose-500/30 pt-1 mt-1">ERROR: Part is larger than printer!</p>}
+                                                        {tooSmall && <p className="text-rose-600 border-t border-rose-500/30 pt-1 mt-1">The part is larger than this printer's build volume.</p>}
                                                     </div>
                                                 </TooltipContent>
                                             </Tooltip>

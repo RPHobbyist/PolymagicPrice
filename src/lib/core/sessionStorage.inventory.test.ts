@@ -14,6 +14,7 @@ import {
     restoreToSpool,
     getMaterialStock,
     getLowStockMaterials,
+    findBestSpoolMatch,
     getMaterials,
     saveMaterial,
 } from "./sessionStorage";
@@ -111,5 +112,43 @@ describe("spool stock", () => {
             // One read for the whole call. The old shape did one per material.
             expect(spoolReads).toBe(1);
         });
+    });
+});
+
+describe("restoring to a spool", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("cannot refill a spool beyond its starting weight", () => {
+        const m = aMaterial("PLA");
+        const s = saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 900 } as never);
+        expect(restoreToSpool(s.id, 500)).toBe(100);
+        expect(getMaterialStock(m)).toBe(1000);
+    });
+});
+
+describe("choosing a spool", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("skips an empty spool when no colour is given", () => {
+        const m = aMaterial("PLA");
+        saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 0, colour: "Black" } as never);
+        const full = saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 800, colour: "Red" } as never);
+        expect(findBestSpoolMatch("PLA", "")?.id).toBe(full.id);
+    });
+
+    it("prefers the right colour, then a spool that can cover the job", () => {
+        const m = aMaterial("PLA");
+        const smallRed = saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 50, colour: "Red" } as never);
+        const bigRed = saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 600, colour: "Red" } as never);
+        saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 900, colour: "Blue" } as never);
+        expect(findBestSpoolMatch("PLA", "red", { amount: 200 })?.id).toBe(bigRed.id);
+        expect(findBestSpoolMatch("PLA", "red", { amount: 10 })?.id).toBe(bigRed.id);
+        expect(smallRed.id).not.toBe(bigRed.id);
+    });
+
+    it("finds the material by id when it has been renamed", () => {
+        const m = aMaterial("PLA Renamed");
+        const s = saveSpool({ materialId: m, initialWeight: 1000, currentWeight: 500 } as never);
+        expect(findBestSpoolMatch("PLA (old name)", "", { materialId: m })?.id).toBe(s.id);
     });
 });

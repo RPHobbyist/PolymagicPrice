@@ -120,3 +120,23 @@ describe("computeIdleOverheadKg", () => {
         expect(computeIdleOverheadKg([], [machine("No Idle Set")], 473, 30, now)).toBeGreaterThan(0);
     });
 });
+
+describe("fleet and hours", () => {
+    it("keeps a batch out of the fleet and never suggests metering it", () => {
+        const overview = buildCarbonOverview([
+            quote({ parameters: { machineName: "Multiple Machines", materialName: "x" }, isBatch: true, carbon: carbon({ kWh: 9 }) }),
+            quote({ parameters: { machineName: "P1S", materialName: "PLA" }, carbon: carbon({ kWh: 1 }) }),
+        ]);
+        expect(overview.fleet.map(r => r.machineName)).toEqual(["P1S"]);
+        expect(overview.meterNext).toBe("P1S");
+        expect(overview.jobs).toHaveLength(2);
+    });
+
+    it("uses the stored job hours instead of rebuilding them from kWh and watts", () => {
+        // resin: kWh includes wash and cure stations, so kWh / watts would overstate the run
+        const overview = buildCarbonOverview([quote({ carbon: carbon({ kWh: 2, wattsUsed: 100, jobHours: 5 }) })]);
+        expect(overview.fleet[0].hours).toBe(5);
+        const legacy = buildCarbonOverview([quote({ carbon: carbon({ kWh: 2, wattsUsed: 100 }) })]);
+        expect(legacy.fleet[0].hours).toBe(20);
+    });
+});

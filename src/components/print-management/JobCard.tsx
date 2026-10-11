@@ -72,7 +72,7 @@ export const JobCard = memo(({ job, index, isConnected, onSendFile, printStatus 
     const quoteLabor = parseFloat(job.quote.parameters.laborRate as string) || 0;
     const hasDrift = useMemo(() => {
         if (quoteLabor <= 0) return false;
-        const currentLabor = getConstants().find(c => c.name.includes("Labor"))?.value || 0;
+        const currentLabor = (() => { const cs = getConstants(); return (cs.find(c => c.id === "labor") ?? cs.find(c => c.name.includes("Labor")))?.value || 0; })();
         return Math.abs(currentLabor - quoteLabor) / quoteLabor > 0.15;
     }, [quoteLabor]);
 
@@ -90,19 +90,14 @@ export const JobCard = memo(({ job, index, isConnected, onSendFile, printStatus 
                 >
                     {/* [Removed] Status Stripe (requested by user) */}
 
-                    {/* Warning Light Effect (border glow) if Printing */}
-                    {printStatus?.state === 'RUNNING' && (
-                        <div className="absolute inset-0 rounded-sm border-2 border-amber-500/50 animate-pulse pointer-events-none z-10" />
-                    )}
-
                     <div className="p-2 pl-3">
                         <div className="flex justify-between items-start gap-2 mb-1">
                             <div className="flex flex-col gap-0.5">
                                 <h3 className="font-semibold text-xs leading-tight truncate select-none">{job.quote.projectName}</h3>
                                 {hasDrift && (
-                                    <div className="flex items-center gap-1 text-[9px] text-amber-600 font-bold animate-pulse">
+                                    <div className="flex items-center gap-1 text-[10px] text-amber-700 font-medium">
                                         <AlertTriangle className="w-2.5 h-2.5" />
-                                        <span>Pricing Drift Detected</span>
+                                        <span>Price drift</span>
                                     </div>
                                 )}
                             </div>

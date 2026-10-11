@@ -28,6 +28,8 @@ import { Notification, NotificationStatus } from "@/types/notifications";
 import { isAIAllowed, isDesktop } from "../utils";
 import { CURRENCY_STORAGE_KEY, RATE_STORAGE_KEY } from "../currencyFormat";
 import { CURRENCIES } from "@/types/currency";
+import { normalizeFailureChance } from "@/lib/capacityCalculator";
+import { isRevenueQuote } from "@/lib/quoteStats";
 
 export const generateId = (): string => {
     try {
@@ -248,7 +250,7 @@ const defaultMachines: Machine[] = [
  * calculator's consumable picker — important for the grid factor, because a visible constant is
  * selectable as a consumable and would be ADDED TO THE PRICE of a quote.
  */
-export const SYSTEM_CONSTANT_IDS = ["electricity", "labor", "overhead", "markup", "grid_intensity"];
+export const SYSTEM_CONSTANT_IDS = ["electricity", "labor", "overhead", "markup", "failRate", "wastePercent", "minimumCharge", "grid_intensity"];
 
 const defaultConstants: CostConstant[] = [
     { id: "electricity", name: "Electricity Rate", value: 0.12, unit: "/kWh", is_visible: false, description: "Cost per kilowatt-hour" },
@@ -257,7 +259,12 @@ const defaultConstants: CostConstant[] = [
     { id: "grid_intensity", name: "Grid Emission Factor", value: 473, unit: "gCO2e/kWh", is_visible: false, description: "Carbon intensity of your grid electricity. Defaults to the world average until you pick your region." },
     { id: "labor", name: "Labor Rate", value: 15, unit: "/hr", is_visible: false, description: "Hourly labor cost" },
     { id: "overhead", name: "Overhead Rate", value: 10, unit: "%", is_visible: false, description: "Overhead percentage" },
-    { id: "markup", name: "Default Markup", value: 30, unit: "%", is_visible: false, description: "Default profit margin" },
+    { id: "markup", name: "Default Markup", value: 30, unit: "%", is_visible: false, description: "Default markup on cost" },
+    // 0 keeps every existing price unchanged; shops typically use 5-10 %.
+    // 0 = off for both of the next two.
+    { id: "wastePercent", name: "Material Waste", value: 0, unit: "%", is_visible: false, description: "Extra material (purge, supports, skirt) as a percentage of the stated weight or volume." },
+    { id: "minimumCharge", name: "Minimum Charge", value: 0, unit: "", is_visible: false, description: "Smallest job price. Quotes below it are topped up to this amount." },
+    { id: "failRate", name: "Print Failure Rate", value: 0, unit: "%", is_visible: false, description: "Share of prints that fail. Material, machine time and power are grossed up by 1 / (1 - rate)." },
     { id: "paint-acrylic-standard", name: "Acrylic Paint (Standard)", value: 0.10, unit: "/ml", is_visible: true, description: "Standard hobby painting. Usage Rate: 0.02ml/cm2" },
     { id: "paint-spray-primer", name: "Spray Primer", value: 0.08, unit: "/ml", is_visible: true, description: "Base coat primer. Usage Rate: 0.03ml/cm2" },
     { id: "paint-clear-coat", name: "Clear Coat Varnish", value: 0.12, unit: "/ml", is_visible: true, description: "Protective finish. Usage Rate: 0.02ml/cm2" },
@@ -494,7 +501,7 @@ export const initializeDefaults = (): boolean => {
         }));
         writeStore(STORAGE_KEYS.PRODUCTION_JOBS, JSON.stringify([]));
         writeStore(STORAGE_KEYS.PRODUCTION_SETTINGS, JSON.stringify({
-            efficiency: 85,
+            efficiency: 10,
             turnoverMinutes: 15,
             workHoursPerDay: 8,
             enabledMachineIds: []
@@ -792,10 +799,9 @@ export const updateQuote = (id: string | undefined, updates: Partial<QuoteData>)
             const merged: QuoteData = {
                 ...q,
                 ...sanitizedUpdates,
-                statusTimeline: sanitizedUpdates.status && sanitizedUpdates.status !== q.status ? {
-                    ...q.statusTimeline,
-                    [sanitizedUpdates.status]: new Date().toISOString()
-                } : q.statusTimeline,
+                statusTimeline: sanitizedUpdates.status && sanitizedUpdates.status !== q.status
+                    ? timelineAfterStatusChange(q.statusTimeline, sanitizedUpdates.status)
+                    : q.statusTimeline,
                 revisions: updatedRevisions
             };
 
@@ -803,7 +809,9 @@ export const updateQuote = (id: string | undefined, updates: Partial<QuoteData>)
             // can change both — without this the quote would keep showing the figure it was first
             // priced with. A caller that computed its own (production, from real actuals) wins.
             const touchesCarbon = CARBON_RELEVANT_FIELDS.some(field => field in updates);
-            if (!("carbon" in updates) && touchesCarbon) {
+            // A batch master has no print of its own: its figure is the sum of its items', and
+            // recomputing from the master's empty parameters would wipe it.
+            if (!("carbon" in updates) && touchesCarbon && !merged.isBatch) {
                 merged.carbon = recomputeQuoteCarbon(merged);
             }
 
@@ -815,16 +823,34 @@ export const updateQuote = (id: string | undefined, updates: Partial<QuoteData>)
     writeStore(STORAGE_KEYS.QUOTES, JSON.stringify(quotes.map(encryptQuote)));
     notifyQuotesUpdated();
 };
+const STATUS_ORDER: QuoteStatus[] = ['PENDING', 'APPROVED', 'PRINTING', 'POST_PROCESSING', 'DONE', 'DISPATCHED', 'DELIVERED'];
+
+/**
+ * The timeline after a quote enters `status`. Moving BACK (a reprint, an undo) drops the stamps of
+ * the stages it has left; a stale DELIVERED stamp otherwise outranked the new DONE date and booked
+ * the job's revenue and footprint on the old delivery day.
+ */
+export const timelineAfterStatusChange = (
+    timeline: QuoteData['statusTimeline'],
+    status: QuoteStatus,
+    now: string = new Date().toISOString()
+): NonNullable<QuoteData['statusTimeline']> => {
+    const next = { ...timeline };
+    const position = STATUS_ORDER.indexOf(status);
+    if (position >= 0) {
+        STATUS_ORDER.slice(position + 1).forEach(later => { delete next[later]; });
+    }
+    next[status] = now;
+    return next;
+};
+
 export const updateQuoteStatus = (id: string, status: QuoteStatus): void => {
     const quotes = getQuotes().map(q => {
         if (q.id === id) {
             return {
                 ...q,
                 status,
-                statusTimeline: {
-                    ...q.statusTimeline,
-                    [status]: new Date().toISOString()
-                },
+                statusTimeline: timelineAfterStatusChange(q.statusTimeline, status),
                 ...(status === 'DONE' && !q.statusTimeline?.DONE ? { actualPrintTime: q.actualPrintTime } : {})
             };
         }
@@ -866,7 +892,12 @@ export const saveMaterial = (material: Omit<Material, "id"> & { id?: string }): 
     if (sanitizedMaterial.id) {
         const index = materials.findIndex(m => m.id === sanitizedMaterial.id);
         if (index !== -1) {
-            materials[index] = sanitizedMaterial as Material;
+            // The settings form posts only what it shows. `totalInStock` is a cache kept by the
+            // spool code; dropping it made the low-stock message read "Current stock is undefinedg".
+            materials[index] = {
+                ...(sanitizedMaterial as Material),
+                totalInStock: (sanitizedMaterial as Material).totalInStock ?? materials[index].totalInStock,
+            };
         }
     } else {
         const newMaterial: Material = {
@@ -913,8 +944,12 @@ export const getMachines = (printType?: "FDM" | "Resin"): Machine[] => {
     return printType ? processed.filter(m => m.print_type === printType) : processed;
 };
 
-export const saveMachine = (machine: Omit<Machine, "id"> & { id?: string }): Machine => {
+export const saveMachine = (input: Omit<Machine, "id"> & { id?: string }): Machine => {
     const machines = getMachines();
+    // The settings form posts only the fields it shows. Merge onto the stored record so runtime,
+    // maintenance and the pinned certificate survive an edit.
+    const existing = input.id ? machines.find(m => m.id === input.id) : undefined;
+    const machine = existing ? { ...existing, ...input } : input;
     const sanitizedMachine = {
         ...machine,
         name: sanitizeText(machine.name),
@@ -991,7 +1026,7 @@ export const getConstants = (): CostConstant[] => {
 
     // Enforce system constants to be hidden
     const systemIds = SYSTEM_CONSTANT_IDS;
-    const systemNames = ["Electricity Rate", "Labor Rate", "Overhead Rate", "Default Markup", "Grid Emission Factor"];
+    const systemNames = ["Electricity Rate", "Labor Rate", "Overhead Rate", "Default Markup", "Print Failure Rate", "Material Waste", "Minimum Charge", "Grid Emission Factor"];
 
     // Migrate legacy units: strip hardcoded '$' prefix from units (e.g. '$/ml' → '/ml')
     let needsMigration = false;
@@ -1190,14 +1225,17 @@ export interface CustomerStats {
 
 /** Summarises one customer's quotes. Kept separate so both entry points below agree exactly. */
 const summariseCustomerQuotes = (customerQuotes: QuoteData[]): CustomerStats => {
-    const totalSpent = customerQuotes.reduce((sum, q) => sum + (q.totalPrice || 0), 0);
-    const lastOrderDate = customerQuotes.length > 0
-        ? [...customerQuotes].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0].createdAt
+    // Same rule as the dashboard: a customer "spent" money on accepted work, not on quotes they
+    // declined, never answered, or that failed. `quotes` keeps everything for the order history.
+    const won = customerQuotes.filter(isRevenueQuote);
+    const totalSpent = won.reduce((sum, q) => sum + (q.totalPrice || 0), 0);
+    const lastOrderDate = won.length > 0
+        ? [...won].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0].createdAt
         : null;
 
     return {
         totalSpent,
-        orderCount: customerQuotes.length,
+        orderCount: won.length,
         lastOrderDate: lastOrderDate ?? null,
         quotes: customerQuotes
     };
@@ -1404,25 +1442,40 @@ export const deleteSpool = (id: string): void => {
     }
 };
 
-export const findBestSpoolMatch = (materialName: string, colour: string = ''): MaterialSpool | null => {
+export interface SpoolMatchOptions {
+    /** The material's id. Preferred over the name, which breaks as soon as a material is renamed. */
+    materialId?: string;
+    /** What the job needs, so a spool that can cover it beats a fuller-looking one that cannot. */
+    amount?: number;
+}
+
+export const findBestSpoolMatch = (materialName: string, colour: string = '', options: SpoolMatchOptions = {}): MaterialSpool | null => {
     const materials = getMaterials();
-    const material = materials.find(m => m.name === materialName);
+    const material = (options.materialId && materials.find(m => m.id === options.materialId))
+        || materials.find(m => m.name === materialName);
     if (!material) return null;
 
     const spools = getSpools(material.id);
     if (spools.length === 0) return null;
 
+    const fullest = (list: MaterialSpool[]) => list.reduce((max, s) => s.currentWeight > max.currentWeight ? s : max, list[0]);
+    const needed = options.amount ?? 0;
+
+    // An empty colour matches every spool via includes(''), which used to pick whichever came
+    // first, even an empty one. No colour means no colour preference.
     const quoteColour = colour.toLowerCase().trim();
-    let targetSpool = spools.find(s =>
-        s.colour?.toLowerCase().includes(quoteColour) ||
-        s.name?.toLowerCase().includes(quoteColour)
-    );
+    const colourOnly = quoteColour && quoteColour !== '-';
+    const sameColour = colourOnly
+        ? spools.filter(s => s.colour?.toLowerCase().includes(quoteColour) || s.name?.toLowerCase().includes(quoteColour))
+        : [];
 
-    if (!targetSpool) {
-        targetSpool = spools.reduce((max, s) => s.currentWeight > max.currentWeight ? s : max, spools[0]);
+    const stocked = (list: MaterialSpool[]) => list.filter(s => s.currentWeight > 0);
+    const covering = (list: MaterialSpool[]) => list.filter(s => s.currentWeight >= needed && s.currentWeight > 0);
+
+    for (const pool of [covering(sameColour), covering(spools), stocked(sameColour), stocked(spools)]) {
+        if (pool.length > 0) return fullest(pool);
     }
-
-    return targetSpool;
+    return fullest(spools);
 };
 
 /**
@@ -1444,7 +1497,11 @@ export const deductFromSpool = (spoolId: string, amount: number): number => {
 
     const current = Number.isFinite(spools[index].currentWeight) ? spools[index].currentWeight : 0;
     const delta = Number.isFinite(amount) ? amount : 0;
-    const newWeight = Math.min(1000000, Math.max(0, current - delta));
+    // A restore cannot refill a spool beyond its starting weight (it never lowers an existing
+    // reading either): returning more than was taken would invent material.
+    const initial = spools[index].initialWeight;
+    const ceiling = delta < 0 && Number.isFinite(initial) && initial > 0 ? Math.max(initial, current) : 1000000;
+    const newWeight = Math.min(ceiling, Math.max(0, current - delta));
     const applied = current - newWeight;
 
     spools[index] = { ...spools[index], currentWeight: newWeight };
@@ -1651,7 +1708,7 @@ export const saveBatchItems = (items: QuoteData[]): boolean => {
 export const getProductionSettings = (): ProductionSettings => {
     const raw = localStorage.getItem(STORAGE_KEYS.PRODUCTION_SETTINGS);
     const fallback: ProductionSettings = { 
-        efficiency: 85, 
+        efficiency: 10,
         turnoverMinutes: 15, 
         workHoursPerDay: 8,
         enabledMachineIds: [] 
@@ -1666,7 +1723,10 @@ export const getProductionSettings = (): ProductionSettings => {
         // stored "null" or a record written by an older version came back missing `efficiency`
         // and `workHoursPerDay`, and every consumer read those straight off it.
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return fallback;
-        return { ...fallback, ...parsed };
+        const merged = { ...fallback, ...parsed };
+        // 85 was the pre-slider default (an efficiency); it is out of the failure-chance range.
+        merged.efficiency = normalizeFailureChance(merged.efficiency);
+        return merged;
     } catch (err) {
         console.warn("[Storage] Failed to decrypt production settings, using defaults.", err);
         return fallback;

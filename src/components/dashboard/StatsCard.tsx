@@ -18,53 +18,34 @@
 
 import { memo } from "react";
 import { Card } from "@/components/ui/card";
-import { LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface StatsCardProps {
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: LucideIcon;
   trend?: {
     value: number;
     isPositive: boolean;
+    /** What the percentage compares, e.g. "vs last month". */
+    label?: string;
   };
-  variant?: "default" | "primary" | "accent";
 }
 
-export const StatsCard = memo(({ title, value, subtitle, icon: Icon, trend, variant = "default" }: StatsCardProps) => {
-  const bgClass = {
-    default: "bg-card",
-    primary: "bg-gradient-primary",
-    accent: "bg-gradient-accent",
-  }[variant];
-
-  const textClass = variant === "default" ? "text-foreground" : "text-primary-foreground";
-  const subtitleClass = variant === "default" ? "text-slate-600" : "text-primary-foreground/80";
-
+export const StatsCard = memo(({ title, value, subtitle, trend }: StatsCardProps) => {
   return (
-    <Card className={`p-5 ${bgClass} shadow-card hover-lift border-border overflow-hidden relative`}>
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <h3 className={`text-sm font-normal ${subtitleClass}`}>{title}</h3>
-          <p className={`text-2xl font-semibold ${textClass} tabular-nums`}>{value}</p>
-          {subtitle && (
-            <p className={`text-xs ${subtitleClass}`}>{subtitle}</p>
-          )}
-          {trend && (
-            <p className={`text-xs font-medium ${trend.isPositive ? 'text-success' : 'text-destructive'}`}>
-              <span className="sr-only">{trend.isPositive ? 'Positive trend:' : 'Negative trend:'}</span>
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}% this week
-            </p>
-          )}
-        </div>
-        <div className="flex items-center justify-center">
-          <Icon className={cn(
-            "w-6 h-6 transition-colors", 
-            variant === "default" ? "text-primary" : "text-primary-foreground"
-          )} aria-hidden="true" />
-        </div>
+    <Card className="p-5 bg-card shadow-card border-border">
+      <div className="space-y-1">
+        <h3 className="text-sm font-normal text-slate-600">{title}</h3>
+        <p className="text-2xl font-semibold text-foreground tabular-nums">{value}</p>
+        {subtitle && (
+          <p className="text-xs text-slate-600">{subtitle}</p>
+        )}
+        {trend && (
+          <p className={`text-xs font-medium ${trend.isPositive ? 'text-success' : 'text-destructive'}`}>
+            <span className="sr-only">{trend.isPositive ? 'Positive trend:' : 'Negative trend:'}</span>
+            {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value).toFixed(1)}% {trend.label ?? 'this week'}
+          </p>
+        )}
       </div>
     </Card>
   );

@@ -112,7 +112,7 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
             subtotal,
             totalPrice,
             // Automatically update unit price based on quantity
-            unitPrice: totalPrice / quantity
+            unitPrice: (totalPrice - (quote.shippingCost || 0)) / quantity
         });
 
         setIsEditMode(false);
@@ -122,12 +122,12 @@ export const QuoteDetailsDialog = memo(({ quote, open, onOpenChange, onUpdateQuo
     const handlePDF = useCallback(() => {
         if (!quote) return;
         try {
-            printQuotePDF(quote, currency.symbol, conversionRate);
+            printQuotePDF(quote, currency.symbol, conversionRate, currency.code);
             toast.success("PDF opened for printing");
         } catch {
             toast.error("Failed to generate PDF. Check popups.");
         }
-    }, [quote, currency.symbol, conversionRate]);
+    }, [quote, currency.symbol, currency.code, conversionRate]);
 
     const handleExportExcel = useCallback(async () => {
         if (!quote) return;
@@ -225,7 +225,7 @@ Status: ${quote.status}
             <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b">
                     <div className="flex items-center gap-3">
-                        <DialogTitle className="text-2xl font-black tracking-tight text-foreground font-heading">
+                        <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">
                             Quote Details
                         </DialogTitle>
                     </div>
@@ -289,7 +289,7 @@ Status: ${quote.status}
                                                 }
                                             }
                                         }}
-                                        className="h-8 gap-2 border-foreground/20 text-foreground hover:bg-foreground hover:text-background transition-all font-black uppercase text-[10px] tracking-widest px-4"
+                                        className="h-8 gap-2 border-foreground/20 text-foreground hover:bg-foreground hover:text-background transition-colors font-medium text-xs px-4"
                                     >
                                         {(quote?.failedUnits || 0) > 0 ? <RotateCcw className="w-4 h-4" /> : <Send className="w-4 h-4" />}
                                         {(quote?.failedUnits || 0) > 0 ? "Reprint" : "Send to Production"}
@@ -311,7 +311,7 @@ Status: ${quote.status}
                                 <Button
                                     size="sm"
                                     onClick={handleSave}
-                                    className="h-8 gap-2 bg-gradient-primary shadow-sm hover:shadow-md transition-all"
+                                    className="h-8 gap-2"
                                 >
                                     <Save className="w-4 h-4" />
                                     Save
@@ -330,7 +330,7 @@ Status: ${quote.status}
                             
                             {isEditMode ? (
                                 <div className="space-y-1.5 col-span-2">
-                                    <Label className="text-foreground/40 text-[10px] uppercase font-black tracking-widest pl-0.5">Project Name</Label>
+                                    <Label className="text-muted-foreground text-xs font-medium pl-0.5">Project name</Label>
                                     <Input
                                         value={editData.projectName}
                                         onChange={(e) => setEditData({ ...editData, projectName: e.target.value })}
@@ -349,7 +349,7 @@ Status: ${quote.status}
                             
                             {isEditMode ? (
                                 <div className="space-y-1.5">
-                                    <Label className="text-black text-[11px] uppercase font-bold tracking-normal">Client</Label>
+                                    <Label className="text-muted-foreground text-xs font-medium">Client</Label>
                                     <Input
                                         value={editData.clientName}
                                         onChange={(e) => setEditData({ ...editData, clientName: e.target.value })}
@@ -361,7 +361,7 @@ Status: ${quote.status}
                             )}
                             
                             <div className="space-y-1.5">
-                                <span className="text-foreground/40 text-[10px] uppercase font-black tracking-widest block pl-0.5">Colour Palette</span>
+                                <span className="text-muted-foreground text-xs font-medium block pl-0.5">Colour</span>
                                 <div className="flex flex-wrap gap-2">
                                     {(typeof quote.printColour === 'string' && quote.printColour.trim() && !["-", "default", "none", "unknown", "standard"].includes(quote.printColour.toLowerCase().trim())) ? (
                                         quote.printColour.split(';').filter(c => c.trim()).map((colour, idx) => {
@@ -379,7 +379,7 @@ Status: ${quote.status}
                                                             style={{ backgroundColor: cleanColour }}
                                                         />
                                                     )}
-                                                    <span className="font-black text-foreground text-[10px] uppercase tracking-wider">{cleanColour}</span>
+                                                    <span className="font-medium text-foreground text-xs">{cleanColour}</span>
                                                 </div>
                                             );
                                         })
@@ -395,7 +395,7 @@ Status: ${quote.status}
                              {isEditMode ? (
                                 <>
                                     <div className="space-y-1.5 flex-1">
-                                        <Label className="text-foreground/40 text-[10px] uppercase font-black tracking-widest pl-0.5">Status</Label>
+                                        <Label className="text-muted-foreground text-xs font-medium pl-0.5">Status</Label>
                                         <Select 
                                             value={editData.status} 
                                             onValueChange={(val: QuoteStatus) => setEditData({ ...editData, status: val })}
@@ -417,7 +417,7 @@ Status: ${quote.status}
                                         </Select>
                                     </div>
                                     <div className="space-y-1.5 flex-1">
-                                        <Label className="text-foreground/40 text-[10px] uppercase font-black tracking-widest pl-0.5">Priority</Label>
+                                        <Label className="text-muted-foreground text-xs font-medium pl-0.5">Priority</Label>
                                         <Select 
                                             value={editData.priority} 
                                             onValueChange={(val: QuoteData['priority']) => setEditData({ ...editData, priority: val })}
@@ -444,7 +444,7 @@ Status: ${quote.status}
                         {/* Cost Breakdown with Overrides */}
                           <div className="space-y-6">
                             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                                <h3 className="font-black text-foreground/40 text-[10px] uppercase tracking-widest">
+                                <h3 className="text-muted-foreground text-xs font-medium">
                                     Financial Breakdown
                                 </h3>
                                 {isEditMode && (
@@ -524,8 +524,8 @@ Status: ${quote.status}
                                 {quote.carbon && (
                                     <div className="flex justify-between items-center py-2 -mx-4 px-4">
                                         <span className="text-muted-foreground">
-                                            Carbon Footprint
-                                            <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500">
+                                            Carbon footprint
+                                            <span className="ml-2 text-xs text-slate-500">
                                                 {quote.carbon.grade === "MEASURED" ? "Measured"
                                                     : quote.carbon.grade === "ACTUAL" ? "Actual" : "Estimate"}
                                             </span>
@@ -540,9 +540,9 @@ Status: ${quote.status}
                             <div className="bg-slate-900 rounded-xl p-5 shadow-sm border border-slate-800">
                                 <div className="flex justify-between items-center">
                                     <div className="space-y-0.5">
-                                        <span className="text-slate-500 font-black text-[10px] uppercase tracking-widest block pl-0.5">Grand Total</span>
+                                        <span className="text-slate-400 font-medium text-xs block pl-0.5">Grand total</span>
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-3xl font-black text-white tabular-nums tracking-tight">
+                                            <span className="text-3xl font-semibold text-white tabular-nums tracking-tight">
                                                 {formatPrice(isEditMode ? (previewTotals?.total ?? quote.totalPrice) : quote.totalPrice)}
                                             </span>
                                         </div>
@@ -550,13 +550,13 @@ Status: ${quote.status}
                                     
                                     <div className="text-right flex flex-col items-end gap-2">
                                         <div className="text-right">
-                                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Quantity</p>
+                                            <p className="text-xs text-slate-400 font-medium mb-1">Quantity</p>
                                             <p className="text-base font-bold text-white">{quote.quantity}x Units</p>
                                         </div>
 
                                         {isEditMode ? (
                                             <div className="flex items-center gap-2">
-                                                <Label className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Fail Units</Label>
+                                                <Label className="text-slate-400 text-xs font-medium">Failed units</Label>
                                                 <Input
                                                     type="number"
                                                     value={editData.failedUnits}
@@ -569,13 +569,13 @@ Status: ${quote.status}
                                             {(quote.failedUnits || 0) > 0 && (
                                                 <div className="bg-red-500/10 px-2 py-1 rounded border border-red-500/20 flex items-center gap-1.5 mt-1">
                                                     <AlertTriangle className="w-3 h-3 text-red-400" />
-                                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">{quote.failedUnits} FAILED</span>
+                                                    <span className="text-xs font-medium text-red-400">{quote.failedUnits} failed</span>
                                                 </div>
                                             )}
                                             {(quote.reprintCount || 0) > 0 && (
                                                 <div className="bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 flex items-center gap-1.5 mt-1">
                                                     <RotateCcw className="w-3 h-3 text-amber-500" />
-                                                    <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">{quote.reprintCount}x REPRINT</span>
+                                                    <span className="text-xs font-medium text-amber-500">Reprinted {quote.reprintCount}×</span>
                                                 </div>
                                             )}
                                             </>
@@ -587,7 +587,7 @@ Status: ${quote.status}
 
                         {/* Notes Section */}
                         <div className="space-y-3">
-                            <h3 className="font-bold text-black text-xs uppercase tracking-widest flex items-center gap-2">
+                            <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
                                 Project Notes
                             </h3>
@@ -608,7 +608,7 @@ Status: ${quote.status}
                         {/* Batch Contents Section */}
                         {quote.isBatch && quote.batchItems && quote.batchItems.length > 0 && (
                             <div className="space-y-4 pt-4 border-t border-border/50">
-                                <h3 className="font-bold text-black text-xs uppercase tracking-widest flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-sm" />
                                     Batch Contents ({quote.batchItems.length} Projects)
                                 </h3>
@@ -616,8 +616,8 @@ Status: ${quote.status}
                                     {quote.batchItems.map((item, idx) => (
                                         <div key={item.id || idx} className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex justify-between items-center hover:bg-primary/10 transition-colors">
                                             <div className="space-y-1">
-                                                <p className="font-bold text-black text-sm uppercase tracking-tight">{item.projectName}</p>
-                                                <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase">
+                                                <p className="font-medium text-foreground text-sm">{item.projectName}</p>
+                                                <div className="flex items-center gap-2 text-xs text-slate-500">
                                                     <span>{item.printType}</span>
                                                     <span>•</span>
                                                     <span>{item.parameters?.materialName}</span>
@@ -626,7 +626,7 @@ Status: ${quote.status}
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-sm font-black text-black tabular-nums">{formatPrice(item.totalPrice)}</p>
+                                                <p className="text-sm font-semibold text-foreground tabular-nums">{formatPrice(item.totalPrice)}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -643,7 +643,7 @@ Status: ${quote.status}
                         {/* Revisions */}
                         {Array.isArray(quote.revisions) && quote.revisions.length > 0 && (
                             <div className="space-y-3 pt-2">
-                                <h3 className="font-bold text-black text-xs uppercase tracking-widest flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
                                     <History className="w-3.5 h-3.5 text-slate-950" />
                                     Edit History
                                 </h3>
@@ -652,7 +652,7 @@ Status: ${quote.status}
                                         <div key={rev.id} className="p-4 rounded-xl bg-muted/20 border border-border/50 flex justify-between items-center group/rev hover:bg-muted/40 transition-colors">
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded tracking-tighter">v{quote.revisions!.length - idx}</span>
+                                                    <span className="text-[11px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded">v{quote.revisions!.length - idx}</span>
                                                     <span className="text-[11px] text-slate-500 font-medium">{new Date(rev.timestamp).toLocaleString()}</span>
                                                 </div>
                                                 {rev.notes && <p className="text-[11px] text-slate-600 italic line-clamp-1">{rev.notes}</p>}
@@ -676,8 +676,8 @@ QuoteDetailsDialog.displayName = "QuoteDetailsDialog";
 
 const DetailItem = memo(({ label, value }: { label: string; value: string }) => (
     <div className="space-y-1">
-        <span className="text-foreground/40 text-[10px] uppercase font-black tracking-widest block pl-0.5">{label}</span>
-        <p className="font-bold text-foreground text-base truncate uppercase tracking-tight" title={value}>{value}</p>
+        <span className="text-muted-foreground text-xs font-medium block pl-0.5">{label}</span>
+        <p className="font-medium text-foreground text-base truncate" title={value}>{value}</p>
     </div>
 ));
 DetailItem.displayName = "DetailItem";
@@ -702,7 +702,7 @@ const EditableCostRow = memo(({ label, value, editValue, isEditMode, onChange, f
                 />
             </div>
         ) : (
-            <span className="text-foreground font-black text-base tabular-nums tracking-tight font-mono">
+            <span className="text-foreground font-semibold text-base tabular-nums font-mono">
                 {formatPrice(value)}
             </span>
         )}
@@ -713,8 +713,8 @@ EditableCostRow.displayName = "EditableCostRow";
 const CostDetailRow = memo(({ label, value, highlight, formatPrice }: { label: string; value: number; highlight?: boolean, formatPrice: (val: number) => string }) => {
     return (
         <div className="flex justify-between items-center">
-            <span className={cn("text-black font-bold uppercase text-[10px] tracking-widest", highlight && "text-black")}>{label}</span>
-            <span className={cn("tabular-nums text-black font-black tracking-tight", highlight ? "text-xl" : "text-base")}>
+            <span className={cn("text-muted-foreground text-xs font-medium", highlight && "text-foreground")}>{label}</span>
+            <span className={cn("tabular-nums text-foreground font-semibold", highlight ? "text-xl" : "text-base")}>
                 {formatPrice(value)}
             </span>
         </div>

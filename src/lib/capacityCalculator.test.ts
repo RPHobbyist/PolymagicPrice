@@ -7,7 +7,7 @@
  * used Math.ceil and promised day 5. A job shorter than a day reported "completes today".
  */
 import { describe, it, expect } from "vitest";
-import { calculateCapacity, analyzeDeadline, formatHours } from "./capacityCalculator";
+import { calculateCapacity, analyzeDeadline, formatHours, failureChanceToEfficiency, normalizeFailureChance, DEFAULT_FAILURE_CHANCE, parseLocalDeadline, toLocalDateString, countWorkingDays } from "./capacityCalculator";
 import { CapacityQuery, Machine } from "@/types/quote";
 
 const machine = (id: string, name = id): Machine => ({
@@ -150,5 +150,62 @@ describe("formatHours", () => {
         expect(formatHours(0.5)).toBe("30 min");
         expect(formatHours(2)).toBe("2h");
         expect(formatHours(2.25)).toBe("2h 15m");
+    });
+});
+
+describe("failure chance -> efficiency factor", () => {
+    it("treats the stored value as a failure chance", () => {
+        expect(failureChanceToEfficiency(10)).toBeCloseTo(0.9);
+        expect(failureChanceToEfficiency(0)).toBe(1);
+    });
+
+    it("reads the legacy default of 85 as the default chance, not as 15% capacity", () => {
+        expect(normalizeFailureChance(85)).toBe(DEFAULT_FAILURE_CHANCE);
+        expect(failureChanceToEfficiency(85)).toBeCloseTo(0.9);
+    });
+
+    it("keeps in-range values and survives junk", () => {
+        expect(normalizeFailureChance(20)).toBe(20);
+        expect(normalizeFailureChance(0)).toBe(0);
+        expect(normalizeFailureChance(undefined)).toBe(DEFAULT_FAILURE_CHANCE);
+        expect(normalizeFailureChance(NaN)).toBe(DEFAULT_FAILURE_CHANCE);
+        expect(normalizeFailureChance(-5)).toBe(0);
+    });
+});
+
+describe("machine selection", () => {
+    it("treats an explicit empty list as no machines, not all of them", () => {
+        expect(calculateCapacity(query(), [machine("m1")]).machineCount).toBe(1);
+        expect(calculateCapacity(query({ machineIds: [] }), [machine("m1")]).machineCount).toBe(0);
+    });
+});
+
+describe("deadlines in local time", () => {
+    it("reads a date-only deadline as the end of that local day", () => {
+        const d = parseLocalDeadline("2026-03-14");
+        expect([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()]).toEqual([2026, 2, 14, 23]);
+    });
+
+    it("formats the local calendar date, not the UTC one", () => {
+        expect(toLocalDateString(new Date(2026, 0, 5, 23, 30))).toBe("2026-01-05");
+    });
+
+    it("counts working days, skipping weekends when asked", () => {
+        // Mon 2026-01-05 -> Mon 2026-01-12: 7 calendar days, 5 of them weekdays
+        const start = new Date(2026, 0, 5, 9);
+        const end = new Date(2026, 0, 12, 9);
+        expect(countWorkingDays(start, end, true)).toBe(7);
+        expect(countWorkingDays(start, end, false)).toBe(5);
+    });
+
+    it("reports how late a missed deadline is and flags an impossible hours-per-day plan", () => {
+        const verdict = analyzeDeadline(
+            query({ quantity: 40, includeWeekends: true }),
+            [machine("m1")],
+            new Date("2026-01-07T09:00:00Z")
+        );
+        expect(verdict.canMeet).toBe(false);
+        expect(verdict.daysLate).toBeGreaterThan(0);
+        expect(verdict.recoveryPlan?.hoursPerDayShortfall).toBe(true);
     });
 });

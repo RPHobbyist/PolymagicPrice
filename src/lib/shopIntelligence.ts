@@ -160,7 +160,7 @@ export function analyzeShop(snapshot: ShopSnapshot): Finding[] {
     });
 
     // 5. Systemic Pricing Drift Analysis (Proactive)
-    const currentLabor = constants.find(c => c.name.includes("Labor"))?.value || 0;
+    const currentLabor = (constants.find(c => c.id === "labor") ?? constants.find(c => c.name.includes("Labor")))?.value || 0;
 
     quotes.forEach(quote => {
         if (quote.status === 'PENDING' || quote.status === 'APPROVED' || quote.status === 'PRINTING') {

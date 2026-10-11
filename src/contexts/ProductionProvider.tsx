@@ -26,6 +26,7 @@ import * as sessionStore from '@/lib/core/sessionStorage';
 // One parser for the whole app: the quote engine and the dashboard now read "1:30"
 // as 1.5 h exactly as production always did.
 import { parseTimeToHours } from '@/lib/utils/time';
+import { perUnitMaterial, pendingFailedUnits, reprintUnits, restorableOnRemoval } from '@/lib/production/materialLedger';
 import { sumCarbonRecords } from '@/lib/carbon/carbonCalculator';
 // The board's column arithmetic, kept pure and tested: see lib/production/columns.ts.
 import { placeJobInColumns, removeJobFromColumns, reindexAllColumns } from '@/lib/production/columns';
@@ -127,7 +128,7 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
         setSettings(prev => ({ ...prev, ...updates }));
     }, []);
 
-    const addJob = useCallback((quote: QuoteData, machineId: string | null = null) => {
+    const addJob = useCallback((quote: QuoteData, machineId: string | null = null): string | undefined => {
         // [Batch Logic] Unpack into individual queue entries if this is a master batch
         if (quote.isBatch && quote.batchItems && quote.batchItems.length > 0) {
             const batchId = quote.id || `batch-${Date.now()}`;
@@ -159,7 +160,15 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                 metadata: { quoteId: quote.id }
             });
             toast.success(`${quote.batchItems.length} batch items added to production`);
-            return;
+            return undefined;
+        }
+
+        // One job per quote: adding the same quote twice used to create two jobs, each deducting
+        // the same material.
+        const already = jobsRef.current.find(j => j.quote.id === quote.id && !j.batchId);
+        if (already) {
+            toast.info('This order is already in production');
+            return already.id;
         }
 
         // Standard single quote logic
@@ -182,6 +191,7 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
             metadata: { quoteId: quote.id, jobId: newJob.id }
         });
         toast.success('Job added to production queue');
+        return newJob.id;
     }, [addNotification, commitJobs]);
 
     // Every mutation goes through commitJobs so the ref and the state can never disagree, even
@@ -210,10 +220,19 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
         // [ClosedLoop] Step 0: REVERSION - Restore inventory if moving out of printing without completion
         if (jobToMove.status === 'printing' && newStatus === 'queued') {
             if (jobToMove.spoolId && jobToMove.inventoryDeducted) {
-                console.log(`[ClosedLoop] Restoring ${jobToMove.inventoryDeducted} to spool ${jobToMove.spoolId} (Job Reverted)`);
-                sessionStore.restoreToSpool(jobToMove.spoolId, jobToMove.inventoryDeducted);
-                updatedJob.inventoryDeducted = undefined;
-                updatedJob.spoolId = undefined;
+                // Only the attempt being abandoned goes back; earlier failed attempts already
+                // burned their material.
+                const giveBack = Math.min(jobToMove.attemptDeducted ?? jobToMove.inventoryDeducted, jobToMove.inventoryDeducted);
+                console.log(`[ClosedLoop] Restoring ${giveBack} to spool ${jobToMove.spoolId} (Job Reverted)`);
+                sessionStore.restoreToSpool(jobToMove.spoolId, giveBack);
+                const remaining = jobToMove.inventoryDeducted - giveBack;
+                updatedJob.inventoryDeducted = remaining > 0 ? remaining : undefined;
+                if (remaining <= 0) {
+                    updatedJob.spoolId = undefined;
+                    // The first attempt is being undone, so its reprint bookkeeping starts over.
+                    updatedJob.failedUnitsDeducted = undefined;
+                }
+                updatedJob.attemptDeducted = undefined;
             }
         }
 
@@ -224,6 +243,17 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
         const wasFinished = jobToMove.status === 'completed' || jobToMove.status === 'post_processing';
         const backOnBoard = newStatus === 'queued' || newStatus === 'printing';
         if (wasFinished && backOnBoard) {
+            // The machine was credited with this run when it finished; take it back, or finishing
+            // the job again counts the same hours twice and brings maintenance alerts forward.
+            const ranOnId = jobToMove.machineId || jobToMove.quote.assignedMachineId || (jobToMove.quote.parameters?.machineId as string);
+            const ranOn = sessionStore.getMachines().find(m => m.id === ranOnId);
+            if (ranOn && jobToMove.actualPrintTime) {
+                sessionStore.saveMachine({
+                    ...ranOn,
+                    totalRuntimeHours: Math.max(0, (ranOn.totalRuntimeHours || 0) - jobToMove.actualPrintTime),
+                    totalPowerCost: Math.max(0, (ranOn.totalPowerCost || 0) - (jobToMove.actualPowerCost || 0)),
+                });
+            }
             updatedJob.actualPrintTime = undefined;
             updatedJob.completedAt = undefined;
             updatedJob.actualMaterialUsed = undefined;
@@ -285,27 +315,38 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                     // First attempt - deduct for full requested quantity
                     deductionAmount = calculateJobMaterial(jobToMove);
                 } else if (jobToMove.failureReason) {
-                    // Reprint - only deduct for failed units (fallback to full if failedUnits is not specified)
-                    const failedUnits = jobToMove.quote.failedUnits && jobToMove.quote.failedUnits > 0 ? jobToMove.quote.failedUnits : (jobToMove.quote.quantity || 1);
-                    const weight = parseFloat(jobToMove.quote.parameters.filamentWeight as string || jobToMove.quote.parameters.resinVolume as string || "0") || 0;
-                    deductionAmount = weight * failedUnits;
+                    // Reprint: only the failures not yet re-deducted. `quote.failedUnits` is
+                    // cumulative, so using it directly re-charged every earlier failure on each
+                    // new one.
+                    deductionAmount = perUnitMaterial(jobToMove) * reprintUnits(jobToMove);
                 }
                 
                 if (deductionAmount > 0) {
                     const targetSpool = sessionStore.findBestSpoolMatch(
                         jobToMove.quote.parameters.materialName as string,
-                        jobToMove.quote.printColour
+                        jobToMove.quote.printColour,
+                        { materialId: jobToMove.quote.parameters.materialId as string | undefined, amount: deductionAmount }
                     );
-                    
+
+                    if (!targetSpool) {
+                        toast.warning(`No spool found for ${jobToMove.quote.parameters.materialName as string}; stock was not deducted.`);
+                    }
                     if (targetSpool) {
                         // Record what was ACTUALLY taken, not what was requested: stock is
                         // clamped at zero, so a partial deduction must not be reverted in
                         // full later (that would invent material out of nothing).
                         const deducted = sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
+                        if (deducted < deductionAmount) {
+                            toast.warning(`Spool ran short: ${deducted.toFixed(0)} of ${deductionAmount.toFixed(0)} deducted. Check your stock.`);
+                        }
                         if (deducted > 0) {
                             // Add to total material used for this job
                             updatedJob.spoolId = targetSpool.id;
                             updatedJob.inventoryDeducted = (jobToMove.inventoryDeducted || 0) + deducted;
+                            updatedJob.attemptDeducted = deducted;
+                            if (jobToMove.inventoryDeducted && jobToMove.failureReason) {
+                                updatedJob.failedUnitsDeducted = (jobToMove.failedUnitsDeducted || 0) + reprintUnits(jobToMove);
+                            }
                             updatedJob.failureReason = null; // Clear failure reason now that we are re-attempting
                             console.log(`[ClosedLoop] Deducted ${deducted} of ${deductionAmount} requested for reprint/start from spool ${targetSpool.id}. Total now: ${updatedJob.inventoryDeducted}`);
                         }
@@ -331,44 +372,53 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                 if (deductionAmount > 0) {
                     const targetSpool = sessionStore.findBestSpoolMatch(
                         jobToMove.quote.parameters.materialName as string,
-                        jobToMove.quote.printColour
+                        jobToMove.quote.printColour,
+                        { materialId: jobToMove.quote.parameters.materialId as string | undefined, amount: deductionAmount }
                     );
+                    if (!targetSpool) {
+                        toast.warning(`No spool found for ${jobToMove.quote.parameters.materialName as string}; stock was not deducted.`);
+                    }
                     if (targetSpool) {
                         // Track the actual deduction so a later revert restores exactly this much.
                         const deducted = sessionStore.deductFromSpool(targetSpool.id, deductionAmount);
+                        if (deducted < deductionAmount) {
+                            toast.warning(`Spool ran short: ${deducted.toFixed(0)} of ${deductionAmount.toFixed(0)} deducted. Check your stock.`);
+                        }
                         updatedJob.inventoryDeducted = deducted;
                         updatedJob.spoolId = targetSpool.id;
                     }
                 }
             }
 
+            // Runtime and the completion stamp belong to the job, not to the machine: a job with no
+            // printer assigned (the Queue column, an Order Manager completion) still ran.
+            let runtimeHours = actualPrintTime || jobToMove.actualPrintTime;
+
+            if (!runtimeHours && jobToMove.startedAt) {
+                const start = new Date(jobToMove.startedAt).getTime();
+                const end = new Date().getTime();
+                runtimeHours = (end - start) / (1000 * 60 * 60);
+            }
+
+            // [ClosedLoop] Quantity Multiplier Fix:
+            // If we fall back to estimated time, it MUST be multiplied by the quantity.
+            if (!runtimeHours) {
+                const baseHours = parseTimeToHours(updatedJob.quote.parameters.printTime);
+                const quantity = updatedJob.quote.quantity || 1;
+                runtimeHours = baseHours * quantity;
+                console.log(`[Production] Using fallback runtime: ${baseHours}h x ${quantity} units = ${runtimeHours}h`);
+            }
+
+            // Sanitize runtimeHours to prevent NaN in storage
+            if (isNaN(runtimeHours) || runtimeHours < 0) {
+                console.error("[Production] Invalid runtime calculated:", runtimeHours);
+                runtimeHours = 0;
+            }
+
+            updatedJob.actualPrintTime = runtimeHours;
+            updatedJob.completedAt = new Date().toISOString();
+
             if (machine) {
-                let runtimeHours = actualPrintTime || jobToMove.actualPrintTime;
-                
-                if (!runtimeHours && jobToMove.startedAt) {
-                    const start = new Date(jobToMove.startedAt).getTime();
-                    const end = new Date().getTime();
-                    runtimeHours = (end - start) / (1000 * 60 * 60);
-                }
-
-                // [ClosedLoop] Quantity Multiplier Fix: 
-                // If we fall back to estimated time, it MUST be multiplied by the quantity.
-                if (!runtimeHours) {
-                    const baseHours = parseTimeToHours(updatedJob.quote.parameters.printTime);
-                    const quantity = updatedJob.quote.quantity || 1;
-                    runtimeHours = baseHours * quantity;
-                    console.log(`[Production] Using fallback runtime: ${baseHours}h x ${quantity} units = ${runtimeHours}h`);
-                }
-
-                // Sanitize runtimeHours to prevent NaN in storage
-                if (isNaN(runtimeHours) || runtimeHours < 0) {
-                    console.error("[Production] Invalid runtime calculated:", runtimeHours);
-                    runtimeHours = 0;
-                }
-                
-                updatedJob.actualPrintTime = runtimeHours;
-                updatedJob.completedAt = new Date().toISOString();
-
                 const powerKw = (machine.power_consumption_watts || 0) / 1000;
                 const electricityRate = resolveElectricityRate(updatedJob.quote);
                 const currentJobPowerCost = (runtimeHours || 0) * powerKw * electricityRate;
@@ -387,27 +437,32 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
             let finalMaterialCost = updatedJob.quote.materialCost || 0;
 
             if (failedUnits > 0 && updatedJob.spoolId) {
-                const weightPerUnit = parseFloat(updatedJob.quote.parameters.filamentWeight as string || updatedJob.quote.parameters.resinVolume as string || "0") || 0;
-                const extraDeduction = weightPerUnit * failedUnits;
-                
-                if (extraDeduction > 0) {
-                    const scrapDeducted = sessionStore.deductFromSpool(updatedJob.spoolId, extraDeduction);
+                const weightPerUnit = perUnitMaterial(updatedJob);
+
+                // Stock: take only what no reprint has already taken. The failed units' first
+                // attempt is inside the original deduction, so reprinted failures must not be
+                // deducted a second time here.
+                const unitsToDeduct = pendingFailedUnits(updatedJob);
+                if (unitsToDeduct > 0 && weightPerUnit > 0) {
+                    const scrapDeducted = sessionStore.deductFromSpool(updatedJob.spoolId, weightPerUnit * unitsToDeduct);
                     updatedJob.inventoryDeducted = (updatedJob.inventoryDeducted || 0) + scrapDeducted;
-                    
-                    const originalWeight = parseFloat(updatedJob.quote.parameters.filamentWeight as string || updatedJob.quote.parameters.resinVolume as string || "1");
-                    const initialMaterialCost = updatedJob.quote.materialCost || 0;
-                    const costPerGram = initialMaterialCost / (originalWeight * (updatedJob.quote.quantity || 1));
-                    
-                    if (costPerGram > 0) {
-                        const scrapCost = extraDeduction * costPerGram;
-                        finalMaterialCost += scrapCost;
-                        // Copy rather than assign into `updatedJob.quote`: the spread that
-                        // built `updatedJob` is shallow, so that object is still the one the
-                        // previous state holds, and writing through it rewrote history — a
-                        // memoised card never saw the change, and a re-run compounded it.
-                        updatedJob.quote = { ...updatedJob.quote, materialCost: finalMaterialCost };
-                        console.log(`[Financial ClosedLoop] Reconciled Material Cost: ${finalMaterialCost.toFixed(2)} (Scrap: ${scrapCost.toFixed(2)})`);
-                    }
+                    updatedJob.failedUnitsDeducted = (updatedJob.failedUnitsDeducted || 0) + unitsToDeduct;
+                }
+
+                // Cost: rebuilt from the cost the quote started with, so completing, reverting
+                // and completing again lands on the same figure instead of compounding.
+                const baseMaterialCost = (updatedJob.quote.materialCost || 0) - (updatedJob.scrapCostBooked || 0);
+                const originalWeight = weightPerUnit || 1;
+                const costPerGram = baseMaterialCost / (originalWeight * (updatedJob.quote.quantity || 1));
+                if (costPerGram > 0) {
+                    const scrapCost = weightPerUnit * failedUnits * costPerGram;
+                    finalMaterialCost = baseMaterialCost + scrapCost;
+                    updatedJob.scrapCostBooked = scrapCost;
+                    // Copy rather than assign into `updatedJob.quote`: the spread that
+                    // built `updatedJob` is shallow, so that object is still the one the
+                    // previous state holds.
+                    updatedJob.quote = { ...updatedJob.quote, materialCost: finalMaterialCost };
+                    console.log(`[Financial ClosedLoop] Reconciled Material Cost: ${finalMaterialCost.toFixed(2)} (Scrap: ${scrapCost.toFixed(2)})`);
                 }
             }
 
@@ -472,13 +527,26 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
                     status: newStatus === 'completed' ? 'DONE' : 'POST_PROCESSING'
                 });
             }
-            toast.success('Production completed manual success!');
+            toast.success('Production completed');
+        }
+
+        // Post-processing -> completed finishes the order. The block above only runs when a job
+        // first becomes finished, so without this the quote stayed POST_PROCESSING for good.
+        if (jobToMove.status === 'post_processing' && newStatus === 'completed') {
+            if (updatedJob.batchId) {
+                const siblings = prev.filter(j => j.batchId === updatedJob.batchId && j.id !== updatedJob.id);
+                if (siblings.every(j => j.status === 'completed')) {
+                    sessionStore.updateQuote(updatedJob.batchId, { status: 'DONE' });
+                }
+            } else {
+                sessionStore.updateQuote(updatedJob.quote.id, { status: 'DONE' });
+            }
         }
 
         // [ClosedLoop] Pricing Drift Warning
         if (newStatus === 'printing' && jobToMove.status !== 'printing') {
             const constants = sessionStore.getConstants();
-            const currentLabor = constants.find(c => c.name.includes("Labor"))?.value || 0;
+            const currentLabor = (constants.find(c => c.id === "labor") ?? constants.find(c => c.name.includes("Labor")))?.value || 0;
             const quoteLabor = parseFloat(jobToMove.quote.parameters.laborRate as string) || 0;
             
             if (quoteLabor > 0 && Math.abs(currentLabor - quoteLabor) / quoteLabor > 0.15) {
@@ -513,9 +581,10 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
         // Returning filament to its spool is a storage write, so it happens here rather than
         // inside an updater React may run more than once — a second run would have invented
         // material that was never taken.
-        if (job && job.spoolId && job.inventoryDeducted) {
-            console.log(`[ClosedLoop] Restoring ${job.inventoryDeducted} to spool ${job.spoolId} (Job Removed)`);
-            sessionStore.restoreToSpool(job.spoolId, job.inventoryDeducted);
+        const giveBack = job ? restorableOnRemoval(job) : 0;
+        if (job && job.spoolId && giveBack > 0) {
+            console.log(`[ClosedLoop] Restoring ${giveBack} to spool ${job.spoolId} (Job Removed)`);
+            sessionStore.restoreToSpool(job.spoolId, giveBack);
         }
 
         // Re-assign orders in the column the job was removed from
@@ -530,9 +599,10 @@ export const ProductionProvider = ({ children }: { children: ReactNode }) => {
         const jobsToRemove = prev.filter(j => j.quote.id === quoteId || j.batchId === quoteId);
 
         jobsToRemove.forEach(job => {
-            if (job.spoolId && job.inventoryDeducted) {
-                console.log(`[ClosedLoop] Restoring ${job.inventoryDeducted} to spool ${job.spoolId} (Quote Deleted)`);
-                sessionStore.restoreToSpool(job.spoolId, job.inventoryDeducted);
+            const giveBack = restorableOnRemoval(job);
+            if (job.spoolId && giveBack > 0) {
+                console.log(`[ClosedLoop] Restoring ${giveBack} to spool ${job.spoolId} (Quote Deleted)`);
+                sessionStore.restoreToSpool(job.spoolId, giveBack);
             }
         });
 
