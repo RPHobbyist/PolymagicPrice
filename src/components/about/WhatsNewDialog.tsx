@@ -19,7 +19,7 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogFooter, DialogDescription, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, PlaySquare, X, Layout, Calendar, ReceiptIndianRupee, Bell, BookOpen, Settings, Printer, Calculator, Zap } from "lucide-react";
+import { PlaySquare, X, Calculator, Zap } from "lucide-react";
 
 import { CURRENT_VERSION, WHATS_NEW_STORAGE_KEY as STORAGE_KEY } from "./whatsNewVersion";
 
@@ -70,13 +70,11 @@ export const WhatsNewDialog = ({
                     </DialogClose>
                     <div className="relative z-10">
                         <div className="flex items-center gap-3 mb-1">
-                            <DialogTitle className="text-2xl font-bold tracking-tight">What's New</DialogTitle>
-                            <div className="flex items-center justify-center bg-white/10 w-fit px-3 h-5 rounded-full text-[10px] font-bold backdrop-blur-sm border border-white/20 !text-white uppercase tracking-wider">
-                                <span className="leading-none">New Update {CURRENT_VERSION}</span>
-                            </div>
+                            <DialogTitle className="text-2xl font-semibold tracking-tight">What's new</DialogTitle>
+                            <span className="text-sm opacity-80">v{CURRENT_VERSION}</span>
                         </div>
                         <DialogDescription className="text-primary-foreground/90 text-sm">
-                            Powered by Local AI models via Ollama.
+                            Pricing options and more reliable totals.
                         </DialogDescription>
                     </div>
                 </div>
@@ -86,57 +84,33 @@ export const WhatsNewDialog = ({
 
                     <FeatureItem
                         icon={<Calculator className="w-6 h-6 text-slate-700" />}
-                        title="Corrected Time & Cost Accuracy"
-                        description="Actual print time is now treated as the whole-job total everywhere, and entries like 1:30 read as 1.5 hours across the app. Multi-unit jobs no longer inflate labour, electricity and machine costs — some historical figures will shift as a result."
+                        title="Revenue now means accepted work"
+                        description="Revenue, profit and averages count quotes from Approved to Delivered. Quotes still waiting for a yes show separately as 'awaiting approval', so your totals may look lower than before. Shipping is not counted as revenue."
                     />
 
                     <FeatureItem
                         icon={<Zap className="w-6 h-6 text-slate-700" />}
-                        title="Power Cost Recorded Again"
-                        description="Completed jobs now record their electricity cost against the machine, and each quote stores the rates it was priced with, so pricing-drift warnings work."
+                        title="More accurate pricing"
+                        description="New optional settings: a print failure rate and material waste (Settings, Constants), a minimum charge, and per-quote discount, shipping and margin pricing. Tax is added on invoices from Company Settings. Machines with a measured wattage now price electricity from it. Nothing changes until you set them."
                     />
 
                     <FeatureItem
-                        icon={<Layout className="w-6 h-6 text-slate-700" />}
-                        title="Brand New UI"
-                        description="A complete visual overhaul featuring a modern, high-contrast industrial design for better efficiency."
+                        icon={<Calculator className="w-6 h-6 text-slate-700" />}
+                        title="Stock and capacity fixes"
+                        description="Failed prints are no longer deducted from stock more than once, cancelled orders release their job, and the capacity forecast no longer assumes an 85% failure chance on fresh installs."
                     />
 
-                    <FeatureItem
-                        icon={<Calendar className="w-6 h-6 text-slate-700" />}
-                        title="Advanced Capacity Planner"
-                        description="Forecast production timelines and optimize printer utilization with precision."
-                    />
-
-                    <FeatureItem
-                        icon={<ReceiptIndianRupee className="w-6 h-6 text-slate-700" />}
-                        title="Advanced Billing & Analysis"
-                        description="Deep financial insights, profit tracking, and professional reporting at your fingertips."
-                    />
-
-                    <FeatureItem
-                        icon={<Bell className="w-6 h-6 text-slate-700" />}
-                        title="Notification Center"
-                        description="Stay synchronized with real-time system alerts and job status updates."
-                    />
-
-                    <FeatureItem
-                        icon={<BookOpen className="w-6 h-6 text-slate-700" />}
-                        title="Tool Guide"
-                        description="Comprehensive interactive documentation to help you master the Polymagic ecosystem."
-                    />
-
-                    <FeatureItem
-                        icon={<Settings className="w-6 h-6 text-slate-700" />}
-                        title="Advanced Machine Settings"
-                        description="Granular control over machine profiles and encrypted security credentials."
-                    />
-
-                    <FeatureItem
-                        icon={<Printer className="w-6 h-6 text-slate-700" />}
-                        title="Printer Manager"
-                        description="Manage your fleet with real-time status tracking for both online and offline printers."
-                    />
+                    <div className="pt-1 space-y-2">
+                        <h2 className="text-sm font-semibold text-foreground">Also in 2.0</h2>
+                        <ul className="list-disc pl-5 space-y-1.5 text-[13px] text-muted-foreground leading-relaxed">
+                            <li><span className="text-foreground font-medium">Capacity Planner:</span> check an order fits before its deadline on the printers you pick.</li>
+                            <li><span className="text-foreground font-medium">Billing &amp; Analysis:</span> revenue, profit and margin across your saved quotes.</li>
+                            <li><span className="text-foreground font-medium">Notifications:</span> late orders, maintenance due, low spools and price drift in one list.</li>
+                            <li><span className="text-foreground font-medium">Print Manager:</span> drag jobs onto printers and see what's printing.</li>
+                            <li><span className="text-foreground font-medium">Machines:</span> build volume, power draw and maintenance schedule per printer.</li>
+                            <li><span className="text-foreground font-medium">Tool Guide:</span> step-by-step help for every screen.</li>
+                        </ul>
+                    </div>
 
                 </div>
 
@@ -149,8 +123,7 @@ export const WhatsNewDialog = ({
                         </a>
                     </Button>
                     <Button onClick={handleClose} size="sm" className="w-full gap-2 text-sm h-9">
-                        Let's Explore
-                        <ArrowRight className="w-4 h-4" />
+                        Got it
                     </Button>
                 </DialogFooter>
             </DialogContent>

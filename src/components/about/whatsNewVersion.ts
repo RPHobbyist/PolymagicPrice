@@ -23,7 +23,7 @@
  * — a two-line localStorage read — without importing the dialog. The dialog is lazily loaded, and
  * a returning shop on the current version should never download it at all.
  */
-export const CURRENT_VERSION = "2.0.1"; // Time, cost and power-accuracy corrections
+export const CURRENT_VERSION = "2.0.2"; // Revenue definition, failure rate and pricing adjustments
 export const WHATS_NEW_STORAGE_KEY = "last_seen_version";
 
 /** True when this browser has not yet been shown the current release's notes. */
