@@ -95,13 +95,20 @@ export function sanitizeAPIKey(key: string): string {
 }
 
 /**
- * Object-level sanitizer
+ * Object-level sanitizer.
+ *
+ * `clean` is applied to every string found. It defaults to the destructive `sanitize`; a caller
+ * holding text a person wrote — a restored backup, say — passes something gentler.
  */
-export function sanitizeObject(obj: unknown): unknown {
+export function sanitizeObject(obj: unknown, clean: (text: string) => string = sanitize): unknown {
     if (!obj || typeof obj !== 'object') return obj;
-    
+
     if (Array.isArray(obj)) {
-        return obj.map(item => item !== null && item !== undefined ? sanitizeObject(item) : item);
+        // Strings sit directly in arrays too — a customer's tags, say. Recursing into them returned
+        // them untouched, because a string is not an object, so they skipped `clean` altogether.
+        return obj.map(item => typeof item === 'string'
+            ? clean(item)
+            : item !== null && item !== undefined ? sanitizeObject(item, clean) : item);
     }
 
     const input = obj as Record<string, unknown>;
@@ -110,9 +117,9 @@ export function sanitizeObject(obj: unknown): unknown {
         if (Object.prototype.hasOwnProperty.call(input, key)) {
             const value = input[key];
             if (typeof value === 'string') {
-                sanitized[key] = sanitize(value);
+                sanitized[key] = clean(value);
             } else if (typeof value === 'object' && value !== null) {
-                sanitized[key] = sanitizeObject(value);
+                sanitized[key] = sanitizeObject(value, clean);
             } else {
                 sanitized[key] = value;
             }

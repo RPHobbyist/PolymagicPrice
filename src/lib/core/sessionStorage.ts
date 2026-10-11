@@ -25,7 +25,9 @@ import { ProductionJob, ProductionSettings } from "@/types/production";
 import { sanitize, sanitizeText, sanitizeObject, sanitizeAPIKey, isPortForbidden, isValidLocalAIPort } from "../sanitization";
 import { wrapSecret, unwrapSecret } from "../security";
 import { Notification, NotificationStatus } from "@/types/notifications";
-import { isAIAllowed } from "../utils";
+import { isAIAllowed, isDesktop } from "../utils";
+import { CURRENCY_STORAGE_KEY, RATE_STORAGE_KEY } from "../currencyFormat";
+import { CURRENCIES } from "@/types/currency";
 
 export const generateId = (): string => {
     try {
@@ -284,7 +286,15 @@ const STORAGE_KEYS = {
     CARBON_SETTINGS: "session_carbon_settings",
     // Kept under its original key so an open batch survives the upgrade.
     BATCH_ITEMS: "batch_quote_items",
+    LAST_BACKUP: "session_last_backup_at",
 };
+
+/**
+ * Every key that holds the shop's data: the collections above, plus the currency and conversion
+ * rate that CurrencyProvider keeps under its own keys. Reset, safety copies and restore all walk
+ * this one list, so a key added later cannot be missed by one of them.
+ */
+export const APP_DATA_KEYS: readonly string[] = [...Object.values(STORAGE_KEYS), CURRENCY_STORAGE_KEY, RATE_STORAGE_KEY];
 
 
 
@@ -1057,28 +1067,64 @@ export const deleteConstant = (id: string): void => {
     writeStore(STORAGE_KEYS.CONSTANTS, JSON.stringify(constants));
 };
 
-// Reset all session data
+/**
+ * Reset all session data.
+ *
+ * Walks STORAGE_KEYS rather than a hand-kept list. The list had fallen behind once already: the
+ * calculator's batch tray, which holds whole quotes with their project and client names, survived
+ * a "permanently delete all data" reset.
+ *
+ * The currency and its conversion rate live outside STORAGE_KEYS, under the keys CurrencyProvider
+ * reads, but they are shop settings that a backup carries, so a factory reset clears them too.
+ * Left behind, every reseeded default price showed in the old currency at the old rate.
+ */
 export const resetSessionData = (): void => {
-    localStorage.removeItem(STORAGE_KEYS.INITIALIZED);
-    localStorage.removeItem(STORAGE_KEYS.QUOTES);
-    localStorage.removeItem(STORAGE_KEYS.MATERIALS);
-    localStorage.removeItem(STORAGE_KEYS.MACHINES);
-    localStorage.removeItem(STORAGE_KEYS.CONSTANTS);
-    localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
-    localStorage.removeItem(STORAGE_KEYS.REVIEWS);
-    localStorage.removeItem(STORAGE_KEYS.SPOOLS);
-    localStorage.removeItem(STORAGE_KEYS.GCODES);
-    localStorage.removeItem(STORAGE_KEYS.COMPANY);
-    localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
-    localStorage.removeItem(STORAGE_KEYS.AI_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.AI_AUDIT);
-    localStorage.removeItem(STORAGE_KEYS.AI_CHAT);
-    localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
-    localStorage.removeItem(STORAGE_KEYS.BRIDGE_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.PRODUCTION_JOBS);
-    localStorage.removeItem(STORAGE_KEYS.PRODUCTION_SETTINGS);
-    localStorage.removeItem(STORAGE_KEYS.CARBON_SETTINGS);
+    for (const key of APP_DATA_KEYS) {
+        localStorage.removeItem(key);
+    }
     initializeDefaults();
+};
+
+/** The shop's data exactly as it sits in storage, still obfuscated: what a safety copy keeps. */
+export const readAppData = (): Record<string, string> => {
+    const entries: Record<string, string> = {};
+    for (const key of APP_DATA_KEYS) {
+        const value = localStorage.getItem(key);
+        if (value !== null) entries[key] = value;
+    }
+    return entries;
+};
+
+/**
+ * Puts the shop's data back exactly as a safety copy recorded it.
+ *
+ * Every app key is cleared first: that frees the room the restored values need, which fitted when
+ * the copy was taken, and drops keys that did not exist then. Only app keys are written, whatever
+ * the copy holds. If the browser refuses part-way, the data as it stood before the call is put
+ * back, the same way a refused import is unwound.
+ */
+export const replaceAppData = (entries: Record<string, string>): { success: boolean; message: string } => {
+    const before = readAppData();
+    const apply = (source: Record<string, string>) => {
+        for (const key of APP_DATA_KEYS) localStorage.removeItem(key);
+        for (const [key, value] of Object.entries(source)) {
+            if (APP_DATA_KEYS.includes(key) && typeof value === "string") localStorage.setItem(key, value);
+        }
+    };
+
+    try {
+        apply(entries);
+        return { success: true, message: "Your data has been restored." };
+    } catch (err: unknown) {
+        console.error("[Storage] Restoring a safety copy was refused.", err);
+        try {
+            apply(before);
+            return { success: false, message: "The browser refused the restore, so your data was left as it was." };
+        } catch (rollbackErr: unknown) {
+            console.error("[Storage] Could not put the data back after a refused restore.", rollbackErr);
+            return { success: false, message: "The restore failed part-way and your data could not be put back. Import your most recent backup file." };
+        }
+    }
 };
 
 
@@ -1510,10 +1556,14 @@ export const saveGcode = (gcode: Omit<StoredGcode, "id"> & { id?: string }): Sto
         materialName: gcode.materialName ? sanitizeText(gcode.materialName) : gcode.materialName,
     };
     if (sanitizedGcode.id) {
-        // Update existing
         const index = gcodes.findIndex(g => g.id === sanitizedGcode.id);
         if (index !== -1) {
             gcodes[index] = { ...gcodes[index], ...sanitizedGcode } as StoredGcode;
+        } else {
+            // A new id is an insert. Both calculators hand over a fresh `crypto.randomUUID()`, and
+            // this used to fall through: nothing was written, the caller was told the file was
+            // saved, and the undefined returned below broke the library hook's state update.
+            gcodes.push(sanitizedGcode as StoredGcode);
         }
     } else {
         // Add new
@@ -1696,6 +1746,26 @@ export interface SettingsExport {
     productionSettings?: ProductionSettings;
     /** Optional: older backups predate carbon, and import treats a missing block as "leave as is". */
     carbonSettings?: CarbonSettings;
+    bridgeSettings?: BridgeSettings;
+    /**
+     * Every price on screen is a stored amount times this rate, shown with this currency's symbol.
+     * A backup without them restored onto a new device showed the whole quote book in the default
+     * currency at a rate of 1.
+     */
+    currency?: string;
+    conversionRate?: number;
+}
+
+/** What an import did, including anything it refused, so the page can say so. */
+export interface ImportResult {
+    success: boolean;
+    message: string;
+    /** Records left out because they did not match the expected format, e.g. "2 quotes". */
+    skipped: string[];
+    /** Records that passed the checks, by collection — what the import brings in. */
+    counts?: Record<string, number>;
+    /** When the backup was made, as the file says. */
+    exportDate?: string;
 }
 
 /**
@@ -1748,6 +1818,10 @@ const SCHEMAS = {
     // Notification uses `timestamp: string` (see types/notifications.ts). Requiring a
     // non-existent `createdAt: number` silently rejected every notification on import.
     NOTIFICATION: { id: 'string', title: 'string', message: 'string', status: 'string', timestamp: 'string' },
+    // What the board and deleteMaterial dereference without a guard. A job without a quote or its
+    // parameters imported as a clean success and then threw on the next material delete.
+    JOB: { id: 'string', status: 'string', quote: 'object' },
+    JOB_QUOTE: { parameters: 'object' },
     // Only the fields every historical export is guaranteed to carry: newer
     // options are filled in by normalizeAISettings after import.
     AI_SETTINGS: { enabled: 'boolean', port: 'number', model: 'string' }
@@ -1775,48 +1849,168 @@ export const exportAllSettings = (): SettingsExport => {
         productionJobs: getProductionJobs(),
         productionSettings: getProductionSettings(),
         carbonSettings: getCarbonSettings(),
+        bridgeSettings: getBridgeSettings(),
+        ...readStoredCurrency(),
     };
 };
 
-// Import settings from JSON
-export const importAllSettings = (data: SettingsExport): { success: boolean; message: string } => {
+/**
+ * How many characters of key plus value the browser lets this origin keep.
+ *
+ * Browsers count `localStorage` in characters, not bytes. Edge 155 over HTTP refused the next
+ * write at exactly 5,242,880 — the same for plain and accented text — which is MDN's "5 MiB per
+ * origin". The desktop app's Electron 31 build allowed 52,428,800 from its file:// page; measure
+ * again after an Electron upgrade.
+ */
+const STORAGE_LIMIT_CHARS = isDesktop ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+
+/** What the storage panel shows each key as. Anything not listed is counted under "Settings and other". */
+const USAGE_LABELS: Record<string, string> = {
+    [STORAGE_KEYS.QUOTES]: "Quotes",
+    [STORAGE_KEYS.PRODUCTION_JOBS]: "Production jobs",
+    [STORAGE_KEYS.GCODES]: "G-code library",
+    [STORAGE_KEYS.BATCH_ITEMS]: "Batch tray",
+    [STORAGE_KEYS.CUSTOMERS]: "Customers",
+    [STORAGE_KEYS.REVIEWS]: "Reviews",
+    [STORAGE_KEYS.MATERIALS]: "Materials",
+    [STORAGE_KEYS.SPOOLS]: "Spools",
+    [STORAGE_KEYS.MACHINES]: "Machines",
+    [STORAGE_KEYS.EMPLOYEES]: "Employees",
+    [STORAGE_KEYS.NOTIFICATIONS]: "Notifications",
+    [STORAGE_KEYS.AI_CHAT]: "Assistant chat",
+    [STORAGE_KEYS.AI_AUDIT]: "Assistant log",
+};
+
+export interface StorageUsage {
+    usedChars: number;
+    limitChars: number;
+    /** Largest first; empty ones left out. */
+    collections: { label: string; chars: number }[];
+}
+
+/**
+ * How full the browser store is, and what is filling it.
+ *
+ * Counts every key on the origin, not just this module's, because the browser's limit does too.
+ * A shop learns it is near the limit from this panel rather than from a save that fails.
+ */
+export const getStorageUsage = (): StorageUsage => {
+    const byLabel = new Map<string, number>();
+    let usedChars = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key === null) continue;
+        const chars = key.length + (localStorage.getItem(key)?.length ?? 0);
+        usedChars += chars;
+        const label = USAGE_LABELS[key] ?? "Settings and other";
+        byLabel.set(label, (byLabel.get(label) ?? 0) + chars);
+    }
+
+    const collections = Array.from(byLabel, ([label, chars]) => ({ label, chars }))
+        .filter(c => c.chars > 0)
+        .sort((a, b) => b.chars - a.chars);
+
+    return { usedChars, limitChars: STORAGE_LIMIT_CHARS, collections };
+};
+
+/**
+ * Called after a backup file is handed to the browser to download. Returns the time recorded.
+ *
+ * Written directly rather than through `tryWriteStore`: the panel sends a shop here precisely when
+ * its store is full, and a refused timestamp would announce "this change was not saved" right
+ * beside a backup that worked. Not remembering the date is the lesser harm.
+ */
+export const recordBackupTaken = (): string => {
+    const at = new Date().toISOString();
     try {
-        const sanitizedData = sanitizeObject(data) as unknown as SettingsExport;
+        localStorage.setItem(STORAGE_KEYS.LAST_BACKUP, at);
+    } catch {
+        // See above: a full or blocked store must not turn a good backup into a failure message.
+    }
+    return at;
+};
+
+/** When the last backup was downloaded from this device, or null if never. */
+export const getLastBackupAt = (): string | null => {
+    const raw = localStorage.getItem(STORAGE_KEYS.LAST_BACKUP);
+    return raw && !Number.isNaN(Date.parse(raw)) ? raw : null;
+};
+
+/** The currency choice as stored, leaving out anything the provider would not accept on read. */
+const readStoredCurrency = (): Pick<SettingsExport, "currency" | "conversionRate"> => {
+    const code = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    const rate = parseFloat(localStorage.getItem(RATE_STORAGE_KEY) ?? "");
+    return {
+        ...(code && CURRENCIES.some(c => c.code === code) ? { currency: code } : {}),
+        ...(Number.isFinite(rate) && rate > 0 ? { conversionRate: rate } : {}),
+    };
+};
+
+/**
+ * What import does to each string in a backup.
+ *
+ * Import used to run the destructive `sanitize`, which deletes `& " ' \``, so restoring a backup
+ * renamed "Tom's Prints & Co." to "Toms Prints  Co." — the same damage the save paths stopped
+ * doing when they moved to `sanitizeText`. Every output path escapes, so this removes only what
+ * never belongs in stored text: angle brackets and control characters. Tabs and line breaks stay,
+ * because fields such as the assistant's custom instructions legitimately hold them.
+ */
+const cleanImportedText = (text: string): string =>
+    String(text)
+        .replace(/[<>]/g, '')
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, '')
+        .trim();
+
+/**
+ * Import settings from JSON.
+ *
+ * `dryRun` runs every check and reports what would come in, without writing anything. Database
+ * Manager uses it the moment a file is picked, so the confirmation can show what the file holds
+ * and what it would skip — and a broken or wrong file is refused before the shop is asked to let
+ * it overwrite everything.
+ */
+export const importAllSettings = (data: SettingsExport, options: { dryRun?: boolean } = {}): ImportResult => {
+    const refuse = (message: string): ImportResult => ({ success: false, message, skipped: [] });
+
+    try {
+        const sanitizedData = sanitizeObject(data, cleanImportedText) as unknown as SettingsExport;
 
         // Validate structure of sanitized data
         if (!sanitizedData || typeof sanitizedData !== 'object' || !sanitizedData.version || !sanitizedData.materials || !sanitizedData.machines || !sanitizedData.constants) {
-            return { success: false, message: "Invalid settings file format or corrupted payload" };
+            return refuse("Invalid settings file format or corrupted payload");
         }
 
         // Validate arrays
-        if (!Array.isArray(sanitizedData.materials) || !Array.isArray(sanitizedData.machines) || !Array.isArray(sanitizedData.constants) || !Array.isArray(sanitizedData.constants)) {
-            return { success: false, message: "Settings data is corrupted" };
+        if (!Array.isArray(sanitizedData.materials) || !Array.isArray(sanitizedData.machines) || !Array.isArray(sanitizedData.constants)) {
+            return refuse("Settings data is corrupted");
         }
 
         // Validate customers (optional for backward compatibility)
         if (sanitizedData.customers && !Array.isArray(sanitizedData.customers)) {
-            return { success: false, message: "Customer data is corrupted" };
+            return refuse("Customer data is corrupted");
         }
 
         // Validate non-array objects
         if (sanitizedData.company && !validateSchema(sanitizedData.company as unknown as Record<string, unknown>, SCHEMAS.COMPANY)) {
-            return { success: false, message: "Company settings format is invalid" };
+            return refuse("Company settings format is invalid");
         }
         if (sanitizedData.aiSettings && !validateSchema(sanitizedData.aiSettings as unknown as Record<string, unknown>, SCHEMAS.AI_SETTINGS)) {
-            return { success: false, message: "AI settings format is invalid" };
+            return refuse("AI settings format is invalid");
         }
 
         const commitMap: Record<string, string> = {};
 
         const validMaterials = sanitizedData.materials.filter((m: unknown) => validateSchema(m as Record<string, unknown>, SCHEMAS.MATERIAL));
         if (validMaterials.length === 0 && sanitizedData.materials.length > 0) {
-            return { success: false, message: "Material data is invalid" };
+            return refuse("Material data is invalid");
         }
         commitMap[STORAGE_KEYS.MATERIALS] = JSON.stringify(validMaterials);
 
         const validMachines = sanitizedData.machines.filter((m: unknown) => validateSchema(m as Record<string, unknown>, SCHEMAS.MACHINE));
         if (validMachines.length === 0 && sanitizedData.machines.length > 0) {
-            return { success: false, message: "Machine data is invalid" };
+            return refuse("Machine data is invalid");
         }
         commitMap[STORAGE_KEYS.MACHINES] = JSON.stringify(validMachines);
 
@@ -1851,17 +2045,26 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
         // reporting a clean success while silently dropping records.
         const droppedRecords: string[] = [];
         const noteDropped = (label: string, total: number, kept: number) => {
-            if (total > kept) droppedRecords.push(`${total - kept} ${label}`);
+            const dropped = total - kept;
+            // Every label is a plural ending in "s"; one record reads "1 quote", not "1 quotes".
+            if (dropped > 0) droppedRecords.push(`${dropped} ${dropped === 1 ? label.replace(/s$/, '') : label}`);
         };
 
         noteDropped('materials', sanitizedData.materials.length, validMaterials.length);
         noteDropped('machines', sanitizedData.machines.length, validMachines.length);
         noteDropped('constants', sanitizedData.constants.length, validConstants.length);
 
+        const counts: Record<string, number> = {
+            materials: validMaterials.length,
+            machines: validMachines.length,
+            constants: validConstants.length,
+        };
+
         for (const imp of optionalImports) {
             if (imp.data) {
                 const validItems = imp.data.filter((item: unknown) => validateSchema(item as Record<string, unknown>, imp.schema));
                 noteDropped(imp.label, imp.data.length, validItems.length);
+                counts[imp.label] = validItems.length;
                 commitMap[imp.key] = JSON.stringify(validItems.map(item => imp.encrypt(item as never)));
             }
         }
@@ -1873,7 +2076,13 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
         }
 
         if (sanitizedData.productionJobs && Array.isArray(sanitizedData.productionJobs)) {
-            commitMap[STORAGE_KEYS.PRODUCTION_JOBS] = JSON.stringify(sanitizedData.productionJobs.map(encryptProductionJob));
+            const validJobs = sanitizedData.productionJobs.filter(job =>
+                validateSchema(job as unknown as Record<string, unknown>, SCHEMAS.JOB) &&
+                validateSchema(job.quote as unknown as Record<string, unknown>, SCHEMAS.JOB_QUOTE)
+            );
+            noteDropped('production jobs', sanitizedData.productionJobs.length, validJobs.length);
+            counts['production jobs'] = validJobs.length;
+            commitMap[STORAGE_KEYS.PRODUCTION_JOBS] = JSON.stringify(validJobs.map(encryptProductionJob));
         }
 
         if (sanitizedData.productionSettings && typeof sanitizedData.productionSettings === 'object') {
@@ -1882,6 +2091,21 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
 
         if (sanitizedData.carbonSettings && typeof sanitizedData.carbonSettings === 'object') {
             commitMap[STORAGE_KEYS.CARBON_SETTINGS] = JSON.stringify(sanitizedData.carbonSettings);
+        }
+
+        const bridge = sanitizedData.bridgeSettings;
+        if (bridge && typeof bridge === 'object' && typeof bridge.enabled === 'boolean' && Number.isInteger(bridge.port)) {
+            // The same port rule saveBridgeSettings applies.
+            const port = isPortForbidden(bridge.port) ? 50505 : bridge.port;
+            commitMap[STORAGE_KEYS.BRIDGE_SETTINGS] = wrapSecret(JSON.stringify({ enabled: bridge.enabled, port }));
+        }
+
+        // Checked the way CurrencyProvider checks them on read, so nothing lands that it would ignore.
+        if (typeof sanitizedData.currency === 'string' && CURRENCIES.some(c => c.code === sanitizedData.currency)) {
+            commitMap[CURRENCY_STORAGE_KEY] = sanitizedData.currency;
+        }
+        if (typeof sanitizedData.conversionRate === 'number' && Number.isFinite(sanitizedData.conversionRate) && sanitizedData.conversionRate > 0) {
+            commitMap[RATE_STORAGE_KEY] = sanitizedData.conversionRate.toString();
         }
 
         // Import AI Settings (explicitly if present)
@@ -1894,6 +2118,22 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
                 console.warn('[Security] Import contained an invalid AI port. Reset to default 11434.');
             }
             commitMap[STORAGE_KEYS.AI_SETTINGS] = JSON.stringify(normalizedAI);
+        }
+
+        const exportDate = typeof sanitizedData.exportDate === 'string' && !Number.isNaN(Date.parse(sanitizedData.exportDate))
+            ? sanitizedData.exportDate
+            : undefined;
+
+        if (options.dryRun) {
+            return {
+                success: true,
+                message: droppedRecords.length > 0
+                    ? `These records in the file do not match the expected format and would be skipped: ${droppedRecords.join(', ')}.`
+                    : "This file can be imported.",
+                skipped: droppedRecords,
+                counts,
+                exportDate,
+            };
         }
 
         // Commit, and put everything back if any section is refused.
@@ -1933,23 +2173,24 @@ export const importAllSettings = (data: SettingsExport): { success: boolean; mes
                 }
             }
 
-            return {
-                success: false,
-                message: restored
-                    ? "Nothing was imported: your browser storage rejected the write (it may be full). Your existing data has been left exactly as it was."
-                    : `Import failed part-way and ${written.length} section(s) could not be put back. Please restore a backup from Database Manager.`
-            };
+            return refuse(restored
+                ? "Nothing was imported: your browser storage rejected the write (it may be full). Your existing data has been left exactly as it was."
+                : `Import failed part-way and ${written.length} section(s) could not be put back. Please restore a backup from Database Manager.`
+            );
         }
 
         return {
             success: true,
             message: droppedRecords.length > 0
                 ? `Settings imported. Skipped ${droppedRecords.join(', ')} that did not match the expected format.`
-                : `Settings imported successfully.`
+                : `Settings imported successfully.`,
+            skipped: droppedRecords,
+            counts,
+            exportDate,
         };
     } catch (error: unknown) {
         console.error("Import error:", error);
-        return { success: false, message: "Failed to import settings" };
+        return refuse("Failed to import settings");
     }
 };
 

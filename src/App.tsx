@@ -29,6 +29,7 @@ import { IntelligenceProvider } from "@/contexts/IntelligenceProvider";
 import { CurrencyProvider } from "@/components/shared/CurrencyProvider";
 import { UIProvider } from "@/contexts/UIContext";
 import { useStorageHealth } from "@/hooks/useStorageHealth";
+import { useReloadNotices } from "@/hooks/useReloadNotices";
 
 import Layout from "./components/layout/Layout";
 import { PublicErrorBoundary } from "./components/RouteErrorBoundary";
@@ -100,6 +101,7 @@ const App = () => {
   // One listener for the whole app: the persistence layer announces refused writes, and the paths
   // that must not throw (the production board saves from an effect) would otherwise fail silently.
   useStorageHealth();
+  useReloadNotices();
 
   return (
     <QueryClientProvider client={queryClient}>

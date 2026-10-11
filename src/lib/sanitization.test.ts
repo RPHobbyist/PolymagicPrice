@@ -7,7 +7,7 @@
  * values and for text that came out of the AI.
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { sanitize, sanitizeText, escapeHTML } from "./sanitization";
+import { sanitize, sanitizeText, sanitizeObject, escapeHTML } from "./sanitization";
 import { saveCustomer, getCustomers, saveQuote, getQuotes } from "./core/sessionStorage";
 import { QuoteData } from "@/types/quote";
 
@@ -34,6 +34,17 @@ describe("sanitize (structural values and AI output)", () => {
     it("still strips the whole metacharacter set", () => {
         expect(sanitize("Tom's Prints & Co.")).toBe("Toms Prints  Co.");
         expect(sanitize("<b>x</b>")).toBe("bx/b");
+    });
+});
+
+describe("sanitizeObject", () => {
+    it("cleans strings held directly in an array, not only those held by a key", () => {
+        const cleaned = sanitizeObject({ tags: ["<b>vip</b>", "rush"], nested: [{ name: "<i>x</i>" }] }, sanitizeText);
+        expect(cleaned).toEqual({ tags: ["bvip/b", "rush"], nested: [{ name: "ix/i" }] });
+    });
+
+    it("cleans a bare array of strings", () => {
+        expect(sanitizeObject(["a<b>", null, 3])).toEqual(["ab", null, 3]);
     });
 });
 
